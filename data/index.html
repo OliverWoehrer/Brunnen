@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Brunnen IoT</title>
+</head>
+
+<body>
+    <p>
+        <a>Homepage</a> <a href="/interval">Intervals</a>
+    </p>
+    <p  id="dataString">
+        Live Data
+    </p>
+    <script>
+        (function() {
+            var httpRequest;
+            function cbFunction() {
+                if (httpRequest.readyState === XMLHttpRequest.DONE) {
+                    // if (httpRequest.status === 200)
+                        document.getElementById("dataString").innerHTML = httpRequest.responseText;
+                    // else
+                        // document.getElementById("dataString").innerHTML = "invalid request.";
+                }
+            }
+            var intervalId = setInterval(function() {
+                httpRequest = new XMLHttpRequest();
+                httpRequest.onreadystatechange = cbFunction;
+                httpRequest.open('GET', '/live');
+                httpRequest.send();
+            }, 1000);
+        })();
+    </script>
+</body>
+
+</html>

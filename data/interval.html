@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Intervals</title>
+</head>
+
+<body>
+    <p>
+        <a href="/">Homepage</a> <a>Intervals</a>
+    </p>
+    <p>
+        (0) %INTERVAL_0%<br>
+        (1) %INTERVAL_1%<br>
+        (2) %INTERVAL_2%<br>
+        (3) %INTERVAL_3%<br>
+        (4) %INTERVAL_4%<br>
+        (5) %INTERVAL_5%<br>
+        (6) %INTERVAL_6%<br>
+        (7) %INTERVAL_7%
+    </p>
+    <form action="/interval" method="post">
+        <label for="index">Interval Number (between 0 and 7):</label>
+        <input type="number" id="index" name="index" min="0" max="7"><br>
+        <br>
+        <label for="startTime">Start Time:</label>
+        <input type="time" id="startTime" name="start_time" value="00:00"><br>
+        <label for="stopTime">Stop Time:</label>
+        <input type="time" id="stopTime" name="stop_time" value="23:59"><br>
+        <br>
+        <label for="monday">Mon</label><input type="checkbox" id="monday" name="mon">
+        <label for="tuesday">Tue</label><input type="checkbox" id="thuesday" name="tue">
+        <label for="wednesday">Wed</label><input type="checkbox" id="wednesday" name="wed">
+        <label for="thursday">Thu</label><input type="checkbox" id="monday" name="thu">
+        <label for="friday">Fri</label><input type="checkbox" id="monday" name="fri">
+        <label for="saturday">Sat</label><input type="checkbox" id="saturday" name="sat">
+        <label for="sunday">Sun</label><input type="checkbox" id="sunday" name="sun">
+        <br>
+        <input type="submit" value="Submit">
+      </form>
+</body>
+
+</html>
