@@ -192,7 +192,7 @@ namespace Sensors {
         waterLevel = analogRead(WATER_LEVEL_SENSOR);
         digitalWrite(SENSOR_SWITCH, LOW); // disable water level sensor again
         sprintf(valueString, "%d, %d, %d", waterFlow, waterPressure, waterLevel);
-        if ((edgeCounter < 0 || 10000 < edgeCounter) // check sensor values; nominal range
+        if ((edgeCounter < 0 || 7000 < edgeCounter) // check sensor values; nominal range
             || (waterPressure <= 400 || 4000 < waterPressure)
             || (waterLevel < 800 || 4000 < waterLevel))
             return FAILURE;
