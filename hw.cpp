@@ -381,9 +381,11 @@ namespace Relais {
      * @return true, when the given time is inside an interval
      */
     bool checkIntervals(tm timeinfo) {
+        unsigned int nowEpoch = (timeinfo.tm_hour * 60) + timeinfo.tm_min;
         for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
-            if (timeinfo.tm_hour >= intervals[i].start.tm_hour && timeinfo.tm_min >= intervals[i].start.tm_min
-                && timeinfo.tm_hour <= intervals[i].stop.tm_hour && timeinfo.tm_min <= intervals[i].stop.tm_min) {
+            startEpoch = (intervals[i].start.tm_hour *  60) + intervals[i].start.tm_min;
+            stopEpoch = (intervals[i].stop.tm_hour *  60) + intervals[i].stop.tm_min;
+            if (startEpoch <= nowEpoch && nowEpoch <= stopEpoch) {
                 // if (intervals[i].wday & (1 << timeinfo.tm_wday)) {
                     return true;
                 // }
