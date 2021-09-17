@@ -37,9 +37,9 @@ String wdayToString(unsigned char wday) {
     if (wday & 0b00000100) ret = ret + "Tue ";
     if (wday & 0b00001000) ret = ret + "Wed ";
     if (wday & 0b00010000) ret = ret + "Thu ";
-    if (wday & 0b00100000) ret = ret + "Tue ";
-    if (wday & 0b01000000) ret = ret + "Fri ";
-    if (wday & 0b00000001) ret = ret + "Sat ";
+    if (wday & 0b00100000) ret = ret + "Fri ";
+    if (wday & 0b01000000) ret = ret + "Sat ";
+    if (wday & 0b00000001) ret = ret + "Sun ";
     return ret;
 }
 

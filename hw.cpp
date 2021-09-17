@@ -384,9 +384,9 @@ namespace Relais {
         for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
             if (timeinfo.tm_hour >= intervals[i].start.tm_hour && timeinfo.tm_min >= intervals[i].start.tm_min
                 && timeinfo.tm_hour <= intervals[i].stop.tm_hour && timeinfo.tm_min <= intervals[i].stop.tm_min) {
-                if (intervals[i].wday & (1 << timeinfo.tm_wday)) {
+                // if (intervals[i].wday & (1 << timeinfo.tm_wday)) {
                     return true;
-                }
+                // }
             }
         }
         return false;
