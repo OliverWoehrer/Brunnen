@@ -133,7 +133,7 @@ void loop() {
         bool isNominal = Sensors::readValues();
         
         //Write data to file:
-        String valueString = String(Time.toString())+", "+String(Sensors::toString())+"\r\n"; 
+        String valueString = String(Time.toString())+","+String(Sensors::toString())+"\r\n"; 
         FileSystem.appendFile(SD, FileSystem.getFileName(), valueString.c_str());
         // Serial.print(valueString.c_str());
 

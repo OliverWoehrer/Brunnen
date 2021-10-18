@@ -1,0 +1,187 @@
+# NetScript
+# 
+# Exported from brunnen.sch at 13.05.2021 15:02
+# 
+# EAGLE Version 9.5.2 Copyright (c) 1988-2019 Autodesk, Inc.
+# 
+Change Class 0;
+Signal '+3V3'     'B'        '1' \
+                  'SD'       '13' \
+                  'SD'       '14' \
+                  'U$1'      '3V3' \
+                  ;
+Change Class 0;
+Signal '+5V'      'C1'       '1' \
+                  'D1'       'A' \
+                  'IRM-03-5' 'V-' \
+                  'SD'       '11' \
+                  'SD'       '12' \
+                  'WF'       '1' \
+                  'WP'       '1' \
+                  ;
+Change Class 0;
+Signal '+24V'     'C2'       '1' \
+                  'D2'       'C' \
+                  'IRM-03-24' 'V-' \
+                  'P-MOS'    'S' \
+                  'R3'       '2' \
+                  'U$2'      'VDD' \
+                  ;
+Change Class 0;
+Signal 'AGND'     '230VAC'   '2' \
+                  'IRM-03-24' 'AC/N' \
+                  'IRM-03-5' 'AC/N' \
+                  'SWITCHED' '2' \
+                  ;
+Change Class 0;
+Signal 'GND'      'C1'       '2' \
+                  'C2'       '2' \
+                  'C3'       '-' \
+                  'GREEN'    'K' \
+                  'IRM-03-24' 'V+' \
+                  'IRM-03-5' 'V+' \
+                  'N-MOS'    'S' \
+                  'N-MOS1'   'S' \
+                  'PD1'      '1' \
+                  'PD2'      '1' \
+                  'PD3'      '1' \
+                  'PD5'      '1' \
+                  'RED'      'K' \
+                  'RM'       '1' \
+                  'SD'       '1' \
+                  'SD'       '15' \
+                  'SD'       '16' \
+                  'SD'       '2' \
+                  'U$1'      'GND@1' \
+                  'U$1'      'GND@2' \
+                  'WF'       '3' \
+                  'WF2'      '1' \
+                  'WP'       '3' \
+                  'YELLOW'   'K' \
+                  'Z-DIODE'  'A' \
+                  ;
+Change Class 0;
+Signal 'IN'       'RM'       '2' \
+                  'RV'       '1' \
+                  'U$1'      'D26' \
+                  'Z-DIODE'  'C' \
+                  ;
+Change Class 0;
+Signal 'N$1'      'N-MOS'    'G' \
+                  'PD1'      '2' \
+                  'U$1'      'D25' \
+                  ;
+Change Class 0;
+Signal 'N$2'      'N-MOS'    'D' \
+                  'R2'       '1' \
+                  ;
+Change Class 0;
+Signal 'N$3'      'P-MOS'    'G' \
+                  'R2'       '2' \
+                  'R3'       '1' \
+                  ;
+Change Class 0;
+Signal 'N$4'      'P-MOS'    'D' \
+                  'WL'       '1' \
+                  ;
+Change Class 0;
+Signal 'N$5'      'D1'       'C' \
+                  'U$1'      'VIN' \
+                  ;
+Change Class 0;
+Signal 'N$7'      'N-MOS1'   'G' \
+                  'PD2'      '2' \
+                  'U$1'      'D21' \
+                  ;
+Change Class 0;
+Signal 'N$8'      'D2'       'A' \
+                  'N-MOS1'   'D' \
+                  'U$2'      'VSS' \
+                  ;
+Change Class 0;
+Signal 'N$9'      'SWITCHED' '1' \
+                  'U$2'      'P21' \
+                  'U$2'      'P22' \
+                  ;
+Change Class 0;
+Signal 'N$10'     'U$1'      'D34' \
+                  'WF1'      '1' \
+                  'WF2'      '2' \
+                  ;
+Change Class 0;
+Signal 'N$11'     'PD3'      '2' \
+                  'PD4'      '2' \
+                  'U$1'      'D22' \
+                  ;
+Change Class 0;
+Signal 'N$12'     'WF1'      '2' \
+                  'WP'       '2' \
+                  ;
+Change Class 0;
+Signal 'N$13'     'PD4'      '1' \
+                  'WF'       '2' \
+                  ;
+Change Class 0;
+Signal 'N$14'     'RV'       '2' \
+                  'WL'       '2' \
+                  ;
+Change Class 0;
+Signal 'N$15'     'B'        '2' \
+                  'PD5'      '2' \
+                  'U$1'      'D12' \
+                  ;
+Change Class 0;
+Signal 'N$16'     'RED'      'A' \
+                  'RL1'      '1' \
+                  ;
+Change Class 0;
+Signal 'N$17'     'RL2'      '2' \
+                  'U$1'      'D17' \
+                  ;
+Change Class 0;
+Signal 'N$18'     'RL2'      '1' \
+                  'YELLOW'   'A' \
+                  ;
+Change Class 0;
+Signal 'N$19'     'GREEN'    'A' \
+                  'RL3'      '1' \
+                  ;
+Change Class 0;
+Signal 'N$20'     'RL3'      '2' \
+                  'U$1'      'D16' \
+                  ;
+Change Class 0;
+Signal 'N$21'     'RL1'      '2' \
+                  'U$1'      'D4' \
+                  ;
+Change Class 0;
+Signal 'N$22'     'SD'       '7' \
+                  'SD'       '8' \
+                  'U$1'      'D23' \
+                  ;
+Change Class 0;
+Signal 'N$23'     'C3'       '+' \
+                  'U$1'      'EN' \
+                  ;
+Change Class 0;
+Signal 'N$24'     'SD'       '5' \
+                  'SD'       '6' \
+                  'U$1'      'D18' \
+                  ;
+Change Class 0;
+Signal 'N$25'     'SD'       '10' \
+                  'SD'       '9' \
+                  'U$1'      'D5' \
+                  ;
+Change Class 0;
+Signal 'N$26'     'SD'       '3' \
+                  'SD'       '4' \
+                  'U$1'      'D19' \
+                  ;
+Change Class 0;
+Signal 'V+'       '230VAC'   '1' \
+                  'IRM-03-24' 'AC/L' \
+                  'IRM-03-5' 'AC/L' \
+                  'U$2'      'P11' \
+                  'U$2'      'P12' \
+                  ;

@@ -192,8 +192,8 @@ namespace Sensors {
         waterLevel = analogRead(WATER_LEVEL_SENSOR);
         digitalWrite(SENSOR_SWITCH, LOW); // disable water level sensor again
         sprintf(valueString, "%d, %d, %d", waterFlow, waterPressure, waterLevel);
-        if ((edgeCounter < 0 || 7000 < edgeCounter) // check sensor values; nominal range
-            || (waterPressure <= 400 || 4000 < waterPressure)
+        if ((edgeCounter < 0 || 10000 < edgeCounter) // check sensor values; nominal range
+            || (waterPressure <= 100 || 4000 < waterPressure)
             || (waterLevel < 800 || 4000 < waterLevel))
             return FAILURE;
         else
@@ -381,14 +381,12 @@ namespace Relais {
      * @return true, when the given time is inside an interval
      */
     bool checkIntervals(tm timeinfo) {
-        unsigned int nowEpoch = (timeinfo.tm_hour * 60) + timeinfo.tm_min;
         for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
-            startEpoch = (intervals[i].start.tm_hour *  60) + intervals[i].start.tm_min;
-            stopEpoch = (intervals[i].stop.tm_hour *  60) + intervals[i].stop.tm_min;
-            if (startEpoch <= nowEpoch && nowEpoch <= stopEpoch) {
-                // if (intervals[i].wday & (1 << timeinfo.tm_wday)) {
+            if (timeinfo.tm_hour >= intervals[i].start.tm_hour && timeinfo.tm_min >= intervals[i].start.tm_min
+                && timeinfo.tm_hour <= intervals[i].stop.tm_hour && timeinfo.tm_min <= intervals[i].stop.tm_min) {
+                if (intervals[i].wday & (1 << timeinfo.tm_wday)) {
                     return true;
-                // }
+                }
             }
         }
         return false;
