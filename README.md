@@ -7,6 +7,7 @@ The idea was to build and implement a remote control and meassurement unit in my
 It was necessary to control the electrical water pump and monitor the water parameters in order to ensure the proper functioning of the hardware. Therefore the water flow out of the well, the water pressure inside the system and the water level of the well are being constantly meassured. In addition to that the power supply of the electrical water pump is switched on/off according to the user-defined intervals.  Due to the fact that there is only somebody there on the weekends the hole device has internet access and sends an daily e-mail with the meassurement data of the that day. The heart of the project is the ESP32 micro controller shich supports multiple I/Os as well as a WiFi module.
 ### Sketch
 [PLACE SKETCH HERE]
+![concept_sketch](doc/Concept_sketch.JPG?raw=true "Title")
 
 
 ## User Manual
