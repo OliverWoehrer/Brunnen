@@ -7,8 +7,8 @@ The idea was to build a remote control unit and meassurement unit in my groundwa
 It was necessary to control the electrical water pump of the automatic irrigation system and monitor the water flow in order to ensure the proper functioning of the hardware. Therefore the water flow out of the well, the water pressure inside the system and the water level of the well are being constantly meassured. In addition to that the power supply of the electrical water pump is switched on/off according to the user-defined intervals. The water pump is running as soon as it is connected to 230 VAC.<br/>
 Due to the fact that only on weekends somebody is there, the hole device has internet access and sends an daily e-mail with the meassurement data of the that day. The heart of the project is the ESP32 micro controller which supports multiple I/Os as well as a WiFi module.
 ### Sketch
-![Concept_sketch](https://user-images.githubusercontent.com/49563376/147362103-900f02ee-e877-4663-85be-f86254f6e69e.JPG)
 
+<img src="https://user-images.githubusercontent.com/49563376/147362103-900f02ee-e877-4663-85be-f86254f6e69e.JPG" width="70%" height="70%">
 
 
 ## User Manual
@@ -27,9 +27,6 @@ The PCB hold four (colored) status LEDs and one small red power supply LED indic
 - **Red LED:** Indicates an error, the log file should be read for further information.
 - **Yellow LED:** Warning purpose, lights up when the relais and therefore the connected water pump is active
 - **Green LED:** Indicates that the user interface web server is up and running
-### Flashing Software
-The easier way is to use the popular [Arduino IDE](https://www.arduino.cc/en/software) with the easy-to-install ESP32 extension available on the Arduino eco system. Just add the additional board manager as shown in this [Tutorial](https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/). After a sucessful installation, download the code in this repository and simply connect to the controller via micro USB. Finally click the upload icon in the IDE. When the four colored LEDs on the PCB start to light up after each other the device booted properly.
-
 
 
 ## Hardware and Schematics
@@ -48,10 +45,25 @@ The onboard LDO of the ESP32 development board helps to convert 3.3 VDC from the
 ### Sketch
 ![Brunnen IoT v2_2](https://user-images.githubusercontent.com/49563376/147362033-647a96f1-f405-41fe-82bf-06309251729c.png)
 ### Layout
+### Connections
+To protect the device from colder temperatures during the winter, it is recommended to remove the device from the well during this time. In order to help with reconnecting the cables and sensors properly the cables are labled with color as followed.
 
+|  Port  |  Connection  | Label Color | Connection Cable Color  |
+| ------------- | -------------| ------------- | ------------- |
+|  Port 1  |  Sensor  | black | green,white,brown  |
+|  Port 2  |  Button  |  |  red,green  |
+|  Port 3  |  Water Level Sensor  | blue | brown,green  |
+|  Port 4  |  Sensor  | yellow | brown,green,white  |
+|  Port 5  |  Power Supply 230AC  |  | brown,blue  |
+|  Port 6  |  Switched 230VAC |  | blue,brown  |
+
+<img src="https://user-images.githubusercontent.com/49563376/160874643-ac0ce8ee-383e-44b1-866e-00016f524699.jpg" width="50%" height="50%">
 
 
 ## Software
+### Flashing Software
+The easier way is to use the popular [Arduino IDE](https://www.arduino.cc/en/software) with the easy-to-install ESP32 extension available on the Arduino eco system. Just add the additional board manager as shown in this [Tutorial](https://randomnerdtutorials.com/installing-the-esp32-board-in-arduino-ide-windows-instructions/). After a sucessful installation, download the code in this repository and simply connect to the controller via micro USB. Finally click the upload icon in the IDE. When the four colored LEDs on the PCB start to light up after each other the device booted properly.
+
 ### Main Code (code.ino)
 ### Hardware (hw)
 ### Data and Time (dt)
