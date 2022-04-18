@@ -48,16 +48,24 @@ The onboard LDO of the ESP32 development board helps to convert 3.3 VDC from the
 ### Connections
 To protect the device from colder temperatures during the winter, it is recommended to remove the device from the well during this time. In order to help with reconnecting the cables and sensors properly the cables are labled with color as followed.
 
-|  Port  |  Connection  | Label Color | Connection Cable Color  |
-| ------------- | -------------| ------------- | ------------- |
-|  Port 1  |  Sensor  | black | green,white,brown  |
-|  Port 2  |  Button  |  |  red,green  |
-|  Port 3  |  Water Level Sensor  | blue | brown,green  |
-|  Port 4  |  Sensor  | yellow | brown,green,white  |
-|  Port 5  |  Power Supply 230AC  |  | brown,blue  |
-|  Port 6  |  Switched 230VAC |  | blue,brown  |
+|  Connection  |   Port [color]  |  Pin [color]  |
+| ------------- | -------------| ------------- |
+|  Water Flow Sensor (signal)  |  Port 1 [black]  |  1 [white]  |
+|  Water Flow Sensor (+5V)  | Port 1 [black] | 2 [green] |
+|  Water Flow Sensor (GND)  | Port 1 [black] | 3 [brown] |
+|  Button  |  Port 2  |  1 [red]  |
+|  Button  | Port 2 | 2 [green] |
+|  Water Level Sensor (GND)  |  Port 3 [blue] | 1 [brown] |
+|  Water Level Sensor (+24V)  | Port 3 [blue] | 2 [green] |
+|  Water Pressure Sensor (signal)  | Port 4 [yellow] | 1 [green] |
+|  Water Pressure Sensor (GND)  |  Port 4 [yellow] | 2 [brown] |
+|  Water Pressure Sensor (+5V)  |  Port 4 [yellow] | 3 [white] |
+|  Power Supply 230AC (L) |  Port 5  |  1 [brown]  |
+|  Power Supply 230AC (N)  |  Port 5  |  2 [blue]  |
+|  Switched 230VAC (N)  |  Port 5  |  1 [blue]  |
+|  Switched 230VAC (L)  |  Port 5  |  2 [brown]  |
 
-<img src="https://user-images.githubusercontent.com/49563376/160874643-ac0ce8ee-383e-44b1-866e-00016f524699.jpg" width="50%" height="50%">
+<img src="https://user-images.githubusercontent.com/49563376/163880120-ba4b2bb9-7013-4a93-bdce-eee33a221b99.jpg" width="70%" height="70%">
 
 
 ## Software
