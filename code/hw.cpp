@@ -27,21 +27,6 @@ namespace Led {
         digitalWrite(LED_YELLOW, LOW);
         digitalWrite(LED_GREEN, LOW);
         digitalWrite(LED_BLUE, LOW); // turn all leds off
-
-        //Run animation:
-        const unsigned int DELAY = 500;
-        turnOn(RED);
-        delay(DELAY);
-        turnOff(RED);
-        turnOn(YELLOW);
-        delay(DELAY);
-        turnOff(YELLOW);
-        turnOn(GREEN);
-        delay(DELAY);
-        turnOff(GREEN);
-        turnOn(BLUE);
-        delay(DELAY);
-        turnOff(BLUE);
     }
 
     /**
@@ -383,12 +368,12 @@ namespace Relais {
     bool checkIntervals(tm timeinfo) {
         unsigned int nowEpoch = (timeinfo.tm_hour * 60) + timeinfo.tm_min;
         for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
-            startEpoch = (intervals[i].start.tm_hour *  60) + intervals[i].start.tm_min;
-            stopEpoch = (intervals[i].stop.tm_hour *  60) + intervals[i].stop.tm_min;
+            unsigned int startEpoch = (intervals[i].start.tm_hour *  60) + intervals[i].start.tm_min;
+            unsigned int stopEpoch = (intervals[i].stop.tm_hour *  60) + intervals[i].stop.tm_min;
             if (startEpoch <= nowEpoch && nowEpoch <= stopEpoch) {
-                // if (intervals[i].wday & (1 << timeinfo.tm_wday)) {
+                if (intervals[i].wday & (1 << timeinfo.tm_wday)) {
                     return true;
-                // }
+                }
             }
         }
         return false;

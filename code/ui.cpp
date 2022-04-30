@@ -71,6 +71,11 @@ String processor(const String& var){
     } else if (var == "LIVE_DATA") {
         liveDataString = String(Time.toString())+", "+String(Sensors::toString());
         return liveDataString;
+    } else if (var == "FILE_SIZE") {
+        return String(Log.getFileSize());
+    } else if (var == "FILE_CONTENT") {
+        const char* logString = Log.readFile();
+        return String(logString);
     } else {
         return String();
     }
@@ -143,6 +148,27 @@ void handle_POST_interval(AsyncWebServerRequest *req) {
     }
 }
 
+//Log Page:
+void handle_GET_log(AsyncWebServerRequest *req) {
+    req->send(SPIFFS, "/log.html", String(), false, processor);
+}
+
+void handle_POST_log(AsyncWebServerRequest *req) {
+    if (req->hasParam("clearBtn", true)) {
+        int paramsNr = req->params();
+        for(int i=0;i<paramsNr;i++) {
+            AsyncWebParameter* p = req->getParam(i);
+            if (p->name().equals("clearBtn")) {
+                Log.clearFile();
+                Led::turnOff(Led::RED);
+            }
+        }
+        req->send(SPIFFS, "/log.html", String(), false, processor);
+    } else { // invalid request
+        req->send(400, "text/plain", "invalid request");
+    }
+}
+
 //Error Page:
 void handle_NotFound(AsyncWebServerRequest *request) {
     request->send(404, "text/plain", "not found.");
@@ -163,6 +189,8 @@ int WEBINTERFACE::init() {
     server.on("/live", HTTP_GET, handle_live);
     server.on("/interval", HTTP_GET, handle_GET_interval);
     server.on("/interval", HTTP_POST, handle_POST_interval);
+    server.on("/log", HTTP_GET, handle_GET_log);
+    server.on("/log", HTTP_POST, handle_POST_log);
     server.serveStatic("/", SPIFFS, "/");
     server.onNotFound(handle_NotFound);
 }

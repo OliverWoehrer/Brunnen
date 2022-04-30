@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Log File</title>
+</head>
+
+<body>
+    <p>
+        <a href="/">Homepage</a> <a href="/interval">Intervals</a> <a>Log</a>
+    </p>
+    <p>
+    <p>
+        File "log.txt" with %FILE_SIZE% bytes:
+    </p>
+    <form action="/log" method="post">
+        <input type="hidden" name="clearBtn" value="clear" />
+        <input type="submit" value="Clear Log File">
+    </form>
+    <p>
+        %FILE_CONTENT%
+    </p>
+</body>
+
+</html>

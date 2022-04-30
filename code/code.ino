@@ -93,7 +93,10 @@ void setup() {
         Led::turnOn(Led::RED);
         return;
     }
-    Log.readFile();
+    const char* logString = Log.readFile();
+    Serial.print(" <<< LOG FILE /log.txt >>>\n");
+    Serial.print(logString);
+    Serial.print(" >>> END OF LOG FILE <<<\n");
 
     if (FileSystem.init()) { // error mounting SD card
         Serial.printf("Failed to initialize file system (SD-Card).\n");
@@ -114,9 +117,11 @@ void setup() {
     timerAlarmWrite(loopTimer, LOOP_PERIOD, true);
     timerAlarmEnable(loopTimer);
 
-    //Log.msg(LOG::INFO, "ESP32 device has been set up!");
+    Led::turnOn(Led::GREEN);
+    Log.msg(LOG::INFO, "ESP32 device has been set up!");
+    delay(1000);
+    Led::turnOff(Led::GREEN);
 }
-
 
 void loop() {
     //Periodic Meassurements:
@@ -174,9 +179,17 @@ void loop() {
             String mailText = isNominal ? "Sensors out of nominal range." : "All sensors in nominal range.";
             if (Mail.send(mailText.c_str())) {
                 Log.msg(LOG::ERROR, "Failed to send Email");
+            } else { // delete old file after successful send
+                FileSystem.deleteFile(SD, FileSystem.getFileName());
             }
-            //Delete old file after successful send:
-            FileSystem.deleteFile(SD, FileSystem.getFileName());
+
+            //Check Free Space for Log File:
+            if(Log.getFileSize() > 1000000) {
+                Log.clearFile(); // clear log file if bigger than 1MB
+                Log.msg(LOG::INFO, "Cleared Log File");
+            }
+
+            //Set up new data file:
             if (FileSystem.init()) { // error mounting SD card
                 Log.msg(LOG::ERROR, "Failed to initialize file system (SD-Card)");
                 Led::turnOn(Led::RED);

@@ -96,7 +96,9 @@ public:
     LOG();
     int init();
     int msg(log_mode_t mode, const char* str);
-    int readFile();
+    const char* readFile();
+    int getFileSize();
+    int clearFile();
 };
 
 extern LOG Log;
@@ -138,5 +140,20 @@ public:
 };
 
 extern MAIL Mail;
+
+/* alternative, non-working implementation (using newer ESP Mail client):
+class MAIL {
+private:
+    SMTPSession smtp;
+    ESP_Mail_Session session;
+public:
+    MAIL();
+    int init();
+    static void callbackSend(SendStatus msg);
+    int send(const char* mailText);
+};
+
+extern MAIL Mail;
+*/
 
 #endif /* DT_H */

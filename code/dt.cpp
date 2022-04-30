@@ -196,10 +196,10 @@ int LOG::init() {
         return FAILURE;
     }
     String logMsg = String(Time.toString())+" [INFO] System booted!\n";
-    // if(!fileToWrite.printf(logMsg.c_str())) {
-    //     Serial.printf("Failed to write to log file.\n");
-    //     return FAILURE;
-    // }
+    if(!fileToWrite.printf(logMsg.c_str())) {
+        Serial.printf("Failed to write to log file.\n");
+        return FAILURE;
+    }
     fileToWrite.close();
 
     return SUCCESS;
@@ -236,7 +236,21 @@ int LOG::msg(log_mode_t mode, const char* str) {
     return SUCCESS;
 }
 
-int LOG::readFile() {
+const char* LOG::readFile() {
+    File file2 = SPIFFS.open("/log.txt", FILE_READ);
+    if (!file2) {
+        Serial.print("Failed to open log file\n");
+        return String("").c_str();
+    }
+    String logString = "";
+    while(file2.available()){
+        logString = logString + String(file2.readString()) + "\r\n";
+    }
+    file2.close();
+    return logString.c_str();
+}
+
+/*int LOG::readFile() {
     File file2 = SPIFFS.open("/log.txt", FILE_READ);
     if (!file2) {
         Serial.print("Failed to open log file\n");
@@ -248,6 +262,27 @@ int LOG::readFile() {
     }
     Serial.print(" >>> END OF LOG FILE <<<\n");
     file2.close();
+    return SUCCESS;
+}*/
+
+int LOG::getFileSize() {
+    File file2 = SPIFFS.open("/log.txt", FILE_READ);
+    if (!file2) {
+        Serial.print("Failed to open log file\n");
+        return FAILURE;
+    }
+    int fileSize = file2.size();
+    file2.close();
+    return fileSize;
+}
+
+int LOG::clearFile() {
+    File file2 = SPIFFS.open("/log.txt", FILE_WRITE);
+    if (!file2) {
+        Serial.print("Failed to open log file\n");
+        return FAILURE;
+    }
+    Log.msg(LOG::INFO, "Log File cleared.");
     return SUCCESS;
 }
 
@@ -423,3 +458,82 @@ int MAIL::send(const char* mailText) {
 }
 
 MAIL Mail;
+
+/* alternative, non-working implementation (using newer ESP Mail client):
+MAIL::MAIL() {
+    SMTPSession smtp; // the object contains config and data to send
+    ESP_Mail_Session session; // holds session config data
+}
+
+int MAIL::init() {
+    session.server.host_name = SMTP_SERVER;
+    session.server.port = SMTP_SERVER_PORT;
+    session.login.email = EMAIL_SENDER_ACCOUNT;
+    session.login.password = EMAIL_SENDER_PASSWORD;
+    // session.login.user_domain = F("gmail.com");
+
+    session.time.ntp_server = NTP_SERVER;
+    session.time.gmt_offset = GMT_TIME_ZONE;
+    session.time.day_light_offset = DAYLIGHT_OFFSET;
+
+    return SUCCESS;
+}
+    
+void MAIL::callbackSend(SMTP_Status status) {
+    String logString = String("Email Status Response: ") + status.info();
+    Log.msg(LOG::INFO, logString.c_str()); // maybe status.info().c_str();
+    if (status.success()) {
+        Serial.println("----------------");
+    }
+}
+
+int MAIL::send(const char* mailText) {
+    // [INFO] Disable Google Security for less secure apps: https://myaccount.google.com/lesssecureapps?pli=1
+
+    //Set E-Mail credentials:
+    SMTP_Message message;
+    message.sender.name = "ESP32";
+    message.sender.email = EMAIL_SENDER_ACCOUNT;
+    message.subject = EMAIL_SUBJECT;
+    message.addRecipient("Oliver Wohrer", EMAIL_RECIPIENT);
+    // message.addCc("Peter Wohrer", );
+    message.text.content = mailText;
+    
+    //Declare Attachment Data Objects:
+    SMTP_Attachment att[2]; // [0]...data file, [1]...log file
+
+    //Attach Data File:
+    att[0].descr.filename = F(FileSystem.getFileName());
+    att[0].descr.mime = F("text/plain");
+    att[0].file.path = F(FileSystem.getFileName());
+    att[0].file.storage_type = esp_mail_file_storage_type_sd;
+    // att[0].descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
+    message.addAttachment(att[0]);
+
+    //Attach Log File:
+    att[1].descr.filename = F("log.txt");
+    att[1].descr.mime = F("text/plain");
+    att[1].file.path = F("/log.txt");
+    att[1].file.storage_type = esp_mail_file_storage_type_flash;
+    // att[1].descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
+    message.addAttachment(att[0]);
+
+    if (!smtp.connect(&session)) {
+        return FAILURE; // server connection failed
+    }
+
+    //Start Sending the Email and Close the Session:
+    smtp.callback(callbackSend);
+    if (!MailClient.sendMail(&smtp, &message, true)) {
+        String logMsg = "Error sending Email, " + smtp.errorReason();
+        Log.msg(LOG::WARNING, logMsg.c_str());
+        return FAILURE;
+    }
+
+    smtp.sendingResult.clear(); // clear data to free memory
+    return SUCCESS;
+}
+
+MAIL Mail;
+
+*/
