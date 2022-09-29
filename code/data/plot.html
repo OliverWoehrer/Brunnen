@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Brunnen IoT</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.0.0/chartjs-plugin-zoom.js"></script>
+    <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-csv/0.8.3/jquery.csv.min.js"></script>
+</head>
+
+<body>
+    <header>
+        <a href="/">Homepage</a> <a href="/interval">Intervals</a> <a href="/log">Log</a> <a>Data</a>
+    </header>
+    <div>
+        <p id="text">This pages helps to plot data.</p>
+    </div>
+    <div id="controller">
+        <input onchange="getInputFiles(this)" type="file" accept=".txt" name="myInputFile" multiple>
+    </div>
+    <div>
+        <canvas id="myChart"></canvas>
+    </div>
+
+   <script type="text/javascript">
+        //Declare Data Arrays:
+        var COMPRESS = 60;
+        var edgeTotal = 0;
+
+        //Declare Canvas Variables:
+        var myChart;
+        var chartCanvas = document.getElementById("myChart");
+        var config = { // plot canvas config
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: []
+            },
+            options: {
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Data Plot'
+                    },
+                    tooltip: true,
+                    zoom: {
+                        zoom: {
+                            drag: {
+                                enabled: true
+                            },
+                            mode: 'x',
+                        }
+                    }
+                }
+            }
+        };
+
+        function getInputFiles() {
+            //Set UI:
+            document.getElementById("controller").innerHTML = '<input onchange="getInputFiles()" type="file" name="myInputFile" multiple>';
+            document.getElementById("text").innerHTML = 'Reading files. This may take a while...';
+
+            //Reset Plot Config:
+            config.data.labels = [];
+            config.data.datasets = [];
+            var dataArray = [];
+
+            //Asynchronous Promises for Multiple Files:
+            var filesPromises = [];
+
+            //Check Number of Input Files and Set Compression Level Accordingly:
+            const files = event.target.files;
+            if (!files.length) {
+                return;
+            } else if (files.length <= 3) {
+                COMPRESS = 60; // default compression
+                config.options.plugins.title.text = files[0].name;
+            } else {
+                COMPRESS = 60*60; // increase compression
+            }
+
+            //Read Input File(s):
+            for (const file of files) {
+                filesPromises.push(readFileAsText(file)); // add new promise to array of promises
+            }
+
+            //Extract Data from File Content (=Promise):
+            let progress = 0;
+            filesPromises.forEach(function(promise) {
+                promise.then(function(raw) { // awaits the promise (file to be read)
+                    //Extract Raw Data from File Content:
+                    const content = $.csv.toObjects(raw);
+                    const rawTimestamp = content.map(function(d) {return d.Timestamp});
+                    const rawFlow = content.map(function(d) {return d.Flow});
+                    const rawPressure = content.map(function(d) {return d.Pressure});
+                    const rawLevel = content.map(function(d) {return d.Level});
+
+                    //Compress Data over Average:
+                    var avg = 0;
+                    var objTimestamp = null; 
+                    var sumFlow = 0;
+                    var sumPressure = 0;
+                    var sumLevel = 0;
+                    for (var i = 0; i < rawTimestamp.length; i++) {
+                        avg++;
+                        if (!objTimestamp) objTimestamp = rawTimestamp[i]; // save first timestamp of samples for average
+                        sumFlow += parseInt(rawFlow[i]);
+                        sumPressure += parseInt(rawPressure[i]);
+                        sumLevel += parseInt(rawLevel[i]);
+                        if (avg >= COMPRESS || i == rawTimestamp.length-1) {
+                            const newData = {
+                                timestamp: parseStringToDate(objTimestamp),
+                                timeString: parseStringToLabel(objTimestamp),
+                                flow: sumFlow/avg,
+                                pressure: sumPressure/avg,
+                                level: sumLevel/avg
+                            }
+                            dataArray.push(newData);
+                            avg = 0;
+                            objTimestamp = null;
+                            edgeTotal += sumFlow;
+                            sumFlow = 0;
+                            sumPressure = 0;
+                            sumLevel = 0;
+                        }
+                    }
+
+                    //Set UI:
+                    progress++;
+                    document.getElementById("text").innerHTML = 'Extracted '+progress+'/'+filesPromises.length+' Files';
+                });
+            });
+
+            Promise.all(filesPromises).then((fileContents) => { // awaits all promises (all file contents to be extracted)
+                console.log("edgeTotal="+edgeTotal);
+
+                //Convert Data Array to Individual Sets:
+                arrayToSets(dataArray);
+
+                //Set UI:
+                document.getElementById("controller").innerHTML = '<button onclick="makeChart()">Plot Data</button>';
+                document.getElementById("text").innerHTML = 'Ready to plot data';
+            });
+        }
+
+        /**
+         * Read file content and return async promise
+         */
+        function readFileAsText(file) {
+            return new Promise((resolve) => { // wrap file reader into new promise
+                var reader = new FileReader();
+                reader.readAsText(file);
+                reader.onload = function() {
+                    resolve(reader.result);
+                }
+            });
+        }
+
+        /**
+         * Parses the given string into a date object
+         */
+        function parseStringToDate(dateString) {
+            const dateTimeSplit = dateString.split(" ");
+            const dateSplit = dateTimeSplit[0].split("-");
+            const timeSplit = dateTimeSplit[1].split(":");
+            
+            const day = parseInt(dateSplit[0]);
+            const month = parseInt(dateSplit[1]);
+            const year = parseInt(dateSplit[2]);
+            const hour = parseInt(timeSplit[0]);
+            const minute = parseInt(timeSplit[1]);
+            const second = parseInt(timeSplit[2]);
+
+            return new Date(year,month,day,hour,minute,second);
+        }
+
+        /**
+         * Parses the given string into a custom label string (later used for label ploted data)
+         * Label Formt: 
+         */
+        function parseStringToLabel(dateString) {
+            const dateTimeSplit = dateString.split(" ");
+            const dateSplit = dateTimeSplit[0].split("-");
+            const timeSplit = dateTimeSplit[1].split(":");
+
+            return ""+dateSplit[0]+"."+dateSplit[1]+" "+timeSplit[0]+":"+timeSplit[1];
+        }
+
+        /**
+         * Converts the array of data json-objects into multiple arrays each holding a data trace (one for each physical value) 
+         */
+        function arrayToSets(unsortedArray) {
+            //Sort Array by Date:
+			const array = unsortedArray.sort(
+				(objA, objB) => Number(objA.timestamp) - Number(objB.timestamp),
+			);
+
+            //Find Smallest Gap Between Dates in Seconds:
+            var smallestGap = 1000 * 60 * 60 * 24;
+            for (var i = 1; i < array.length; i++) {
+                const dateGap = array[i]["timestamp"] - array[i-1]["timestamp"];
+                if (dateGap < smallestGap) {
+                    smallestGap = dateGap;
+                    console.log("smaller gap = "+smallestGap);
+                }
+            }
+            console.log("smallesGap="+smallestGap);
+
+            //Convert Data into Seperate Sets:
+            var timestampSet = [];
+            var flowSet = [];
+            var pressureSet = [];
+            var levelSet = [];
+            var prevDate = array[0]["timestamp"];
+            for (var i = 1; i < array.length; i++) {
+                var dateGap = array[i]["timestamp"] - array[i-1]["timestamp"];
+                var currentFlow = array[i-1]["flow"];
+                var currentPressure = array[i-1]["pressure"];
+                var currentLevel = array[i-1]["level"];
+
+                while (dateGap > (10*smallestGap)) { // loop while there is a gap between dates and interpolate data
+                    /* Linear Interpolation:
+                    const flowGradient = (array[i]["flow"]-currentFlow) / dateGap;
+                    const pressureGradient = (array[i]["pressure"]-currentPressure) / dateGap;
+                    const levelGradient = (array[i]["level"]-currentLevel) / dateGap;
+                    currentFlow += flowGradient*smallestGap;
+                    currentPressure += pressureGradient*smallestGap;
+                    currentLevel += levelGradient*smallestGap;*/
+
+                    /* Exponential Interpolation: */
+                    currentFlow = currentFlow - (currentFlow-array[i]["flow"])*(1-Math.exp(-(3*smallestGap)/dateGap));
+                    currentPressure = currentPressure - (currentPressure-array[i]["pressure"])*(1-Math.exp(-(3*smallestGap)/dateGap));
+                    currentLevel = currentLevel - (currentLevel-array[i]["level"])*(1-Math.exp(-(3*smallestGap)/dateGap));
+
+                    timestampSet.push("GAP");
+                    flowSet.push(currentFlow);
+                    pressureSet.push(currentPressure);
+                    levelSet.push(currentLevel);
+                    dateGap -= smallestGap;
+                }
+                
+                timestampSet.push(array[i]["timeString"]);
+                flowSet.push(array[i]["flow"]);
+                pressureSet.push(array[i]["pressure"]);
+                levelSet.push(array[i]["level"]);
+            }
+
+            //Add Sets to Canvas Config Object:
+            config.data.labels = timestampSet;
+            config.data.datasets.push({
+                label: 'Flow',
+                data: flowSet,
+                borderColor: 'rgb(68, 114, 196)',
+            });
+            config.data.datasets.push({
+                label: 'Pressure',
+                data: pressureSet,
+                borderColor: 'rgb(237, 125, 49)'
+            });
+            config.data.datasets.push({
+                label: 'Level',
+                data: levelSet,
+                borderColor: 'rgb(165, 165, 165)'
+            });
+        } 
+
+        /**
+         * builds the canvas plot and renders plot with config data
+         */
+        function makeChart() {
+            if (myChart) myChart.destroy();
+            myChart = new Chart(chartCanvas, config);
+            document.getElementById("controller").innerHTML = '<button onclick="resetZoom()">Reset Zoom</button> <button onclick="clearCanvas()">Clear Canvas</button>';
+            document.getElementById("text").innerHTML = 'Data plotted.';
+        }
+
+        /**
+         * Resets the zoom of plot canvas to default
+         */
+        function resetZoom() {
+            myChart.resetZoom();
+        }
+
+        /**
+         * Clears the plot canvas and deletes data from visible plot
+         */
+        function clearCanvas() {
+            document.getElementById("controller").innerHTML = '<input onchange="getInputFiles()" type="file" name="myInputFile" multiple>';
+            document.getElementById("text").innerHTML = 'This pages helps to plot data.';
+            myChart.destroy();
+        }
+
+    </script>
+</body>
+
+</html>

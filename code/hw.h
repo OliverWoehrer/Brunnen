@@ -1,6 +1,8 @@
 #ifndef HW_H
 #define HW_H
 
+#include <Preferences.h>
+
 //Global return value:
 #define SUCCESS 0
 #define FAILURE 1
@@ -26,72 +28,70 @@
 #define MAX_INTERVALLS 8
 #define VALUE_STRING_LENGTH 40
 
+namespace Hardware {
 
-//===============================================================================================
-// LED
-//===============================================================================================
-namespace Led {
-    typedef enum {RED, YELLOW, GREEN, BLUE} led_color_t;
-    void init();
-    void turnOn(led_color_t color);
-    void turnOff(led_color_t color);
-    void toggle(led_color_t color);
+namespace Leds {
+    typedef enum {RED, YELLOW, GREEN, BLUE} color_t;
 }
 
+namespace Sensors {}
 
-//===============================================================================================
-// SENSORS
-//===============================================================================================
-namespace Sensors {
-    void init();
-    void requestValues();
-    bool hasValuesReady();
-    bool readValues();
-    int getWaterLevel();
-    char* toString();
-};
-
-
-//===============================================================================================
-// BUTTON
-//===============================================================================================
 namespace Button {
     extern volatile bool shortPressed; // gets set true when button was pressed shortly
     extern volatile bool longPressed; // true when button was pressed for at least 3 seconds
-    void init();
     void ISR();
-    bool isShortPressed();
-    bool isLongPressed();
-    void resetShortFlag();
-    void resetLongFlag();
 }
 
-
-//===============================================================================================
-// RELAIS
-//===============================================================================================
 namespace Relais {
-    typedef struct {
-        struct tm start;
-        struct tm stop;
-        unsigned char wday;
-    } interval_t;
-
     typedef enum {
         MANUAL,     // toggle relais only when toggle() function is called
         SCHEDULED,  // turn on relais during scheduled intervals
         AUTOMATIC   // turn on relais during scheduled intervals only if there is enough water
     } op_mode_t;
 
-    void init();
-    void turnOn();
-    void turnOff();
-    void toggle();
-    void setOpMode(op_mode_t mode);
-    op_mode_t getOpMode();
-    void setInterval(interval_t interval, unsigned int i);
-    interval_t getInterval(unsigned int i);
-    bool checkIntervals(tm timeinfo);
+    typedef struct {
+        struct tm start;
+        struct tm stop;
+        unsigned char wday;
+    } interval_t;
+}
+
+namespace Pref {}
+
+using pump_intervall_t = Relais::interval_t;
+
+int init();
+void setUILed(char value);
+void setIndexLed(char value);
+void setErrorLed(char value);
+
+void readSensorValues();
+char* sensorValuesToString();
+bool hasNominalSensorValues();
+
+bool buttonIsShortPressed();
+bool buttonIsLongPressed();
+void resetButtonFlags();
+
+void switchWaterPumpOn();
+void switchWaterPumpOff();
+void toggleWaterPump();
+void setPumpMode(Relais::op_mode_t mode);
+void setPumpInterval(Relais::interval_t interval, unsigned int i);
+pump_intervall_t getPumpInterval(unsigned int i);
+void managePumpIntervals(tm timeinfo);
+
+void saveStartTime(tm start, unsigned int i);
+void saveStopTime(tm stop, unsigned int i);
+void saveWeekDay(unsigned char wday, unsigned int i);
+void saveJobLength(unsigned char jobLength);
+void saveJob(unsigned char jobNumber, const char* fileName);
+tm loadStartTime(unsigned int i);
+tm loadStopTime(unsigned int i);
+unsigned char loadWeekDay(unsigned int i);
+unsigned char loadJobLength();
+const char* loadJob(unsigned char jobNumber);
+
 }
 
 #endif /* HW_H */

@@ -1,6 +1,6 @@
 /**
  * @author Oliver Woehrer
- * @date 17.08.2021
+ * @date 17.08.2022
  * @file dt.cpp
  * This modul [Data and Time] provides functions to handle the wifi connection. It initialies and
  * connections to the network given via the network credentials macros in dt.h. This allows the 
@@ -15,14 +15,31 @@
 #include "FS.h"
 #include "SD.h"
 #include "SPI.h"
-#include <ESP32_MailClient.h>
 #include "Arduino.h"
 #include "dt.h"
 
 
 //===============================================================================================
+// STRING SUPPORT
+//===============================================================================================
+String splitDT(String data, char separator, int index) {
+    int found = 0;
+    int strIndex[] = { 0, -1 };
+    int maxIndex = data.length() - 1;
+    for (int i = 0; i <= maxIndex && found <= index; i++) {
+        if (data.charAt(i) == separator || i == maxIndex) {
+            found++;
+            strIndex[0] = strIndex[1] + 1;
+            strIndex[1] = (i == maxIndex) ? i+1 : i;
+        }
+    }
+    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
+}
+
+//===============================================================================================
 // PREFERENCES
 //===============================================================================================
+/* is now placed in hw.cpp
 PREFS::PREFS() {
     Preferences preferences;
 }
@@ -48,6 +65,24 @@ void PREFS::setStopTime(tm stop, unsigned int i) {
 void PREFS::setWeekDay(unsigned char wday, unsigned int i) {
     String week_day = "wday_"+String(i);
     preferences.putUChar(week_day.c_str(), wday);
+}
+
+void PREFS::setJobLength(unsigned char jobLength) {
+    preferences.putUChar("jobLength", jobLength);
+}
+
+void PREFS::setJob(unsigned char jobNumber, const char* fileName) {
+    String job_key = "job_"+String(jobNumber);
+    String fName = String(fileName);
+    int index = fName.indexOf('_');
+    int length = fName.length();
+    fName = fName.substring(index, length);
+
+    int day = 0;
+    int month = 0;
+    int year = 0;
+
+    preferences.putUInt(job_key.c_str(), day*1000000+month*10000+year);
 }
 
 tm PREFS::getStartTime(unsigned int i) {
@@ -79,61 +114,90 @@ unsigned char PREFS::getWeekDay(unsigned int i) {
     return preferences.getUChar(week_day.c_str());
 }
 
-PREFS Prefs;
+unsigned char PREFS::getJobLength() {
+    return preferences.getUChar("jobLength", 0);
+}
 
+const char* PREFS::getJob(unsigned char jobNumber) {
+    String job_key = "job_"+String(jobNumber);
+    unsigned int hash = preferences.getUInt(job_key.c_str());
+    String fName = "test";
+    Serial.println(hash);
+    return String(hash).c_str();
+}
+
+PREFS Prefs;
+*/
 
 //===============================================================================================
 // WLAN
 //===============================================================================================
-WLAN::WLAN() {
-    // default constructor
-}
-
-int WLAN::init() {
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    int n = WiFi.scanNetworks();
-    bool hasFoundNetwork = false;
-    for (int i = 0; i < n; ++i) {
-        // Print SSID and RSSI for each network found
-        if (String(WiFi.SSID(i)).equals(WIFI_SSID_HOME)) {
-            WiFi.begin(WIFI_SSID_HOME, WIFI_PASSWORD_HOME);
-            hasFoundNetwork = true;
-            break;
-        } else if (String(WiFi.SSID(i)).equals(WIFI_SSID_FIELD)) {
-            WiFi.begin(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD);
-            hasFoundNetwork = true;
-            break;
-        } // else do nothing
+namespace Wlan {
+    int init() {
+        WiFi.mode(WIFI_STA);
+        WiFi.disconnect();
+        return SUCCESS;
     }
-    if (!hasFoundNetwork)
-        return FAILURE;
-    unsigned long now = millis();
-    while (WiFi.status() != WL_CONNECTED) {
-        Serial.printf(".");
-        delay(500);
-        if (millis() > now+100000) { // connection attempt timed out
-            Serial.printf("Unable to connect to WiFi\n");
-            return FAILURE;
+
+    int login() {
+        bool hasFoundNetwork = false;
+        int n = WiFi.scanNetworks();
+        for (int i = 0; i < n; ++i) {
+            // Print SSID and RSSI for each network found
+            if (String(WiFi.SSID(i)).equals(WIFI_SSID_HOME)) {
+                WiFi.begin(WIFI_SSID_HOME, WIFI_PASSWORD_HOME);
+                hasFoundNetwork = true;
+                break;
+            } else if (String(WiFi.SSID(i)).equals(WIFI_SSID_FIELD)) {
+                WiFi.begin(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD);
+                hasFoundNetwork = true;
+                break;
+            } // else do nothing
         }
+        if (!hasFoundNetwork)
+            return FAILURE;
+        unsigned long now = millis();
+        while (WiFi.status() != WL_CONNECTED) {
+            Serial.printf(".");
+            delay(500);
+            if (millis() > now+100000) { // connection attempt timed out
+                Serial.printf("Unable to connect to WiFi\n");
+                return FAILURE;
+            }
+        }
+        //Print ESP32 Local IP Address
+        delay(500);
+        Serial.printf("\nWifi connected at ");Serial.println(WiFi.localIP());
+        return SUCCESS;
     }
-    //Print ESP32 Local IP Address
-    delay(500);
-    Serial.printf("\nWifi connected at ");Serial.println(WiFi.localIP());
-    return SUCCESS;
-}
 
-int WLAN::disable() {
-    WiFi.disconnect(true);
-    WiFi.mode(WIFI_OFF);
-    return SUCCESS;
-}
+    int connect() {
+        unsigned char retries = 5;
+        while(retries > 0) {
+            retries--;
+            int ret = login();
+            if (ret == SUCCESS) { 
+                break;
+            } else if(retries > 0) { // else continue and retry
+                Log.msg(LOG::WARNING, "Failed to connect WiFi and retry.");
+            } else {
+                Log.msg(LOG::ERROR, "Failed to connect WiFi after multple retries.");
+                return FAILURE;
+            }              
+        }
+        return SUCCESS;
+    }
 
-bool WLAN::isConnected() {
-    return WiFi.status() == WL_CONNECTED;
-}
+    int disable() {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+        return SUCCESS;
+    }
 
-WLAN Wlan;
+    bool isConnected() {
+        return WiFi.status() == WL_CONNECTED;
+    }
+}
 
 
 //===============================================================================================
@@ -297,6 +361,7 @@ FILE_SYSTEM::FILE_SYSTEM() {
 }
 
 int FILE_SYSTEM::init() {
+    /* DEBUG:
     if (!SD.begin(SPI_CD)) {
         Serial.printf("Card Mount Failed");
         return FAILURE; // error code: no card shield found
@@ -307,13 +372,17 @@ int FILE_SYSTEM::init() {
     fileName = "/data_"+String(timeinfo.tm_mday)+"-"+String(timeinfo.tm_mon+1)+"-"+String(timeinfo.tm_year+1900)+".txt";
     File file = SD.open(fileName.c_str());
     if(!file) {
-        writeFile(SD, fileName.c_str(), "Timestamp, Flow, Pressure, Level\r\n");
+        writeFile(SD, fileName.c_str(), "Timestamp,Flow,Pressure,Level\r\n");
     }
     file.close();
 
     //Check SD card size:
     unsigned long long usedBytes = SD.usedBytes() / (1024 * 1024);
     Serial.printf("Mounted SD card with %llu MB used.\n", usedBytes);
+    return SUCCESS;*/
+
+    struct tm timeinfo = Time.getTimeinfo();
+    fileName = "/data_"+String(timeinfo.tm_mday)+"-"+String(timeinfo.tm_mon+1)+"-"+String(timeinfo.tm_year+1900)+".txt";
     return SUCCESS;
 }
 
@@ -406,13 +475,15 @@ FILE_SYSTEM FileSystem;
 //===============================================================================================
 // MAIL
 //===============================================================================================
+/* module defined in em.h instead
 MAIL::MAIL() {
     SMTPData smtpData; // the object contains config and data to send
 }
 
 int MAIL::init() {
     // when using SD-Card, use the following line, otherswise it is not needed
-    return MailClient.sdBegin(14, 2, 15, 13) ? SUCCESS : FAILURE; // (SCK, MISO, MOSI, SS)   
+    //DEBUG: return MailClient.sdBegin(14, 2, 15, 13) ? SUCCESS : FAILURE; // (SCK, MISO, MOSI, SS)
+    return SUCCESS;
 }
     
 void MAIL::callbackSend(SendStatus msg) {
@@ -457,83 +528,4 @@ int MAIL::send(const char* mailText) {
     return SUCCESS;
 }
 
-MAIL Mail;
-
-/* alternative, non-working implementation (using newer ESP Mail client):
-MAIL::MAIL() {
-    SMTPSession smtp; // the object contains config and data to send
-    ESP_Mail_Session session; // holds session config data
-}
-
-int MAIL::init() {
-    session.server.host_name = SMTP_SERVER;
-    session.server.port = SMTP_SERVER_PORT;
-    session.login.email = EMAIL_SENDER_ACCOUNT;
-    session.login.password = EMAIL_SENDER_PASSWORD;
-    // session.login.user_domain = F("gmail.com");
-
-    session.time.ntp_server = NTP_SERVER;
-    session.time.gmt_offset = GMT_TIME_ZONE;
-    session.time.day_light_offset = DAYLIGHT_OFFSET;
-
-    return SUCCESS;
-}
-    
-void MAIL::callbackSend(SMTP_Status status) {
-    String logString = String("Email Status Response: ") + status.info();
-    Log.msg(LOG::INFO, logString.c_str()); // maybe status.info().c_str();
-    if (status.success()) {
-        Serial.println("----------------");
-    }
-}
-
-int MAIL::send(const char* mailText) {
-    // [INFO] Disable Google Security for less secure apps: https://myaccount.google.com/lesssecureapps?pli=1
-
-    //Set E-Mail credentials:
-    SMTP_Message message;
-    message.sender.name = "ESP32";
-    message.sender.email = EMAIL_SENDER_ACCOUNT;
-    message.subject = EMAIL_SUBJECT;
-    message.addRecipient("Oliver Wohrer", EMAIL_RECIPIENT);
-    // message.addCc("Peter Wohrer", );
-    message.text.content = mailText;
-    
-    //Declare Attachment Data Objects:
-    SMTP_Attachment att[2]; // [0]...data file, [1]...log file
-
-    //Attach Data File:
-    att[0].descr.filename = F(FileSystem.getFileName());
-    att[0].descr.mime = F("text/plain");
-    att[0].file.path = F(FileSystem.getFileName());
-    att[0].file.storage_type = esp_mail_file_storage_type_sd;
-    // att[0].descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
-    message.addAttachment(att[0]);
-
-    //Attach Log File:
-    att[1].descr.filename = F("log.txt");
-    att[1].descr.mime = F("text/plain");
-    att[1].file.path = F("/log.txt");
-    att[1].file.storage_type = esp_mail_file_storage_type_flash;
-    // att[1].descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
-    message.addAttachment(att[0]);
-
-    if (!smtp.connect(&session)) {
-        return FAILURE; // server connection failed
-    }
-
-    //Start Sending the Email and Close the Session:
-    smtp.callback(callbackSend);
-    if (!MailClient.sendMail(&smtp, &message, true)) {
-        String logMsg = "Error sending Email, " + smtp.errorReason();
-        Log.msg(LOG::WARNING, logMsg.c_str());
-        return FAILURE;
-    }
-
-    smtp.sendingResult.clear(); // clear data to free memory
-    return SUCCESS;
-}
-
-MAIL Mail;
-
-*/
+MAIL Mail;*/

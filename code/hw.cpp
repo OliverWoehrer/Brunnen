@@ -1,20 +1,22 @@
 /**
  * @author Oliver Woehrer
- * @date 17.08.2021
+ * @date 17.08.2022
  * @file hw.cpp
  * This modul [Hardware.cpp] provides functions to handle the hardware which is connected to the
  * unit and is placed on the pcb itself. It allows to read out the sensor values when they are
  * ready. Due to the water level sensor having a weak up delay of approximately 360 ms the values
  * have to be requested an can be read when they are ready (after aprox. 360 ms). 
  */
+#include <Preferences.h>
 #include "Arduino.h"
 #include "hw.h"
 
+namespace Hardware {
 
 //===============================================================================================
 // LED
 //===============================================================================================
-namespace Led {
+namespace Leds {
     /**
      * @brief Initializes the pins of the color LEDs and performes a short blinking animation.
      */
@@ -33,7 +35,7 @@ namespace Led {
      * @brief Turns on the led given in the param
      * @param color color of the led to be turned on
      */
-    void turnOn(led_color_t color) {
+    void turnOn(color_t color) {
         switch (color) {
         case RED:
             digitalWrite(LED_RED, HIGH);
@@ -56,7 +58,7 @@ namespace Led {
      * @brief Turns off the led given in the param
      * @param color color of the led to be turned off
      */
-    void turnOff(led_color_t color) {
+    void turnOff(color_t color) {
         switch (color) {
         case RED:
             digitalWrite(LED_RED, LOW);
@@ -80,7 +82,7 @@ namespace Led {
      * and otherwise
      * @param color color of the led to be toggled
      */
-    void toggle(led_color_t color) {
+    void toggle(color_t color) {
         switch (color) {
         case RED:
             digitalWrite(LED_RED, !digitalRead(LED_RED));
@@ -105,6 +107,12 @@ namespace Led {
 // SENSORS
 //===============================================================================================
 namespace Sensors {
+    unsigned int flowMinThreshold = 0;
+    unsigned int flowMaxThreshold = 7000;
+    unsigned int pressureMinThreshold = 200;
+    unsigned int pressureMaxThreshold = 4000;
+    unsigned int levelMinThreshold = 1000;
+    unsigned int levelMaxThreshold = 4000;
     unsigned int edgeCounter = 0; // used for counting edges produced by the water flow sensor
     unsigned int waterFlow = 0;
     int waterPressure = 0;
@@ -170,27 +178,34 @@ namespace Sensors {
      * buffer as a string.
      * @return false, if a sensor is out of its nominal range
      */
-    bool readValues() { 
+    void readValues() { 
         waterFlow = edgeCounter;
         edgeCounter = 0; // reset edge counter
         waterPressure = analogRead(WATER_PRESSURE_SENSOR);
         waterLevel = analogRead(WATER_LEVEL_SENSOR);
         digitalWrite(SENSOR_SWITCH, LOW); // disable water level sensor again
         sprintf(valueString, "%d,%d,%d", waterFlow, waterPressure, waterLevel);
-        if ((edgeCounter < 0 || 7000 < edgeCounter) // check sensor values; nominal range
-            || (waterPressure <= 200 || 4000 < waterPressure)
-            || (waterLevel < 800 || 4000 < waterLevel))
-            return FAILURE;
-        else
+    }
+
+    /**
+     * @brief Checks if all sensor values are in between their min/max threaholds
+     * @return true, if all sensors are in nominal ranges
+     */
+    bool hasNominalValues() {
+        if ((flowMinThreshold <= edgeCounter && edgeCounter <= flowMaxThreshold)
+            && (pressureMinThreshold <= waterPressure && waterPressure <= pressureMaxThreshold)
+            && (levelMinThreshold <= waterLevel && waterLevel <= levelMaxThreshold))
             return SUCCESS;
+        else
+            return FAILURE;
     }
 
     /**
      * @brief get the water level updated at the last sensor read out
      * @return water level raw value
      */
-    int getWaterLevel() {
-        return waterLevel;
+    int hasMinWaterLevel() {
+        return waterLevel > levelMinThreshold;
     }
 
     /**
@@ -220,9 +235,7 @@ namespace Button {
     static void IRAM_ATTR periodicButton() {
         if (digitalRead(BUTTON) == HIGH) {
             cnt++;
-            if (cnt == 30) longPressed = true;
-            // programming hint: use equal-operator (==) and not bigger-operator (>)
-            // to prevent resetting the flag multiple times!
+            if (cnt == 30) longPressed = true; // do not use (>), to prevent resetting the flag multiple times!
         } else if (btnTimer) { // button not pressed anymore
             if (1 < cnt && cnt < 30) shortPressed = true;
             
@@ -270,10 +283,16 @@ namespace Button {
         return longPressed;
     }
 
+    /**
+     * @brief reset the boolean variable (flag) indicating a short button press occured
+     */
     void resetShortFlag() {
         shortPressed = false;
     }
 
+    /**
+     * @brief reset the boolean variable (flag) indicating a long button press occured
+     */
     void resetLongFlag() {
         longPressed = false;
     }
@@ -301,7 +320,6 @@ namespace Relais {
      */
     void turnOn() {
         digitalWrite(RELAIS, HIGH);
-        Led::turnOn(Led::YELLOW);
     }
 
     /**
@@ -309,20 +327,21 @@ namespace Relais {
      */
     void turnOff() {
         digitalWrite(RELAIS, LOW);
-        Led::turnOff(Led::YELLOW);
     }
 
     /**
      * @brief Toggles the relais output pin as well as the operating mode
+     * @return true, if the new pin state is HIGH, false if LOW
      */
-    void toggle() {
+    bool toggle() {
         digitalWrite(RELAIS, !digitalRead(RELAIS));
-        Led::toggle(Led::YELLOW);
-        if (operatingMode == MANUAL) { // reset operating mode to original mode
-            operatingMode = operatingModeChached;
+        if (operatingMode == MANUAL) { // manual mode, currently switched on
+            operatingMode = operatingModeChached; // reset operating mode to original mode
+            return false;
         } else { // chache original mode for later reset
             operatingModeChached = operatingMode;
             operatingMode = MANUAL;
+            return true;
         }
     }
 
@@ -378,4 +397,419 @@ namespace Relais {
         }
         return false;
     }
+}
+
+//===============================================================================================
+// PREFERENCES
+//===============================================================================================
+namespace Pref {
+    Preferences preferences;
+
+    /**
+     * @brief initalizes the preferences and mounts the flash memory
+     */
+    int init() {
+        bool ret = preferences.begin("brunnen", false);
+        return ret ? SUCCESS : FAILURE;
+    }
+
+    /**
+     * @brief writes the the values for the starting time for intervall i into preferences
+     * @param start time struct holding starting time
+     * @param i index of intervall
+     */
+    void setStartTime(tm start, unsigned int i) {
+        char startHrString[14] = "start_hour_XX";
+        char startMinString[13] = "start_min_XX";
+        sprintf(startHrString, "start_hour_%02d", i);
+        sprintf(startMinString, "start_min_%02d", i);
+        preferences.putUInt(startHrString, start.tm_hour);
+        preferences.putUInt(startMinString, start.tm_min);
+    }
+
+    /**
+     * @brief writes the the values for the stop time for intervall i into preferences
+     * @param stop time struct holding stop time
+     * @param i index of intervall
+     */
+    void setStopTime(tm stop, unsigned int i) {
+        char stopHrString[13] = "stop_hour_XX";
+        char stopMinString[12] = "stop_min_XX";
+        sprintf(stopHrString, "stop_hour_%02d", i);
+        sprintf(stopMinString, "stop_min_%02d", i);
+        preferences.putUInt(stopHrString, stop.tm_hour);
+        preferences.putUInt(stopMinString, stop.tm_min);
+    }
+
+    /**
+     * @brief writes the the value for the week day for intervall i into preferences
+     * @param wday value holding week days
+     * @param i index of intervall
+     */
+    void setWeekDay(unsigned char wday, unsigned int i) {
+        char wdayString[8] = "wday_XX";
+        sprintf(wdayString, "wday_%02d", i);
+        preferences.putUChar(wdayString, wday);
+    }
+
+    /**
+     * @brief writes the number of jobs to be done into preferences
+     * @param jobLength number to set
+     */
+    void setJobLength(unsigned char jobLength) {
+        preferences.putUChar("jobLength", jobLength);
+    }
+
+    /**
+     * @brief takes the fileName and stores it into flash memory at the position/index given by jobNumber
+     * @param jobNumber position/index in job list to write to
+     * @param fileName name of the data file to save to
+     */
+    void setJob(unsigned char jobNumber, const char* fileName) {
+        //Convert filename into hash integer (DDMMYYYY as integer number)
+        unsigned char i = 0; // format for fileName "data_23-6-2022.txt"
+        unsigned char offset = 0;
+        while(fileName[i] != '_') {
+            i++;
+        }
+        i++;
+
+        char dayString[3] = "XX";
+        offset = 0;
+        while(fileName[i] != '-') {
+            dayString[offset] = fileName[i];
+            i++;
+            offset++;
+        }
+        i++;
+        
+        char monthString[3] = "XX";
+        offset = 0;
+        while(fileName[i] != '-') {
+            monthString[offset] = fileName[i];
+            i++;
+            offset++;
+        }
+        i++;
+
+        char yearString[5] = "XXXX";
+        offset = 0;
+        while(fileName[i] != '.') {
+            yearString[offset] = fileName[i];
+            i++;
+            offset++;
+        }
+        i++;
+        
+        long int day = strtol(dayString,NULL,10);
+        long int month = strtol(monthString,NULL,10);
+        long int year = strtol(yearString,NULL,0);
+
+        unsigned int hash = day*1000000 + month*10000 + year;
+        Serial.printf("Hash=%d\n", hash);
+
+        char jobKey[7] = "job_XX"; // build string for preferences key
+        jobKey[5] = 0x30 | ((jobNumber/10) % 10);
+        jobKey[6] = 0x30 | (jobNumber % 10);
+        preferences.putUInt(jobKey, hash);
+    }
+
+    /**
+     * @brief reads the the values for the starting time for intervall i from preferences
+     * @param i index of intervall
+     * @return time struct holding the start time
+     */
+    tm getStartTime(unsigned int i) {
+        char startHrString[14] = "start_hour_XX";
+        char startMinString[13] = "start_min_XX";
+        sprintf(startHrString, "start_hour_%02d", i);
+        sprintf(startMinString, "start_min_%02d", i);
+
+        struct tm start;
+        start.tm_hour = preferences.getUInt(startHrString);
+        start.tm_min = preferences.getUInt(startMinString);
+        start.tm_sec = 0;
+        return start;
+    }
+
+    /**
+     * @brief reads the the values for the stop time for intervall i from preferences
+     * @param i index of intervall
+     * @return time struct holding the stop time
+     */
+    tm getStopTime(unsigned int i) {
+        char stopHrString[13] = "stop_hour_XX";
+        char stopMinString[12] = "stop_min_XX";
+        sprintf(stopHrString, "stop_hour_%02d", i);
+        sprintf(stopMinString, "stop_min_%02d", i);
+
+        struct tm stop;
+        stop.tm_hour = preferences.getUInt(stopHrString);
+        stop.tm_min = preferences.getUInt(stopMinString);
+        stop.tm_sec = 0;
+        return stop;
+    }
+
+    /**
+     * @brief reads the the value for the week day for intervall i from preferences
+     * @param i index of intervall
+     * @return value for week days
+     */
+    unsigned char getWeekDay(unsigned int i) {
+        char wdayString[8] = "wday_XX";
+        sprintf(wdayString, "wday_%02d", i);
+        return preferences.getUChar(wdayString);
+    }
+
+    /**
+     * @brief reads the number of jobs to be done from preferences
+     * @return number of jobs to be done
+     */
+    unsigned char getJobLength() {
+        return preferences.getUChar("jobLength", 0);
+    }
+
+    /**
+     * @brief loads the file name from flash memory from position/index given by jobNumber
+     * @param jobNumber position/index in job list to load from
+     * @return name of data file loaded from job list
+     */
+    const char* getJob(unsigned char jobNumber) {
+        char jobKey[7] = "job_XX"; // build string for preferences key
+        jobKey[5] = 0x30 | ((jobNumber/10) % 10);
+        jobKey[6] = 0x30 | (jobNumber % 10);
+        unsigned int hash = preferences.getUInt(jobKey); // hash integer (DDMMYYYY as integer number)
+
+        
+        unsigned int day = (hash/1000000) % 100;
+        unsigned int month = (hash/10000) % 100;
+        unsigned int year = hash % 10000;
+
+        // Serial.printf("Loading Job via Hash=%d (day=%d month=%d year=%d)",hash,day,month,year);
+
+        char fName[20] = ""; //format: data_DD-MM-YYYY.txt
+        sprintf(fName, "data_%d-%d-%d.txt",day,month,year);
+        const char* cfName = fName;
+        return cfName;
+    }
+}
+
+/**
+ * @brief Initializes the I/O ports and operational modes to the connected hardware modules
+ */
+int init() {
+    Leds::init();
+    Sensors::init();
+    Button::init();
+    Relais::init();
+    Pref::init();
+    return SUCCESS;
+}
+
+/**
+ * @brief Set the led indicating the status of the UI
+ * @param value zero to turn the led off, otherwise the led is turned on
+ */
+void setUILed(char value) {
+    if(value) Leds::turnOn(Leds::GREEN);
+    else Leds::turnOff(Leds::GREEN);
+}
+
+/**
+ * @brief Set the led indicating the status of the UI
+ * @param value zero to turn the led off, otherwise the led is turned on
+ */
+void setIndexLed(char value) {
+    if(value) Leds::turnOn(Leds::BLUE);
+    else Leds::turnOff(Leds::BLUE);
+}
+
+/**
+ * @brief Set the led indicating the status of the UI
+ * @param value zero to turn the led off, otherwise the led is turned on
+ */
+void setErrorLed(char value) {
+    if(value) Leds::turnOn(Leds::RED);
+    else Leds::turnOff(Leds::RED);
+}
+
+/**
+ * @brief This function reads out the sensor values when the sensors are ready and brings a delay of approx. 360ms. This is
+ * done by swithcing the power supply of the water level sensor to ON and weaking it up. Afterwards it checks if the
+ * water level sensor is already up and running. This is the case after approxemately 360 milliseconds. The values of all
+ * sensors are then read and/or stored in a local variable (sensor readout). Then the water level sensor is being disabled
+ * again. The values are all read at the same time to ensure data consistency. For further use, the values are written to
+ * the valueString buffer as a string.
+ * @return false, if a sensor is out of its nominal range
+ */
+void readSensorValues() {
+    Sensors::requestValues();
+    while(Sensors::hasValuesReady() == false); // wait for sensor to weak up
+    return Sensors::readValues();
+}
+
+/**
+ * @brief returns the string representation of the sensor values from the last sensor readout 
+ */
+char* sensorValuesToString() {
+    return Sensors::toString();
+}
+
+/**
+ * @brief Checks if all sensor values are in between their min/max threaholds
+ * @return true, if all sensors are in nominal ranges
+ */
+bool hasNominalSensorValues() {
+    return Sensors::hasNominalValues();
+}
+
+/**
+ * @brief Checks if a short button press recently occured
+ * @return true, if short press occured
+ */
+bool buttonIsShortPressed() {
+    return Button::isShortPressed();
+}
+
+/**
+ * @brief Checks if a long button press recently occured
+ * @return true, if long press occured
+ */
+bool buttonIsLongPressed() {
+    return Button::isLongPressed();
+}
+
+/**
+ * @brief reset the boolean variable (flag) indicating a short button press occured
+ */
+void resetButtonFlags() {
+    Button::resetShortFlag();
+    Button::resetLongFlag();
+}
+
+/**
+ * @brief Switch water pump on and indicate to user by setting yellow led ON
+ */
+void switchWaterPumpOn() {
+    Relais::turnOn();
+    Leds::turnOn(Leds::YELLOW);
+}
+
+/**
+ * @brief Switch water pump off and indicate to user by setting yellow led OFF
+ */
+void switchWaterPumpOff() {
+    Relais::turnOff();
+    Leds::turnOff(Leds::YELLOW);
+}
+
+/**
+ * @brief get the current operating mode of the relais
+ * @return operating mode of the relais
+ */
+void toggleWaterPump() {
+    bool state = Relais::toggle();
+    if (state)
+        Leds::turnOn(Leds::YELLOW);
+    else
+        Leds::turnOff(Leds::YELLOW);
+}
+
+/**
+ * @brief sets the operating mode of the relais to the given param
+ * @param mode operating mode to be set
+ */
+void setPumpMode(Relais::op_mode_t mode) {
+    Relais::setOpMode(mode);
+}
+
+/**
+ * @brief sets the given interval at the given index
+ * @param interval interval to be set at the timed scheduled
+ * @param i index of the interval array
+ */
+void setPumpInterval(Relais::interval_t interval, unsigned int i) {
+    Relais::setInterval(interval, i);
+}
+
+/**
+ * @brief Getter method for intervals of water pump
+ * @param i index of the interval to be returned
+ * @return interval with the given index
+ */
+pump_intervall_t getPumpInterval(unsigned int i) {
+    return Relais::getInterval(i);
+}
+
+/**
+ * @brief Checks if the water pump should be switched/toggled and does so in case the operational mode
+ * is set to SCHEDULED or AUTOMATIC. If the pump is operating on schedul the given timeinfo checked if
+ * it is inside an interval (switch ON) or outside (switch OFF). If the pump is operating automatically
+ * the water level is checked to see if their is enough water.
+ * @param timeinfo time to check for intervals
+ * @return true, when the given time is inside an interval
+ */
+void managePumpIntervals(tm timeinfo) {
+    switch (Relais::getOpMode()) {
+    case Relais::MANUAL:
+        // do not toggel relais
+        break;
+    case Relais::SCHEDULED:
+        if (Relais::checkIntervals(timeinfo))
+            Relais::turnOn();
+        else
+            Relais::turnOff();
+        break;
+    case Relais::AUTOMATIC:
+        if (Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel())
+            Relais::turnOn();
+        else
+            Relais::turnOff();
+        break;
+    default:
+        Relais::turnOff();
+        break;
+    }
+}
+
+void saveStartTime(tm start, unsigned int i) {
+    Pref::setStartTime(start, i);
+}
+
+void saveStopTime(tm stop, unsigned int i) {
+    Pref::setStopTime(stop, i);
+}
+
+void saveWeekDay(unsigned char wday, unsigned int i) {
+    Pref::setWeekDay(wday, i);
+}
+
+void saveJobLength(unsigned char jobLength) {
+    Pref::setJobLength(jobLength);
+}
+
+void saveJob(unsigned char jobNumber, const char* fileName) {
+    Pref::setJob(jobNumber, fileName);
+}
+
+tm loadStartTime(unsigned int i) {
+    return Pref::getStartTime(i);
+}
+
+tm loadStopTime(unsigned int i) {
+    return Pref::getStopTime(i);
+}
+
+unsigned char loadWeekDay(unsigned int i) {
+    return Pref::getWeekDay(i);
+}
+
+unsigned char loadJobLength() {
+    return Pref::getJobLength();
+}
+
+const char* loadJob(unsigned char jobNumber) {
+    return Pref::getJob(jobNumber);
+}
+
 }

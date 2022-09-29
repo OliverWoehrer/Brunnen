@@ -2,15 +2,15 @@
 #define DT_H
 
 #include <Preferences.h>
-#include <ESP32_MailClient.h>
+#include <ESP_Mail_Client.h>
 
 //Global return value:
 #define SUCCESS 0
 #define FAILURE 1
 
 //Network Credentials:
-#define WIFI_SSID_HOME "TimCap3983"
-#define WIFI_PASSWORD_HOME "T!mCap3983Key"
+#define WIFI_SSID_HOME "RadlerfreieWohnung_2.4G"
+#define WIFI_PASSWORD_HOME "radlerraus"
 #define WIFI_SSID_FIELD "TP-Link_BCDC"
 #define WIFI_PASSWORD_FIELD "69001192"
 
@@ -27,48 +27,22 @@
 #define SPI_CLK 18
 #define SPI_MISO 19
 
-//Mail Client:
+/* redefined in em.h
+Mail Client:
 #define EMAIL_SENDER_ACCOUNT    "iot.baumgasse@gmail.com"
-#define EMAIL_SENDER_PASSWORD   "1ot_baumgasse"
-#define EMAIL_RECIPIENT        "oliver.woehrer@gmail.com"
+#define EMAIL_SENDER_PASSWORD   "xhqzrrmabcdttlwy" //"1ot_baumgasse"
+#define EMAIL_RECIPIENT        "oliver.w@live.at"
 #define SMTP_SERVER            "smtp.gmail.com"
 #define SMTP_SERVER_PORT        465
-#define EMAIL_SUBJECT          "ESP32 Mail with Attachment"
+#define EMAIL_SUBJECT          "ESP32 Mail with Attachment"*/
 
-//===============================================================================================
-// PREFERENCES
-//===============================================================================================
-class PREFS {
-private:
-    Preferences preferences;
-public:
-    typedef enum {START, STOP, WDAY} interval_prop_t;
-    PREFS();
+namespace Wlan {
     int init();
-    void setStartTime(tm start, unsigned int i);
-    void setStopTime(tm stop, unsigned int i);
-    void setWeekDay(unsigned char wday, unsigned int i);
-    tm getStartTime(unsigned int i);
-    tm getStopTime(unsigned int i);
-    unsigned char getWeekDay(unsigned int i);
-};
-
-extern PREFS Prefs;
-
-
-//===============================================================================================
-// WLAN
-//===============================================================================================
-class WLAN {
-public:
-    WLAN();
-    int init();
+    int login();
+    int connect();
     int disable();
     bool isConnected();
-};
-
-extern WLAN Wlan;
-
+}
 
 //===============================================================================================
 // TIME
@@ -124,36 +98,5 @@ public:
 };
 
 extern FILE_SYSTEM FileSystem;
-
-
-//===============================================================================================
-// MAIL
-//===============================================================================================
-class MAIL {
-private:
-    SMTPData smtpData;
-public:
-    MAIL();
-    int init();
-    static void callbackSend(SendStatus msg);
-    int send(const char* mailText);
-};
-
-extern MAIL Mail;
-
-/* alternative, non-working implementation (using newer ESP Mail client):
-class MAIL {
-private:
-    SMTPSession smtp;
-    ESP_Mail_Session session;
-public:
-    MAIL();
-    int init();
-    static void callbackSend(SendStatus msg);
-    int send(const char* mailText);
-};
-
-extern MAIL Mail;
-*/
 
 #endif /* DT_H */

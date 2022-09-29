@@ -26,6 +26,7 @@
 #include "hw.h"
 #include "dt.h"
 #include "ui.h"
+#include "em.h"
 
 #define BAUD_RATE 115200
 
@@ -36,7 +37,7 @@
 volatile bool loopEntry; // gets set true every LOOP_PERIOD (default: 1 sec)
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED; // mutex semaphore for loopEntry variable
 hw_timer_t *loopTimer = NULL;
-static void IRAM_ATTR onTimer(){
+static void IRAM_ATTR onTimer() {
   portENTER_CRITICAL_ISR(&timerMux);
   loopEntry = true;
   portEXIT_CRITICAL_ISR(&timerMux);
@@ -51,63 +52,62 @@ void setup() {
     Serial.begin(BAUD_RATE);
 
     //Initialize system hardware:
-    Led::init();
-    Sensors::init();
-    Button::init();
-    Relais::init();
+    Hardware::init();
 
-    //Initialize Flash Memory and Read Out Preferences:
-    Prefs.init();
+    //Read Out Preferences from Flash Memory:
     Serial.printf("[INFO] Intervals:\n");
     for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
         //Read out preferences from flash:
-        struct tm start = Prefs.getStartTime(i);
-        struct tm stop = Prefs.getStopTime(i);
-        unsigned char wday = Prefs.getWeekDay(i);
+        struct tm start = Hardware::loadStartTime(i);
+        struct tm stop = Hardware::loadStopTime(i);
+        unsigned char wday = Hardware::loadWeekDay(i);
 
         //Initialize interval:
-        Relais::interval_t interval = {.start = start, .stop = stop, .wday = wday};
-        Relais::setInterval(interval, i);
+        Hardware::Relais::interval_t interval = {.start = start, .stop = stop, .wday = wday};
+        Hardware::setPumpInterval(interval, i);
         Serial.printf("(%d) %d:%d - %d:%d {%u}\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
     }
 
     //Setup wifi connection and system time:
-    if (Wlan.init()) { // error handling
+    Wlan::init();
+    if (Wlan::connect()) { // error handling
         Serial.printf("Failed to connect WiFi.\n");
-        Led::turnOn(Led::RED);
+        Hardware::setErrorLed(HIGH);
         return;
     }
     if (Time.init()) {
         Serial.printf("Failed to initialize local time.\n");
-        Led::turnOn(Led::RED);
+        Hardware::setErrorLed(HIGH);
         return;
     }
 
     //Initialize Web Server User Interface:
     Ui.init();
-    Wlan.disable();
+    Ui.toggle(); // enable user interface
+    Hardware::setUILed(HIGH);
 
     //Set up log and storage:
     if (Log.init()) { // error with internal SPIFFS
         Serial.printf("Failed to mount SPIFFS.\n");
-        Led::turnOn(Led::RED);
+        Hardware::setErrorLed(HIGH);
         return;
     }
     const char* logString = Log.readFile();
     Serial.print(" <<< LOG FILE /log.txt >>>\n");
-    Serial.print(logString);
+    // Serial.print(logString);
     Serial.print(" >>> END OF LOG FILE <<<\n");
 
     if (FileSystem.init()) { // error mounting SD card
         Serial.printf("Failed to initialize file system (SD-Card).\n");
-        Led::turnOn(Led::RED);
+        Hardware::setErrorLed(HIGH);
         return;
     }
 
     //Initialize e-mail client:
-    if (Mail.init()) { // error connecting to SD card
+    int mailSucess = EMail::init();
+    if (mailSucess != SUCCESS) { // error connecting to SD card
         Serial.printf("Failed to setup mail client.\n");
-        Led::turnOn(Led::RED);
+        Hardware::setErrorLed(HIGH);
         return;
     }
     
@@ -117,117 +117,116 @@ void setup() {
     timerAlarmWrite(loopTimer, LOOP_PERIOD, true);
     timerAlarmEnable(loopTimer);
 
-    Led::turnOn(Led::GREEN);
     Log.msg(LOG::INFO, "ESP32 device has been set up!");
     delay(1000);
-    Led::turnOff(Led::GREEN);
 }
 
+unsigned char test = 0;
 void loop() {
     //Periodic Meassurements:
-    if (loopEntry) { // check for loop entry
+    if (loopEntry) {
         //Loop entry:
         portENTER_CRITICAL(&timerMux);
         loopEntry = false; // mutex reset of loop entry
         portEXIT_CRITICAL(&timerMux);
-        Led::turnOn(Led::BLUE);
+        Hardware::setIndexLed(HIGH);
 
         //Read sensors:
-        Sensors::requestValues();
-        while(Sensors::hasValuesReady() == false); // wait for sensor to weak up
-        bool isNominal = Sensors::readValues();
+        Hardware::readSensorValues();
         
         //Write data to file:
-        String valueString = String(Time.toString())+","+String(Sensors::toString())+"\r\n"; 
-        FileSystem.appendFile(SD, FileSystem.getFileName(), valueString.c_str());
-        // Serial.print(valueString.c_str());
+        String valueString = String(Time.toString())+","+String(Hardware::sensorValuesToString())+"\r\n";
 
         //Check time switch for relais:
         struct tm timeinfo = Time.getTimeinfo();
-        switch (Relais::getOpMode()) {
-        case Relais::MANUAL:
-            // do not toggel relais
-            break;
-        case Relais::SCHEDULED:
-            if (Relais::checkIntervals(timeinfo))
-                Relais::turnOn();
-            else
-                Relais::turnOff();
-            break;
-        case Relais::AUTOMATIC:
-            if (Relais::checkIntervals(timeinfo) && Sensors::getWaterLevel() > 1100)
-                Relais::turnOn();
-            else
-                Relais::turnOff();
-            break;
-        default:
-            Relais::turnOff();
-            break;
-        }
+        Hardware::managePumpIntervals(timeinfo);
 
         //Check for midnight:
-        if (timeinfo.tm_hour == 23 && timeinfo.tm_min == 59 && timeinfo.tm_sec == 59) {
-            Log.msg(LOG::INFO, "sending Email");
-            bool wasConnected = Wlan.isConnected(); // chache if the wifi was enabled
-            if (!wasConnected) {
-                if (Wlan.init()) { // reenable wifi, if web server is nor enabled currently
-                    Log.msg(LOG::ERROR, "Failed to connect WiFi.");
-                    Led::turnOn(Led::RED);
-                }
-            }
-            //Check nominal range of sensors, send Mail:
-            String mailText = isNominal ? "Sensors out of nominal range." : "All sensors in nominal range.";
-            if (Mail.send(mailText.c_str())) {
-                Log.msg(LOG::ERROR, "Failed to send Email");
-            } else { // delete old file after successful send
-                FileSystem.deleteFile(SD, FileSystem.getFileName());
-            }
-
+        test++;
+        if(test == 20) {
+        //if (timeinfo.tm_hour == 00 && timeinfo.tm_min == 10 && timeinfo.tm_sec == 00) {
             //Check Free Space for Log File:
             if(Log.getFileSize() > 1000000) {
                 Log.clearFile(); // clear log file if bigger than 1MB
                 Log.msg(LOG::INFO, "Cleared Log File");
             }
+            
+            Log.msg(LOG::INFO, "sending Email");
+            bool wasConnected = Wlan::isConnected(); // chache if the wifi was enabled
+            if (!wasConnected) { // reenable wifi, if not connected
+                Wlan::connect();
+            }
+            
+
+            //Build mail text and send mail:
+            char mailText[64] = "";
+            
+            bool isNominal = Hardware::hasNominalSensorValues();
+            strcpy(mailText, isNominal ? "Sensors out of nominal range." : "All sensors in nominal range.");
+            //TODO: EMail::addText(const char*);
+
+            unsigned char jobLength = Hardware::loadJobLength();
+            sprintf(&mailText[29]," With %d data file(s) to send.\r\n", jobLength);
+            //TODO: EMail::addText(const char*);
+            
+            for (unsigned int i=1; i <= jobLength; i++) {
+                const char* jobName = Hardware::loadJob(i);
+                //TODO: EMail::attachFile(fName); <-- TODO: implement such function
+            }
+
+            int mailStatus = EMail::send("This is a test mail.");
+            if (mailStatus == FAILURE) { // error occured while sending mail
+                Log.msg(LOG::ERROR, "Failed to send Email, adding file to job list.");
+                const char* fName = FileSystem.getFileName();
+                Hardware::saveJob(jobLength+1, fName);
+                Hardware::saveJobLength(jobLength+1);
+            } else { // delete old file after successful send
+                FileSystem.deleteFile(SD, FileSystem.getFileName());
+            }
+            ESP.restart(); // software reset
 
             //Set up new data file:
             if (FileSystem.init()) { // error mounting SD card
                 Log.msg(LOG::ERROR, "Failed to initialize file system (SD-Card)");
-                Led::turnOn(Led::RED);
+                Hardware::setErrorLed(HIGH);
                 return;
             }
             //TODO: reconnect to NTp server and get time
             if (!wasConnected) {
-                Wlan.disable(); // disable wifi, web server not running atm
+                Wlan::disable(); // disable wifi, web server not running atm
             }
         }
         
         //Loop exit:
-        Led::turnOff(Led::BLUE);
+        Hardware::setIndexLed(LOW);
     }
 
 
     //Handle Short Button Press:
-    if (Button::isShortPressed()) {
-        Button::resetShortFlag();
+    if (Hardware::buttonIsShortPressed()) {
+        Hardware::resetButtonFlags();
         Log.msg(LOG::INFO, "toggle web server");
-        if (!Wlan.isConnected()) { // check for wifi
-            if (Wlan.init()) { // reenable wifi
+        if (!Wlan::isConnected()) { // check for wifi
+            if (Wlan::init()) { // reenable wifi
                 Log.msg(LOG::ERROR, "Failed to connect WiFi.");
-                Led::turnOn(Led::RED);
+                Hardware::setErrorLed(HIGH);
             }
         }
-        if (!Ui.toggle()) { // web interface not enabled
-            Wlan.disable(); // disable wifi again
+        int isEnabled = Ui.toggle();
+        if (isEnabled) { // web interface now enabled
+            Hardware::setUILed(HIGH);
+        } else {
+            Wlan::disable(); // disable wifi again
+            Hardware::setUILed(LOW);
         }
-        Led::toggle(Led::GREEN);
     }
 
 
     //Handle Long Button Press:
-    if (Button::isLongPressed()) {
+    if (Hardware::buttonIsLongPressed()) {
+        Hardware::resetButtonFlags();
         Log.msg(LOG::INFO, "toggle relais and operating mode");
-        Button::resetLongFlag();
-        Relais::toggle();
+        Hardware::toggleWaterPump();
     }
 
 

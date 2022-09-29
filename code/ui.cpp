@@ -6,6 +6,7 @@
  *  representing the user interface of the application.
  */
 #include <ESPAsyncWebServer.h>
+#include <SPIFFS.h>
 #include "Arduino.h"
 #include "hw.h"
 #include "dt.h"
@@ -45,37 +46,39 @@ String wdayToString(unsigned char wday) {
 
 String processor(const String& var){
     if (var == "INTERVAL_0") {
-        Relais::interval_t inv = Relais::getInterval(0);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(0);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}"; 
     } else if (var == "INTERVAL_1") {
-        Relais::interval_t inv = Relais::getInterval(1);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(1);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "INTERVAL_2") {
-        Relais::interval_t inv = Relais::getInterval(2);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(2);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "INTERVAL_3") {
-        Relais::interval_t inv = Relais::getInterval(3);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(3);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "INTERVAL_4") {
-        Relais::interval_t inv = Relais::getInterval(4);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(4);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "INTERVAL_5") {
-        Relais::interval_t inv = Relais::getInterval(5);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(5);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "INTERVAL_6") {
-        Relais::interval_t inv = Relais::getInterval(6);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(6);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "INTERVAL_7") {
-        Relais::interval_t inv = Relais::getInterval(7);
+        Hardware::pump_intervall_t inv = Hardware::getPumpInterval(7);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "LIVE_DATA") {
-        liveDataString = String(Time.toString())+", "+String(Sensors::toString());
+        liveDataString = String(Time.toString())+", "+String(Hardware::sensorValuesToString());
         return liveDataString;
     } else if (var == "FILE_SIZE") {
         return String(Log.getFileSize());
     } else if (var == "FILE_CONTENT") {
         const char* logString = Log.readFile();
-        return String(logString);
+        String logStr = String(logString);
+        logStr.replace("\n","<br>");
+        return String(logStr);
     } else {
         return String();
     }
@@ -92,7 +95,7 @@ void handle_Homepage(AsyncWebServerRequest *req) {
 
 //Live Data:
 void handle_live(AsyncWebServerRequest *req) {
-    String str = String(Time.toString())+", "+String(Sensors::toString());
+    String str = String(Time.toString())+", "+String(Hardware::sensorValuesToString());
     req->send(200, "text/plain", str.c_str());
 }
 
@@ -136,11 +139,11 @@ void handle_POST_interval(AsyncWebServerRequest *req) {
         }
 
         //Initialize interval:
-        Relais::interval_t interval = {.start = start, .stop = stop, .wday = wday};
-        Relais::setInterval(interval, index);
-        Prefs.setStartTime(start, index);
-        Prefs.setStopTime(stop, index);
-        Prefs.setWeekDay(wday, index);
+        Hardware::pump_intervall_t interval = {.start = start, .stop = stop, .wday = wday};
+        Hardware::setPumpInterval(interval, index);
+        Hardware::saveStartTime(start, index);
+        Hardware::saveStopTime(stop, index);
+        Hardware::saveWeekDay(wday, index);
 
         req->send(SPIFFS, "/interval.html", String(), false, processor);
     } else { // invalid request
@@ -160,7 +163,16 @@ void handle_POST_log(AsyncWebServerRequest *req) {
             AsyncWebParameter* p = req->getParam(i);
             if (p->name().equals("clearBtn")) {
                 Log.clearFile();
-                Led::turnOff(Led::RED);
+                Hardware::saveJobLength(0);
+            }
+        }
+        req->send(SPIFFS, "/log.html", String(), false, processor);
+    } else if (req->hasParam("clearLed", true)) {
+        int paramsNr = req->params();
+        for(int i=0;i<paramsNr;i++) {
+            AsyncWebParameter* p = req->getParam(i);
+            if (p->name().equals("clearLed")) {
+                Hardware::setErrorLed(LOW);
             }
         }
         req->send(SPIFFS, "/log.html", String(), false, processor);
@@ -193,6 +205,7 @@ int WEBINTERFACE::init() {
     server.on("/log", HTTP_POST, handle_POST_log);
     server.serveStatic("/", SPIFFS, "/");
     server.onNotFound(handle_NotFound);
+    return SUCCESS;
 }
 
 void WEBINTERFACE::handleClient() {
