@@ -594,6 +594,9 @@ namespace Pref {
     }
 }
 
+//===============================================================================================
+// HARDWARE
+//===============================================================================================
 /**
  * @brief Initializes the I/O ports and operational modes to the connected hardware modules
  */
@@ -602,7 +605,25 @@ int init() {
     Sensors::init();
     Button::init();
     Relais::init();
-    Pref::init();
+    if(Pref::init()) {
+        Serial.printf("Failed to read out preferences from flash memory!\r\n");
+        return FAILURE;
+    }
+
+    //Read Out Preferences from Flash Memory:
+    Serial.printf("[INFO] Intervals:\n");
+    for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
+        //Read out preferences from flash:
+        struct tm start = Pref::getStartTime(i);
+        struct tm stop = Pref::getStopTime(i);
+        unsigned char wday = Pref::getWeekDay(i);
+
+        //Initialize interval:
+        Relais::interval_t interval = {.start = start, .stop = stop, .wday = wday};
+        Relais::setInterval(interval, i);
+        Serial.printf("(%d) %d:%d - %d:%d {%u}\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
+    }
+
     return SUCCESS;
 }
 

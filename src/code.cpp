@@ -1,6 +1,6 @@
 /**
  * @author Oliver Woehrer, 11907563
- * @date 21.03.2021
+ * @date 21.03.2022
  * 
  * > > > > > BRUNNEN  < < < < <
  * System to meassure water flow and water level in well
@@ -49,56 +49,22 @@ static void IRAM_ATTR onTimer() {
 //===============================================================================================
 void setup() {
     delay(1000); // wait for hardware on PCB to wake up
+
+    Hardware::setIndexLed(HIGH);
     Serial.begin(BAUD_RATE);
 
     //Initialize system hardware:
-    Hardware::init();
-
-    //Read Out Preferences from Flash Memory:
-    Serial.printf("[INFO] Intervals:\n");
-    for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
-        //Read out preferences from flash:
-        struct tm start = Hardware::loadStartTime(i);
-        struct tm stop = Hardware::loadStopTime(i);
-        unsigned char wday = Hardware::loadWeekDay(i);
-
-        //Initialize interval:
-        Hardware::Relais::interval_t interval = {.start = start, .stop = stop, .wday = wday};
-        Hardware::setPumpInterval(interval, i);
-        Serial.printf("(%d) %d:%d - %d:%d {%u}\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
-    }
-
-    //Setup wifi connection and system time:
-    Wlan::init();
-    if (Wlan::connect()) { // error handling
-        Serial.printf("Failed to connect WiFi.\n");
-        Hardware::setErrorLed(HIGH);
-        return;
-    }
-    if (Time.init()) {
-        Serial.printf("Failed to initialize local time.\n");
+    int hwSuccess = Hardware::init();
+    if(hwSuccess != SUCCESS) {
+        Serial.printf("Failed to initialize hardware module!\r\n");
         Hardware::setErrorLed(HIGH);
         return;
     }
 
-    //Initialize Web Server User Interface:
-    Ui.init();
-    Ui.toggle(); // enable user interface
-    Hardware::setUILed(HIGH);
-
-    //Set up log and storage:
-    if (Log.init()) { // error with internal SPIFFS
-        Serial.printf("Failed to mount SPIFFS.\n");
-        Hardware::setErrorLed(HIGH);
-        return;
-    }
-    const char* logString = Log.readFile();
-    Serial.print(" <<< LOG FILE /log.txt >>>\n");
-    // Serial.print(logString);
-    Serial.print(" >>> END OF LOG FILE <<<\n");
-
-    if (FileSystem.init()) { // error mounting SD card
-        Serial.printf("Failed to initialize file system (SD-Card).\n");
+    //Initialize data&time module:
+    int dtSuccess = DataTime::init();
+    if (dtSuccess != SUCCESS) {
+        Serial.printf("Failed to initialize DataTime module!\r\n");
         Hardware::setErrorLed(HIGH);
         return;
     }
@@ -110,6 +76,12 @@ void setup() {
         Hardware::setErrorLed(HIGH);
         return;
     }
+
+    //Initialize Web Server User Interface:
+    Ui.init();
+    Ui.toggle(); // enable user interface
+    Hardware::setUILed(HIGH);
+    
     
     //Initialize loop timer:
     loopTimer = timerBegin(0, 80, true); // initialize timer0
@@ -117,7 +89,8 @@ void setup() {
     timerAlarmWrite(loopTimer, LOOP_PERIOD, true);
     timerAlarmEnable(loopTimer);
 
-    Log.msg(LOG::INFO, "ESP32 device has been set up!");
+    DataTime::logInfoMsg("ESP32 device has been set up!");
+    Hardware::setIndexLed(LOW);
     delay(1000);
 }
 
@@ -135,28 +108,19 @@ void loop() {
         Hardware::readSensorValues();
         
         //Write data to file:
-        String valueString = String(Time.toString())+","+String(Hardware::sensorValuesToString())+"\r\n";
+        String valueString = String(DataTime::timeToString())+","+String(Hardware::sensorValuesToString())+"\r\n";
 
         //Check time switch for relais:
-        struct tm timeinfo = Time.getTimeinfo();
+        struct tm timeinfo = DataTime::loadTimeinfo();
         Hardware::managePumpIntervals(timeinfo);
 
         //Check for midnight:
         test++;
         if(test == 20) {
         //if (timeinfo.tm_hour == 00 && timeinfo.tm_min == 10 && timeinfo.tm_sec == 00) {
-            //Check Free Space for Log File:
-            if(Log.getFileSize() > 1000000) {
-                Log.clearFile(); // clear log file if bigger than 1MB
-                Log.msg(LOG::INFO, "Cleared Log File");
-            }
-            
-            Log.msg(LOG::INFO, "sending Email");
-            bool wasConnected = Wlan::isConnected(); // chache if the wifi was enabled
-            if (!wasConnected) { // reenable wifi, if not connected
-                Wlan::connect();
-            }
-            
+            DataTime::checkLogFile(1000000); // check free space for log file
+            DataTime::logInfoMsg("sending Email");
+            DataTime::reconnectWlan();
 
             //Build mail text and send mail:
             char mailText[64] = "";
@@ -174,27 +138,31 @@ void loop() {
                 //TODO: EMail::attachFile(fName); <-- TODO: implement such function
             }
 
+            //TODO: EMail::addText("This is a test mail.");
+            //TODO: int mailStatus = EMail::send();
             int mailStatus = EMail::send("This is a test mail.");
             if (mailStatus == FAILURE) { // error occured while sending mail
-                Log.msg(LOG::ERROR, "Failed to send Email, adding file to job list.");
-                const char* fName = FileSystem.getFileName();
+                DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
+                const char* fName = DataTime::loadActiveDataFileName();
                 Hardware::saveJob(jobLength+1, fName);
                 Hardware::saveJobLength(jobLength+1);
             } else { // delete old file after successful send
-                FileSystem.deleteFile(SD, FileSystem.getFileName());
+                DataTime::deleteActiveDataFile();
             }
+
             ESP.restart(); // software reset
 
             //Set up new data file:
-            if (FileSystem.init()) { // error mounting SD card
-                Log.msg(LOG::ERROR, "Failed to initialize file system (SD-Card)");
+            // TODO: reconnect to NTp server and get time
+            struct tm timeinfo = DataTime::loadTimeinfo();
+            int dfSuccess = DataTime::createCurrentDataFile();
+            if (dfSuccess != SUCCESS) {
+                DataTime::logErrorMsg("Failed to initialize file system (SD-Card)");
                 Hardware::setErrorLed(HIGH);
                 return;
             }
-            //TODO: reconnect to NTp server and get time
-            if (!wasConnected) {
-                Wlan::disable(); // disable wifi, web server not running atm
-            }
+            
+            DataTime::disconnectWlan();
         }
         
         //Loop exit:
@@ -205,10 +173,11 @@ void loop() {
     //Handle Short Button Press:
     if (Hardware::buttonIsShortPressed()) {
         Hardware::resetButtonFlags();
-        Log.msg(LOG::INFO, "toggle web server");
-        if (!Wlan::isConnected()) { // check for wifi
-            if (Wlan::init()) { // reenable wifi
-                Log.msg(LOG::ERROR, "Failed to connect WiFi.");
+        DataTime::logInfoMsg("toggle web server");
+        if (!DataTime::isWlanConnected()) { // check for wifi
+            int cwSuccess = DataTime::connectWlan();
+            if (cwSuccess != SUCCESS) { // reenable wifi
+                DataTime::logErrorMsg("Failed to connect WiFi.");
                 Hardware::setErrorLed(HIGH);
             }
         }
@@ -216,7 +185,7 @@ void loop() {
         if (isEnabled) { // web interface now enabled
             Hardware::setUILed(HIGH);
         } else {
-            Wlan::disable(); // disable wifi again
+            DataTime::disconnectWlan();
             Hardware::setUILed(LOW);
         }
     }
@@ -225,7 +194,7 @@ void loop() {
     //Handle Long Button Press:
     if (Hardware::buttonIsLongPressed()) {
         Hardware::resetButtonFlags();
-        Log.msg(LOG::INFO, "toggle relais and operating mode");
+        DataTime::logInfoMsg("toggle relais and operating mode");
         Hardware::toggleWaterPump();
     }
 

@@ -70,12 +70,12 @@ String processor(const String& var){
         Hardware::pump_intervall_t inv = Hardware::getPumpInterval(7);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}";
     } else if (var == "LIVE_DATA") {
-        liveDataString = String(Time.toString())+", "+String(Hardware::sensorValuesToString());
+        liveDataString = String(DataTime::timeToString())+", "+String(Hardware::sensorValuesToString());
         return liveDataString;
     } else if (var == "FILE_SIZE") {
-        return String(Log.getFileSize());
+        return String(DataTime::getLogFileSize());
     } else if (var == "FILE_CONTENT") {
-        const char* logString = Log.readFile();
+        const char* logString = DataTime::readLogFile();
         String logStr = String(logString);
         logStr.replace("\n","<br>");
         return String(logStr);
@@ -95,7 +95,7 @@ void handle_Homepage(AsyncWebServerRequest *req) {
 
 //Live Data:
 void handle_live(AsyncWebServerRequest *req) {
-    String str = String(Time.toString())+", "+String(Hardware::sensorValuesToString());
+    String str = String(DataTime::timeToString())+", "+String(Hardware::sensorValuesToString());
     req->send(200, "text/plain", str.c_str());
 }
 
@@ -162,7 +162,7 @@ void handle_POST_log(AsyncWebServerRequest *req) {
         for(int i=0;i<paramsNr;i++) {
             AsyncWebParameter* p = req->getParam(i);
             if (p->name().equals("clearBtn")) {
-                Log.clearFile();
+                DataTime::checkLogFile(0);
                 Hardware::saveJobLength(0);
             }
         }

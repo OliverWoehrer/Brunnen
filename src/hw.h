@@ -48,7 +48,6 @@ namespace Relais {
         SCHEDULED,  // turn on relais during scheduled intervals
         AUTOMATIC   // turn on relais during scheduled intervals only if there is enough water
     } op_mode_t;
-
     typedef struct {
         struct tm start;
         struct tm stop;
