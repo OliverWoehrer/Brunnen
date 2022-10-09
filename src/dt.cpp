@@ -6,35 +6,17 @@
  * connections to the network given via the network credentials macros in dt.h. This allows the 
  * local time to be initialized via a NTP server over the web. Furthermore the file system of the
  * sd card attached over the sd card shield can be used. It contains basic read- and write-functions
- * as well as directory management. In addition to that the collected and stored data can be sent
- * via e-mail (function calls also provided in here). 
+ * as well as directory management.
  */
 #include <Preferences.h>
 #include <WiFi.h>
-#include <SPIFFS.h>
-#include "FS.h"
-#include "SD.h"
-#include "SPI.h"
+#include <ESP_Mail_Client.h>
+// #include <SPIFFS.h>
+// #include "FS.h"
+// #include "SD.h"
+// #include "SPI.h"
 #include "Arduino.h"
 #include "dt.h"
-
-
-//===============================================================================================
-// STRING SUPPORT
-//===============================================================================================
-String splitDT(String data, char separator, int index) {
-    int found = 0;
-    int strIndex[] = { 0, -1 };
-    int maxIndex = data.length() - 1;
-    for (int i = 0; i <= maxIndex && found <= index; i++) {
-        if (data.charAt(i) == separator || i == maxIndex) {
-            found++;
-            strIndex[0] = strIndex[1] + 1;
-            strIndex[1] = (i == maxIndex) ? i+1 : i;
-        }
-    }
-    return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
-}
 
 
 namespace DataTime {
@@ -65,7 +47,7 @@ namespace Wlan {
         unsigned char retries = 3; // number of tries to login
         while(retries > 0) {
             retries--;
-            WiFi.begin(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD);
+            WiFi.begin(ssid, pw);
             unsigned long now = millis();
             while (WiFi.status() != WL_CONNECTED) { // wait for max. 100 sec for WiFi to connect
                 Serial.printf(".");
@@ -82,7 +64,7 @@ namespace Wlan {
                 return SUCCESS;
             }
 
-            Serial.printf("Failed to connect WiFi");     
+            Serial.printf("Failed to connect WiFi\r\n");     
         }
 
         return FAILURE;
@@ -128,7 +110,7 @@ namespace Wlan {
 // TIME
 //===============================================================================================
 namespace Time {
-    char timeString[TIME_STRING_LENGTH];
+    char timeString[TIME_STRING_LENGTH]; // format[20]: "DD-MM-YYYY HH:MM:SS"
 
     /**
      * @brief Checks if the onboard(local) time system is valid and returns the time struct
@@ -153,7 +135,7 @@ namespace Time {
     }
 
     /**
-     * @brief Coneverts the current time into a string.
+     * @brief Coneverts the current time into a string with format[20]: "DD-MM-YYYY HH:MM:SS"
      * @return char string of current time
      */
     char* toString() {
@@ -169,7 +151,7 @@ namespace Time {
     int init() {
         configTime(GMT_TIME_ZONE, DAYLIGHT_OFFSET, NTP_SERVER);
         delay(700);
-        Serial.printf("[INF0] System time initialized at %s\n", toString());
+        Serial.printf("time initialized at %s\n", toString());
         return SUCCESS;
     }
 }
@@ -183,64 +165,71 @@ namespace Log {
      * message. If there is already a log file in place the new content is appended at the end.
      * @return SUCCESS if the welcome message was written successfully
      */
-    int init(const char* timeString) {
+    int init(const char* timestamp) {
         //Mount internal file system:
         if(!SPIFFS.begin(true)) {
             Serial.printf("Unable to mount SPIFFS.\n");
             return FAILURE;
         }
 
-        //Write first line to file:
+        //Open File to Write:
         File fileToWrite = SPIFFS.open("/log.txt", FILE_APPEND);
         if(!fileToWrite){
             Serial.printf("Unable to open log file for writing.\n");
             return FAILURE;
         }
-        String logMsg = String(timeString)+" [INFO] System booted!\n";
-        if(!fileToWrite.printf(logMsg.c_str())) {
+        
+        /* write first line to file:
+        char logMsg[TIME_STRING_LENGTH+24] = "";
+        sprintf(logMsg,"%s [INFO] System booted!\n",timestamp);
+        if(!fileToWrite.printf(logMsg)) {
             Serial.printf("Failed to write to log file.\n");
             return FAILURE;
-        }
+        }*/
         fileToWrite.close();
-
         return SUCCESS;
     }
 
     /**
-     * @brief writes log message into log file in following form: [TIMESTAMP] [HEADER] [msg] [LF].
+     * @brief Concatenates a log message in following form: [TIMESTAMP] [HEADER] [msg] [LF] and prints
+     * it to serial. If there is a timeString given the message is also written to log file ("/log.txt").
      * The message itself followed by a linefeed ("\n").
      * @param mode type of message (e.g INFO, ERROR, ...), matches the HEADER field
-     * @param timeString is the given TIMESTAMP
+     * @param timeString is the given TIMESTAMP, can be NULL
      * @param msg actual message itself
      * @return SUCCESS
      */
     int msg(log_mode_t mode, const char* timeString, const char* msg) {
-        String buffer = String(timeString);
-        String str = msg;
+        char buffer[TIME_STRING_LENGTH+9+strlen(msg)]; // LENGTH+9 because prefix " [ERROR] "
         switch (mode) {
         case INFO:
-            buffer += " [INFO] "+str+"\n";
+            sprintf(buffer, "%s [INFO] %s\n",timeString,msg);
             break;
         case WARNING:
-            buffer += "  > "+str+"\n";
+            sprintf(buffer, "%s  > %s\n",timeString,msg);
             break;
         case ERROR:
-            buffer += " [ERROR] "+str+"\n";
+            sprintf(buffer, "%s [ERROR] %s\n",timeString,msg);
             break;
         case DEBUG:
-            buffer += " ## "+str+"\n";
+            sprintf(buffer, "%s ## %s\n",timeString,msg);
             break;
         default:
-            buffer += " "+str+"\n";
+            sprintf(buffer, "%s %s\n",timeString,msg);
             break;
         }
-        Serial.printf(buffer.c_str());
+        Serial.printf("%s",buffer);
 
-        //Write buffer to Log File:
-        File logFile = SPIFFS.open("/log.txt", FILE_APPEND); //FILE_APPEND
-        logFile.printf(buffer.c_str());
-        logFile.flush();
-        logFile.close();
+        if (timeString == NULL) { // write buffer to log file if timestamp is available
+            if(!SPIFFS.begin(false)) { // mount internal file system
+                Serial.printf("Unable to mount SPIFFS.\n");
+                return FAILURE;
+            }
+            File logFile = SPIFFS.open("/log.txt", FILE_APPEND); //FILE_APPEND
+            logFile.printf(buffer);
+            logFile.flush();
+            logFile.close();
+        }
         
         return SUCCESS;
     }
@@ -250,31 +239,39 @@ namespace Log {
      * @return content of the log file
      */
     const char* readFile() {
-        File file2 = SPIFFS.open("/log.txt", FILE_READ);
-        if (!file2) {
+        if(!SPIFFS.begin(false)) { // mount internal file system
+            Serial.printf("Unable to mount SPIFFS.\n");
+            return "";
+        }
+        File file = SPIFFS.open("/log.txt", FILE_READ);
+        if (!file) {
             Serial.print("Failed to open log file\n");
-            return String("").c_str();
+            return "";
         }
         String logString = "";
-        while(file2.available()){
-            logString = logString + String(file2.readString()) + "\r\n";
+        while(file.available()){
+            logString = logString + String(file.readString()) + "\r\n";
         }
-        file2.close();
-        return logString.c_str();
+        file.close();
+        return logString.c_str();      
+        // int fileSize = file.size();
+        // char logString[fileSize];
+        // file.readBytes(logString,fileSize);
+        // file.close();
     }
 
     /*int readFile() {
-        File file2 = SPIFFS.open("/log.txt", FILE_READ);
-        if (!file2) {
+        File file = SPIFFS.open("/log.txt", FILE_READ);
+        if (!file) {
             Serial.print("Failed to open log file\n");
             return FAILURE;
         }
         Serial.print(" <<< LOG FILE /log.txt >>>\n");
-        while(file2.available()){
-            Serial.write(file2.read());
+        while(file.available()){
+            Serial.write(file.read());
         }
         Serial.print(" >>> END OF LOG FILE <<<\n");
-        file2.close();
+        file.close();
         return SUCCESS;
     }*/
 
@@ -283,13 +280,17 @@ namespace Log {
      * @return size of log file in bytes
      */
     int getFileSize() {
-        File file2 = SPIFFS.open("/log.txt", FILE_READ);
-        if (!file2) {
-            Serial.print("Failed to open log file\n");
-            return FAILURE;
+        if(!SPIFFS.begin(false)) { // mount internal file system
+            Serial.printf("Unable to mount SPIFFS.\n");
+            return 0;
         }
-        int fileSize = file2.size();
-        file2.close();
+        File file = SPIFFS.open("/log.txt", FILE_READ);
+        if (!file) {
+            Serial.print("Failed to open log file\n");
+            return 0;
+        }
+        int fileSize = file.size();
+        file.close();
         return fileSize;
     }
 
@@ -298,12 +299,17 @@ namespace Log {
      * @return SUCCESS if the new (empty/cleared) file was created successfully, FAILURE otherwise
      */
     int clearFile() {
-        File file2 = SPIFFS.open("/log.txt", FILE_WRITE);
-        if (!file2) {
-            Serial.print("Failed to open log file\n");
+        int ret = SUCCESS;
+        if(!SPIFFS.begin(false)) { // mount internal file system
+            Serial.printf("Unable to mount SPIFFS.\n");
             return FAILURE;
         }
-        return SUCCESS;
+        File file = SPIFFS.open("/log.txt", FILE_WRITE);
+        if (!file) {
+            Serial.print("Failed to open log file\n");
+            ret = FAILURE;
+        }
+        return ret;
     }
 }
 
@@ -311,7 +317,7 @@ namespace Log {
 // FILE SYSTEM
 //===============================================================================================
 namespace FileSystem {
-    String fileName;
+    char fileNameBuffer[FILE_NAME_LENGTH]; // format[21]: "/data_YYYY-MM-DD.txt"
 
     /**
      * @brief Mounts the SD card and looks for a file named "fileName". This is the file currently
@@ -321,8 +327,8 @@ namespace FileSystem {
      * @return SUCCESS is the file was found or created, FAILURE otherwise
      */
     int init(const char* fName) {
-        /* DEBUG:
-        if (!SD.begin(SPI_CD)) {
+        /** TODO: actually mount SD card*/
+        /*if (!SD.begin(SPI_CD)) {
             Serial.printf("Card Mount Failed");
             return FAILURE; // error code: no card shield found
         }
@@ -337,15 +343,18 @@ namespace FileSystem {
         //Check SD card size:
         unsigned long long usedBytes = SD.usedBytes() / (1024 * 1024);
         Serial.printf("Mounted SD card with %llu MB used.\n", usedBytes);
-        fileName = String(fName); // set file name currently used
+        strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
         return SUCCESS;*/
 
-        fileName = String(fName); // set file name currently used
+        strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
         return SUCCESS;
     }
 
     /**
-     * TODO: write desciption
+     * @brief Uses the serial interface to print the contents of the given directory
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param dirname name of the directory (e.g "/")
+     * @param levels the number of hierachy levels to print
      */
     void listDirectory(fs::FS &fs, const char *dirname, uint8_t levels) {
         Serial.printf("Listing directory: %s\n", dirname);
@@ -375,7 +384,9 @@ namespace FileSystem {
     }
 
     /**
-     * TODO: write desciption
+     * @brief Creats a new directory (=sub-folder) in the given directory
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
      */
     void createDir(fs::FS &fs, const char *path) {
         Serial.printf("Creating Dir: %s\n", path);
@@ -384,7 +395,9 @@ namespace FileSystem {
     }
 
     /**
-     * TODO: write desciption
+     * @brief Removes the directory in the given oath
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
      */
     void removeDir(fs::FS &fs, const char *path) {
         Serial.printf("Removing Dir: %s\n", path);
@@ -393,7 +406,9 @@ namespace FileSystem {
     }
 
     /**
-     * TODO: write desciption
+     * @brief Reads the content of the file at the given path
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
      */
     void readFile(fs::FS &fs, const char *path) {
         Serial.printf("Reading file: %s\n", path);
@@ -408,7 +423,10 @@ namespace FileSystem {
     }
 
     /**
-     * TODO: write desciption
+     * @brief Writes the given message to the beginning of the file at the given path
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
+     * @param message text to be written into file
      */
     void writeFile(fs::FS &fs, const char *path, const char *message) {
         Serial.printf("Writing file: %s\n", path);
@@ -423,7 +441,11 @@ namespace FileSystem {
     }
 
     /**
-     * TODO: write desciption
+     * @brief Writes the given message to the end of the file at the given path and 
+     * therefor appending the given data to the existing file
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
+     * @param message text to be appended into file
      */
     void appendFile(fs::FS &fs, const char *path, const char *message) {
         File file = fs.open(path, FILE_APPEND);
@@ -436,7 +458,9 @@ namespace FileSystem {
     }
 
     /**
-     * TODO: write desciption
+     * @brief Delets the file at the given path
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
      */
     void deleteFile(fs::FS &fs, const char *path) {
         Serial.printf("Deleting file: %s\n", path);
@@ -446,10 +470,10 @@ namespace FileSystem {
 
     /**
      * @brief Returns the name of the file currently used.
-     * @return file name
+     * @return file name in format[21]: "/data_YYYY-MM-DD.txt"
      */
-    const char* getFileName() {
-        return fileName.c_str();
+    char* getFileName() {
+        return fileNameBuffer;
     }
 }
 
@@ -463,39 +487,35 @@ namespace FileSystem {
  * @return SUCCESS is all modules are initalized correctly, FAILURE otherwise
  */
 int init() {
-    int ret = Wlan::init();
-    if(ret != SUCCESS) {
+    if(Wlan::init()) {
         Serial.printf("[ERROR] Failed to initialize Wlan module!\r\n");
         return FAILURE;
     }
 
-    ret = Wlan::connect();
-    if(ret != SUCCESS) { // connect wlan for time initalization
+    if(Wlan::connect()) { // connect wlan for time initalization
         Serial.printf("[ERROR] Failed to connect to Wlan module!\r\n");
         return FAILURE;
     }
-    ret = Time::init();
-    if(ret != SUCCESS) {
+    if(Time::init()) {
         Serial.printf("[ERROR] Failed to initialize Time module!\r\n");
         return FAILURE;
     }
     Wlan::disconnect();
 
     const char* timeString = Time::toString();
-    ret = Log::init(timeString);
-    if(ret != SUCCESS) {
+    if(Log::init(timeString)) {
         Serial.printf("[ERROR] Failed to initialize log system!\r\n");
         return FAILURE;
     }
     const char* logString = Log::readFile();
     Serial.print(" <<< LOG FILE /log.txt >>>\n");
-    // DEBUG: Serial.print(logString);
+    Serial.print(logString);
     Serial.print(" >>> END OF LOG FILE <<<\n");
 
     struct tm timeinfo = Time::getTimeinfo();
-    String fileName = "/data_"+String(timeinfo.tm_mday)+"-"+String(timeinfo.tm_mon+1)+"-"+String(timeinfo.tm_year+1900)+".txt";
-    ret = FileSystem::init(fileName.c_str());
-    if(ret != SUCCESS) {
+    char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
+    sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
+    if(FileSystem::init(fileName)) {
         Serial.printf("Failed to initialize file system (SD-Card).\n");
         return FAILURE;
     }
@@ -561,7 +581,7 @@ tm loadTimeinfo() {
 }
 
 /**
- * @brief Converts the current time into a readable string format
+ * @brief Converts the current time into a readable string format[20]: "DD-MM-YYYY HH:MM:SS"
  * @return timestamp in string format
  */
 char* timeToString() {
@@ -645,8 +665,11 @@ int getLogFileSize() {
  */
 int createCurrentDataFile() {
     struct tm timeinfo = Time::getTimeinfo();
-    String fileName = "/data_"+String(timeinfo.tm_mday)+"-"+String(timeinfo.tm_mon+1)+"-"+String(timeinfo.tm_year+1900)+".txt";
-    int ret = FileSystem::init(fileName.c_str());
+    char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
+    sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
+    int ret = FileSystem::init(fileName);
+    // String fileName = "/data_"+String(timeinfo.tm_mday)+"-"+String(timeinfo.tm_mon+1)+"-"+String(timeinfo.tm_year+1900)+".txt";
+    // int ret = FileSystem::init(fileName.c_str());
     if(ret != SUCCESS) {
         Log::msg(Log::ERROR,Time::toString(),"Failed to initialize file system (SD-Card).");
         return FAILURE;
@@ -658,7 +681,7 @@ int createCurrentDataFile() {
  * @brief Loads the file name of the file currently used to store the sensor data
  * @return file name of file currently used
  */
-const char* loadActiveDataFileName() {
+char* loadActiveDataFileName() {
     return FileSystem::getFileName();
 }
 

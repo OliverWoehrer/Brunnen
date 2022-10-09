@@ -13,20 +13,23 @@
 #define LED_GREEN 16
 #define LED_BLUE 2
 
-//Sensors
+//Sensors:
 #define WATERFLOW_SENSOR 22
 #define WATER_PRESSURE_SENSOR 32
 #define SENSOR_SWITCH 25
 #define WATER_LEVEL_SENSOR 33
 
-//Button
+//Button:
 #define BUTTON 15
 #define BTN_SAMPLING_RATE 100000
 
-//Relais
+//Relais:
 #define RELAIS 13
 #define MAX_INTERVALLS 8
 #define VALUE_STRING_LENGTH 40
+
+//Preferences:
+#define FILE_NAME_LENGTH 21
 
 namespace Hardware {
 

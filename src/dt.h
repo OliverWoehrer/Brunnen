@@ -2,7 +2,6 @@
 #define DT_H
 
 #include <Preferences.h>
-#include <ESP_Mail_Client.h>
 
 //Global return value:
 #define SUCCESS 0
@@ -21,6 +20,7 @@
 #define DAYLIGHT_OFFSET 3600
 
 //File System:
+#define FILE_NAME_LENGTH 21
 #define SD_CARD
 #define SPI_CD 5
 #define SPI_MOSI 23
@@ -57,7 +57,7 @@ int checkLogFile(int maxSize);
 int getLogFileSize();
 
 int createCurrentDataFile();
-const char* loadActiveDataFileName();
+char* loadActiveDataFileName();
 void deleteActiveDataFile();
 int setActiveDataFile(const char* fName);
 

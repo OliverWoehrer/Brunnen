@@ -1,5 +1,5 @@
-#ifndef EM_H
-#define EM_H
+#ifndef GW_H
+#define GW_H
 
 #include <ESP_Mail_Client.h>
 
@@ -14,17 +14,24 @@
 #define SMTP_SERVER_PORT        587 //465 //587
 #define EMAIL_RECIPIENT        "oliver.w@live.at"
 #define EMAIL_SUBJECT          "ESP32 Mail with Attachment"
+#define MAIL_TEXT_LENGTH 1024
 
 //NTP Server:
 #define NTP_SERVER "pool.ntp.org"
 #define GMT_TIME_ZONE 3600
 #define DAYLIGHT_OFFSET 3600
 
-namespace EMail {
-    int init();
-    int addText(const char* text);
-    int attachFile(const char* fileName);
-    int send(const char* mailText);
+namespace Gateway {
+
+namespace EMail {}
+
+namespace ZamgAPI {}
+
+int init();
+int addInfoText(const char* text);
+int addData(const char* fileName);
+int sendData();
+
 }
 
-#endif /* EM_H */
+#endif /* GW_H */

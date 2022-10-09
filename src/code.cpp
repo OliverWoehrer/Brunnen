@@ -5,18 +5,6 @@
  * > > > > > BRUNNEN  < < < < <
  * System to meassure water flow and water level in well
  * 
- * [For use of Visual Studio Code]
- * Set configuration parameters in c_cpp_properties.json
- *  > "defines": ["USBCON"]  for IntelliSense to work with serial monitor functions.
- * To disable the debugg logger messages (e.g "TRACE StatusLogger") add the following
- *  > -DDEBUG=false
- * to the arduino config file in the arduino directory.
- * On windows this can be found at "C:\Program Files (x86)\Arduino\arduino_debug.l4j.ini"
- * This has to be done because debug messages are enabled per default in Visual Studio Code
- * For use with Arduino Nano set in arduino.json
- *  > "configuration": "cpu=atmega328old" in order to use old bootloader on Arduino Nano board.
- *  > "programmer": "AVRISP mkII"
- *  > "output": "../build"
  * 
 **/
 //===============================================================================================
@@ -26,7 +14,7 @@
 #include "hw.h"
 #include "dt.h"
 #include "ui.h"
-#include "em.h"
+#include "gw.h"
 
 #define BAUD_RATE 115200
 
@@ -54,24 +42,21 @@ void setup() {
     Serial.begin(BAUD_RATE);
 
     //Initialize system hardware:
-    int hwSuccess = Hardware::init();
-    if(hwSuccess != SUCCESS) {
+    if(Hardware::init()) {
         Serial.printf("Failed to initialize hardware module!\r\n");
         Hardware::setErrorLed(HIGH);
         return;
     }
 
     //Initialize data&time module:
-    int dtSuccess = DataTime::init();
-    if (dtSuccess != SUCCESS) {
+    if (DataTime::init()) {
         Serial.printf("Failed to initialize DataTime module!\r\n");
         Hardware::setErrorLed(HIGH);
         return;
     }
 
     //Initialize e-mail client:
-    int mailSucess = EMail::init();
-    if (mailSucess != SUCCESS) { // error connecting to SD card
+    if (Gateway::init()) { // error connecting to SD card
         Serial.printf("Failed to setup mail client.\n");
         Hardware::setErrorLed(HIGH);
         return;
@@ -96,6 +81,8 @@ void setup() {
 
 unsigned char test = 0;
 void loop() {
+    return; /** TODO:*/
+
     //Periodic Meassurements:
     if (loopEntry) {
         //Loop entry:
@@ -108,43 +95,41 @@ void loop() {
         Hardware::readSensorValues();
         
         //Write data to file:
-        String valueString = String(DataTime::timeToString())+","+String(Hardware::sensorValuesToString())+"\r\n";
+        char valueString[TIME_STRING_LENGTH+1+VALUE_STRING_LENGTH+3];
+        sprintf(valueString,"%s,%s\r\n",DataTime::timeToString(),Hardware::sensorValuesToString());
 
         //Check time switch for relais:
         struct tm timeinfo = DataTime::loadTimeinfo();
         Hardware::managePumpIntervals(timeinfo);
 
         //Check for midnight:
-        test++;
-        if(test == 20) {
-        //if (timeinfo.tm_hour == 00 && timeinfo.tm_min == 10 && timeinfo.tm_sec == 00) {
+        if (timeinfo.tm_hour == 00 && timeinfo.tm_min == 10 && timeinfo.tm_sec == 00) {
             DataTime::checkLogFile(1000000); // check free space for log file
-            DataTime::logInfoMsg("sending Email");
             DataTime::reconnectWlan();
+            DataTime::logInfoMsg("sending Email");
 
             //Build mail text and send mail:
-            char mailText[64] = "";
-            
             bool isNominal = Hardware::hasNominalSensorValues();
-            strcpy(mailText, isNominal ? "Sensors out of nominal range." : "All sensors in nominal range.");
-            //TODO: EMail::addText(const char*);
+            const char* nomTxt = isNominal ? "All sensors in nominal range." : "Sensors out of nominal range.";
+            Gateway::addInfoText(nomTxt);
 
             unsigned char jobLength = Hardware::loadJobLength();
-            sprintf(&mailText[29]," With %d data file(s) to send.\r\n", jobLength);
-            //TODO: EMail::addText(const char*);
-            
-            for (unsigned int i=1; i <= jobLength; i++) {
+            char jobTxt[34];
+            sprintf(jobTxt," With %d data file(s) to send.\r\n",jobLength);
+            Gateway::addInfoText(jobTxt);
+
+            Gateway::addData(DataTime::loadActiveDataFileName());
+
+            for (unsigned int i=0; i < jobLength; i++) {
                 const char* jobName = Hardware::loadJob(i);
-                //TODO: EMail::attachFile(fName); <-- TODO: implement such function
+                test = Gateway::addData(jobName);
+                Serial.printf("EMail::attachFile(%s); with %d bytes left.\r\n",jobName,test);
             }
 
-            //TODO: EMail::addText("This is a test mail.");
-            //TODO: int mailStatus = EMail::send();
-            int mailStatus = EMail::send("This is a test mail.");
-            if (mailStatus == FAILURE) { // error occured while sending mail
+            if (Gateway::sendData()) { // error occured while sending mail
                 DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
                 const char* fName = DataTime::loadActiveDataFileName();
-                Hardware::saveJob(jobLength+1, fName);
+                Hardware::saveJob(jobLength, fName);
                 Hardware::saveJobLength(jobLength+1);
             } else { // delete old file after successful send
                 DataTime::deleteActiveDataFile();
@@ -152,11 +137,10 @@ void loop() {
 
             ESP.restart(); // software reset
 
+            /** TODO: reconnect to NTp server and get time */
+
             //Set up new data file:
-            // TODO: reconnect to NTp server and get time
-            struct tm timeinfo = DataTime::loadTimeinfo();
-            int dfSuccess = DataTime::createCurrentDataFile();
-            if (dfSuccess != SUCCESS) {
+            if (DataTime::createCurrentDataFile()) {
                 DataTime::logErrorMsg("Failed to initialize file system (SD-Card)");
                 Hardware::setErrorLed(HIGH);
                 return;

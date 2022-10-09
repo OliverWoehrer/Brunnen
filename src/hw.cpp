@@ -102,7 +102,6 @@ namespace Leds {
     }
 }
 
-
 //===============================================================================================
 // SENSORS
 //===============================================================================================
@@ -210,12 +209,12 @@ namespace Sensors {
 
     /**
      * @brief returns the string representation of the sensor values from the last sensor readout 
+     * @return valueString with max length VALUE_STRING_LENGTH
      */
     char* toString() {
         return valueString;
     }
 }
-
 
 //===============================================================================================
 // BUTTON
@@ -297,7 +296,6 @@ namespace Button {
         longPressed = false;
     }
 }
-
 
 //===============================================================================================
 // RELAIS
@@ -403,13 +401,15 @@ namespace Relais {
 // PREFERENCES
 //===============================================================================================
 namespace Pref {
-    Preferences preferences;
+    Preferences preferences; // format[20]: "/data_YYYY-MM-DD.txt"
+    char fileNameBuffer[FILE_NAME_LENGTH];
 
     /**
      * @brief initalizes the preferences and mounts the flash memory
      */
     int init() {
         bool ret = preferences.begin("brunnen", false);
+        preferences.end();
         return ret ? SUCCESS : FAILURE;
     }
 
@@ -423,8 +423,10 @@ namespace Pref {
         char startMinString[13] = "start_min_XX";
         sprintf(startHrString, "start_hour_%02d", i);
         sprintf(startMinString, "start_min_%02d", i);
+        preferences.begin("brunnen", false);
         preferences.putUInt(startHrString, start.tm_hour);
         preferences.putUInt(startMinString, start.tm_min);
+        preferences.end();
     }
 
     /**
@@ -437,8 +439,10 @@ namespace Pref {
         char stopMinString[12] = "stop_min_XX";
         sprintf(stopHrString, "stop_hour_%02d", i);
         sprintf(stopMinString, "stop_min_%02d", i);
+        preferences.begin("brunnen", false);
         preferences.putUInt(stopHrString, stop.tm_hour);
         preferences.putUInt(stopMinString, stop.tm_min);
+        preferences.end();
     }
 
     /**
@@ -448,16 +452,20 @@ namespace Pref {
      */
     void setWeekDay(unsigned char wday, unsigned int i) {
         char wdayString[8] = "wday_XX";
-        sprintf(wdayString, "wday_%02d", i);
+        sprintf(wdayString, "wday_%02d", i);      
+        bool ret = preferences.begin("brunnen", false);
         preferences.putUChar(wdayString, wday);
+        preferences.end();
     }
 
     /**
      * @brief writes the number of jobs to be done into preferences
      * @param jobLength number to set
      */
-    void setJobLength(unsigned char jobLength) {
+    void setJobLength(uint8_t jobLength) {
+        preferences.begin("brunnen", false);
         preferences.putUChar("jobLength", jobLength);
+        preferences.end();
     }
 
     /**
@@ -467,17 +475,17 @@ namespace Pref {
      */
     void setJob(unsigned char jobNumber, const char* fileName) {
         //Convert filename into hash integer (DDMMYYYY as integer number)
-        unsigned char i = 0; // format for fileName "data_23-6-2022.txt"
+        unsigned char i = 0; // format for fileName "/data_2022-06-23.txt"
         unsigned char offset = 0;
         while(fileName[i] != '_') {
             i++;
         }
         i++;
 
-        char dayString[3] = "XX";
+        char yearString[5] = "XXXX";
         offset = 0;
         while(fileName[i] != '-') {
-            dayString[offset] = fileName[i];
+            yearString[offset] = fileName[i];
             i++;
             offset++;
         }
@@ -492,26 +500,26 @@ namespace Pref {
         }
         i++;
 
-        char yearString[5] = "XXXX";
+        char dayString[3] = "XX";
         offset = 0;
         while(fileName[i] != '.') {
-            yearString[offset] = fileName[i];
+            dayString[offset] = fileName[i];
             i++;
             offset++;
         }
         i++;
         
-        long int day = strtol(dayString,NULL,10);
+        long int year = strtol(yearString,NULL,10);
         long int month = strtol(monthString,NULL,10);
-        long int year = strtol(yearString,NULL,0);
-
-        unsigned int hash = day*1000000 + month*10000 + year;
-        Serial.printf("Hash=%d\n", hash);
+        long int day = strtol(dayString,NULL,10);
+        unsigned int hash = year*10000 + month*100 + day; // hash integer (YYYYMMDD as integer number)
 
         char jobKey[7] = "job_XX"; // build string for preferences key
-        jobKey[5] = 0x30 | ((jobNumber/10) % 10);
-        jobKey[6] = 0x30 | (jobNumber % 10);
+        sprintf(jobKey,"job_%02d",jobNumber);
+
+        preferences.begin("brunnen", false);
         preferences.putUInt(jobKey, hash);
+        preferences.end();
     }
 
     /**
@@ -526,9 +534,11 @@ namespace Pref {
         sprintf(startMinString, "start_min_%02d", i);
 
         struct tm start;
+        preferences.begin("brunnen", false);
         start.tm_hour = preferences.getUInt(startHrString);
         start.tm_min = preferences.getUInt(startMinString);
         start.tm_sec = 0;
+        preferences.end();
         return start;
     }
 
@@ -544,9 +554,11 @@ namespace Pref {
         sprintf(stopMinString, "stop_min_%02d", i);
 
         struct tm stop;
+        preferences.begin("brunnen", false);
         stop.tm_hour = preferences.getUInt(stopHrString);
         stop.tm_min = preferences.getUInt(stopMinString);
         stop.tm_sec = 0;
+        preferences.end();
         return stop;
     }
 
@@ -558,7 +570,10 @@ namespace Pref {
     unsigned char getWeekDay(unsigned int i) {
         char wdayString[8] = "wday_XX";
         sprintf(wdayString, "wday_%02d", i);
-        return preferences.getUChar(wdayString);
+        preferences.begin("brunnen", false);
+        unsigned char wd = preferences.getUChar(wdayString);
+        preferences.end();
+        return wd;
     }
 
     /**
@@ -566,7 +581,10 @@ namespace Pref {
      * @return number of jobs to be done
      */
     unsigned char getJobLength() {
-        return preferences.getUChar("jobLength", 0);
+        preferences.begin("brunnen", false);
+        unsigned char jl = preferences.getUChar("jobLength", 0);
+        preferences.end();
+        return jl;
     }
 
     /**
@@ -576,21 +594,18 @@ namespace Pref {
      */
     const char* getJob(unsigned char jobNumber) {
         char jobKey[7] = "job_XX"; // build string for preferences key
-        jobKey[5] = 0x30 | ((jobNumber/10) % 10);
-        jobKey[6] = 0x30 | (jobNumber % 10);
-        unsigned int hash = preferences.getUInt(jobKey); // hash integer (DDMMYYYY as integer number)
+        sprintf(jobKey,"job_%02d",jobNumber);
 
+        preferences.begin("brunnen", false);
+        const unsigned int hash = preferences.getUInt(jobKey); // hash integer (YYYYMMDD as integer number)
+        preferences.end();
         
-        unsigned int day = (hash/1000000) % 100;
-        unsigned int month = (hash/10000) % 100;
-        unsigned int year = hash % 10000;
+        const unsigned int year = (hash/10000) % 10000;
+        const unsigned int month = (hash/100) % 100;
+        const unsigned int day = hash % 100;
 
-        // Serial.printf("Loading Job via Hash=%d (day=%d month=%d year=%d)",hash,day,month,year);
-
-        char fName[20] = ""; //format: data_DD-MM-YYYY.txt
-        sprintf(fName, "data_%d-%d-%d.txt",day,month,year);
-        const char* cfName = fName;
-        return cfName;
+        sprintf(fileNameBuffer, "/data_%04d-%02d-%02d.txt",year,month,day);
+        return fileNameBuffer;
     }
 }
 
@@ -671,6 +686,7 @@ void readSensorValues() {
 
 /**
  * @brief returns the string representation of the sensor values from the last sensor readout 
+ * @return string with max length VALUE_STRING_LENGTH
  */
 char* sensorValuesToString() {
     return Sensors::toString();
