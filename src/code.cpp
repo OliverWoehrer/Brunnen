@@ -63,9 +63,9 @@ void setup() {
     }
 
     //Initialize Web Server User Interface:
-    Ui.init();
-    Ui.toggle(); // enable user interface
-    Hardware::setUILed(HIGH);
+    UserInterface::init();
+    // UserInterface::enableInterface();
+    // Hardware::setUILed(HIGH);
     
     
     //Initialize loop timer:
@@ -74,15 +74,11 @@ void setup() {
     timerAlarmWrite(loopTimer, LOOP_PERIOD, true);
     timerAlarmEnable(loopTimer);
 
-    DataTime::logInfoMsg("ESP32 device has been set up!");
     Hardware::setIndexLed(LOW);
     delay(1000);
 }
 
-unsigned char test = 0;
 void loop() {
-    return; /** TODO:*/
-
     //Periodic Meassurements:
     if (loopEntry) {
         //Loop entry:
@@ -97,6 +93,7 @@ void loop() {
         //Write data to file:
         char valueString[TIME_STRING_LENGTH+1+VALUE_STRING_LENGTH+3];
         sprintf(valueString,"%s,%s\r\n",DataTime::timeToString(),Hardware::sensorValuesToString());
+        DataTime::writeToDataFile(valueString);
 
         //Check time switch for relais:
         struct tm timeinfo = DataTime::loadTimeinfo();
@@ -115,15 +112,15 @@ void loop() {
 
             unsigned char jobLength = Hardware::loadJobLength();
             char jobTxt[34];
-            sprintf(jobTxt," With %d data file(s) to send.\r\n",jobLength);
+            sprintf(jobTxt," With %d data file(s) to send.\r\n",jobLength+1);
             Gateway::addInfoText(jobTxt);
 
             Gateway::addData(DataTime::loadActiveDataFileName());
 
             for (unsigned int i=0; i < jobLength; i++) {
                 const char* jobName = Hardware::loadJob(i);
-                test = Gateway::addData(jobName);
-                Serial.printf("EMail::attachFile(%s); with %d bytes left.\r\n",jobName,test);
+                int freeMemory = Gateway::addData(jobName);
+                Serial.printf("EMail::attachFile(%s); with %d bytes left.\r\n",jobName,freeMemory);
             }
 
             if (Gateway::sendData()) { // error occured while sending mail
@@ -135,9 +132,7 @@ void loop() {
                 DataTime::deleteActiveDataFile();
             }
 
-            ESP.restart(); // software reset
-
-            /** TODO: reconnect to NTp server and get time */
+            // ESP.restart(); // software reset
 
             //Set up new data file:
             if (DataTime::createCurrentDataFile()) {
@@ -157,20 +152,23 @@ void loop() {
     //Handle Short Button Press:
     if (Hardware::buttonIsShortPressed()) {
         Hardware::resetButtonFlags();
-        DataTime::logInfoMsg("toggle web server");
-        if (!DataTime::isWlanConnected()) { // check for wifi
-            int cwSuccess = DataTime::connectWlan();
-            if (cwSuccess != SUCCESS) { // reenable wifi
-                DataTime::logErrorMsg("Failed to connect WiFi.");
-                Hardware::setErrorLed(HIGH);
-            }
-        }
-        int isEnabled = Ui.toggle();
-        if (isEnabled) { // web interface now enabled
-            Hardware::setUILed(HIGH);
-        } else {
+        DataTime::logInfoMsg("toggle user interface");
+        if (UserInterface::isEnabled()) {
+            UserInterface::disableInterface();
             DataTime::disconnectWlan();
             Hardware::setUILed(LOW);
+        } else {
+            int cwSuccess = SUCCESS;
+            if (!DataTime::isWlanConnected()) { // reenable wifi
+                cwSuccess = DataTime::connectWlan();
+            }
+            if (cwSuccess != SUCCESS) { // re-connect failed
+                DataTime::logErrorMsg("Failed to connect WiFi.");
+                Hardware::setErrorLed(HIGH);
+            } else {
+                UserInterface::enableInterface();
+                Hardware::setUILed(HIGH);   
+            }
         }
     }
 
@@ -181,9 +179,5 @@ void loop() {
         DataTime::logInfoMsg("toggle relais and operating mode");
         Hardware::toggleWaterPump();
     }
-
-
-    //Handle Web Interface:
-    Ui.handleClient();
 
 }

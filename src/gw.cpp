@@ -71,13 +71,13 @@ namespace EMail {
     int attachFile(const char* fileName) {
         //Attach File Data:
         /** TODO: actually attach file from SD card*/
-        /*SMTP_Attachment att; // declare attachment data objects
+        SMTP_Attachment att; // declare attachment data objects
         att.descr.filename = F(fileName);
         att.descr.mime = F("text/plain");
         att.file.path = F(fileName);
         att.file.storage_type = esp_mail_file_storage_type_sd;
         // att.descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
-        message.addAttachment(att);*/
+        message.addAttachment(att);
 
         //Add Text to Mail:
         sprintf(&mailText[index],"%s\r\n",fileName);
@@ -188,7 +188,7 @@ int addInfoText(const char* text) {
 
 /**
  * @brief Sends the mail which was created by the other functions.
- * @return SUCCESS if the mail and all its attachments could be send, FAILURE otherwise
+ * @return number of free memory in bytes
  */
 int addData(const char* fileName) {
     return EMail::attachFile(fileName);

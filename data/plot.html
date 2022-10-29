@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Brunnen IoT</title>
+    <link rel="icon" href="data:@file/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP8AACAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIiIAAAAAAAAiIgAAAAAAACIiAAAAAAAAIiIAAAAAAAAiIgAAAAAAACIiAAAAAAAAIiIAAAAAABEREREAAAABERERERAAABEREREREQAAERERERERAAAREREREREAABEREREREQAAAREREREQAAAAEREREQAAAAABEREQAAD8PwAA/D8AAPw/AAD8PwAA/D8AAPw/AAD8PwAA8A8AAOAHAADAAwAAwAMAAMADAADAAwAA4AcAAPAPAAD4HwAA">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.0.0/chartjs-plugin-zoom.js"></script>
@@ -11,7 +12,7 @@
 
 <body>
     <header>
-        <a href="/">Homepage</a> <a href="/interval">Intervals</a> <a href="/log">Log</a> <a>Data</a>
+        <a href="/">Homepage</a> <a href="/interval">Intervals</a> <a href="/log">Log</a> <a>Data</a> <a href="/update">Update</a>
     </header>
     <div>
         <p id="text">This pages helps to plot data.</p>
@@ -23,7 +24,7 @@
         <canvas id="myChart"></canvas>
     </div>
 
-   <script type="text/javascript">
+    <script type="text/javascript">
         //Declare Data Arrays:
         var COMPRESS = 60;
         var edgeTotal = 0;
@@ -70,14 +71,14 @@
             var filesPromises = [];
 
             //Check Number of Input Files and Set Compression Level Accordingly:
-            const files = event.target.files;
+            const files = event.target.files; 
             if (!files.length) {
                 return;
             } else if (files.length <= 3) {
                 COMPRESS = 60; // default compression
                 config.options.plugins.title.text = files[0].name;
             } else {
-                COMPRESS = 60*60; // increase compression
+                COMPRESS = Math.ceil(((files.length*85000)/4000) + 1); // increase compression
             }
 
             //Read Input File(s):
@@ -133,14 +134,12 @@
             });
 
             Promise.all(filesPromises).then((fileContents) => { // awaits all promises (all file contents to be extracted)
-                console.log("edgeTotal="+edgeTotal);
-
                 //Convert Data Array to Individual Sets:
                 arrayToSets(dataArray);
 
                 //Set UI:
                 document.getElementById("controller").innerHTML = '<button onclick="makeChart()">Plot Data</button>';
-                document.getElementById("text").innerHTML = 'Ready to plot data';
+                document.getElementById("text").innerHTML = 'Ready to plot '+dataArray.length+' data points';
             });
         }
 

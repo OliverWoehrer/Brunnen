@@ -1,26 +1,13 @@
 #ifndef UI_H
 #define UI_H
 
-//===============================================================================================
-// USER INTERFACE
-//===============================================================================================
-class WEBINTERFACE {
-private:
-    bool enabled;
-public:
-    WEBINTERFACE();
-    int init();
-    void handleClient();
-    int toggle();
-};
+namespace UserInterface {
 
-extern WEBINTERFACE Ui;
+int init ();
+bool isEnabled();
+void enableInterface();
+void disableInterface();
 
-
-//===============================================================================================
-// REQUEST HANDLER
-//===============================================================================================
-//void handle_Homepage();
-//void handle_NotFound(AsyncWebServerRequest *request);
+}
 
 #endif /* UI_H */

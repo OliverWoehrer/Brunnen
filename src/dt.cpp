@@ -220,7 +220,7 @@ namespace Log {
         }
         Serial.printf("%s",buffer);
 
-        if (timeString == NULL) { // write buffer to log file if timestamp is available
+        if (timeString != NULL) { // write buffer to log file if timestamp is available
             if(!SPIFFS.begin(false)) { // mount internal file system
                 Serial.printf("Unable to mount SPIFFS.\n");
                 return FAILURE;
@@ -318,37 +318,6 @@ namespace Log {
 //===============================================================================================
 namespace FileSystem {
     char fileNameBuffer[FILE_NAME_LENGTH]; // format[21]: "/data_YYYY-MM-DD.txt"
-
-    /**
-     * @brief Mounts the SD card and looks for a file named "fileName". This is the file currently
-     * used to store the data. If there is non found, a new file is created with the headers in
-     * place. This way multiple initalizations/reboots of the system do not lead to multiple files.
-     * Last the free storage space on the SD card is checked.
-     * @return SUCCESS is the file was found or created, FAILURE otherwise
-     */
-    int init(const char* fName) {
-        /** TODO: actually mount SD card*/
-        /*if (!SD.begin(SPI_CD)) {
-            Serial.printf("Card Mount Failed");
-            return FAILURE; // error code: no card shield found
-        }
-
-        //Create a file on the SD card if does not exist:
-        File file = SD.open(fName);
-        if(!file) {
-            writeFile(SD, fName, "Timestamp,Flow,Pressure,Level\r\n");
-        }
-        file.close();
-
-        //Check SD card size:
-        unsigned long long usedBytes = SD.usedBytes() / (1024 * 1024);
-        Serial.printf("Mounted SD card with %llu MB used.\n", usedBytes);
-        strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
-        return SUCCESS;*/
-
-        strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
-        return SUCCESS;
-    }
 
     /**
      * @brief Uses the serial interface to print the contents of the given directory
@@ -469,6 +438,36 @@ namespace FileSystem {
     }
 
     /**
+     * @brief Mounts the SD card and looks for a file named "fileName". This is the file currently
+     * used to store the data. If there is non found, a new file is created with the headers in
+     * place. This way multiple initalizations/reboots of the system do not lead to multiple files.
+     * Last the free storage space on the SD card is checked.
+     * @return SUCCESS is the file was found or created, FAILURE otherwise
+     */
+    int init(const char* fName) {
+        if (!SD.begin(SPI_CD)) {
+            Serial.printf("Card Mount Failed");
+            return FAILURE; // error code: no card shield found
+        }
+
+        //Create a file on the SD card if does not exist:
+        File file = SD.open(fName);
+        if(!file) {
+            writeFile(SD, fName, "Timestamp,Flow,Pressure,Level\r\n");
+        }
+        file.close();
+
+        //Check SD card size:
+        unsigned long long usedBytes = SD.usedBytes() / (1024 * 1024);
+        Serial.printf("Mounted SD card with %llu MB used.\n", usedBytes);
+        strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
+        return SUCCESS;
+
+        /*strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
+        return SUCCESS;*/
+    }
+
+    /**
      * @brief Returns the name of the file currently used.
      * @return file name in format[21]: "/data_YYYY-MM-DD.txt"
      */
@@ -507,10 +506,10 @@ int init() {
         Serial.printf("[ERROR] Failed to initialize log system!\r\n");
         return FAILURE;
     }
-    const char* logString = Log::readFile();
-    Serial.print(" <<< LOG FILE /log.txt >>>\n");
-    Serial.print(logString);
-    Serial.print(" >>> END OF LOG FILE <<<\n");
+    // const char* logString = Log::readFile();
+    // Serial.print(" <<< LOG FILE /log.txt >>>\n");
+    // Serial.print(logString);
+    // Serial.print(" >>> END OF LOG FILE <<<\n");
 
     struct tm timeinfo = Time::getTimeinfo();
     char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
@@ -582,7 +581,7 @@ tm loadTimeinfo() {
 
 /**
  * @brief Converts the current time into a readable string format[20]: "DD-MM-YYYY HH:MM:SS"
- * @return timestamp in string format
+ * @return timestamp in string format with max length TIME_STRING_LENGTH
  */
 char* timeToString() {
     return Time::toString();
@@ -668,8 +667,6 @@ int createCurrentDataFile() {
     char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
     sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
     int ret = FileSystem::init(fileName);
-    // String fileName = "/data_"+String(timeinfo.tm_mday)+"-"+String(timeinfo.tm_mon+1)+"-"+String(timeinfo.tm_year+1900)+".txt";
-    // int ret = FileSystem::init(fileName.c_str());
     if(ret != SUCCESS) {
         Log::msg(Log::ERROR,Time::toString(),"Failed to initialize file system (SD-Card).");
         return FAILURE;
@@ -704,6 +701,14 @@ int setActiveDataFile(const char* fName) {
         return FAILURE;
     }
     return SUCCESS; 
+}
+
+/**
+ * @brief appends the given string into the (currently active) data file
+ * @param msg data string to write to data file
+ */
+void writeToDataFile(const char* msg) {
+    FileSystem::appendFile(SD, FileSystem::getFileName(), msg);
 }
 
 }

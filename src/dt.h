@@ -60,6 +60,7 @@ int createCurrentDataFile();
 char* loadActiveDataFileName();
 void deleteActiveDataFile();
 int setActiveDataFile(const char* fName);
+void writeToDataFile(const char* msg);
 
 }
 

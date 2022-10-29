@@ -231,15 +231,16 @@ namespace Button {
      * is a long button press or just a single button tap. Every button press lasting shorter
      * than BTN_SAMPLING_RATE is not detected. 
      */
-    static void IRAM_ATTR periodicButton() {
+    void static IRAM_ATTR periodicButton() { //static
         if (digitalRead(BUTTON) == HIGH) {
             cnt++;
             if (cnt == 30) longPressed = true; // do not use (>), to prevent resetting the flag multiple times!
         } else if (btnTimer) { // button not pressed anymore
             if (1 < cnt && cnt < 30) shortPressed = true;
             
-            timerEnd(btnTimer); // stop button the sampling
-            btnTimer = NULL;
+            // timerEnd(btnTimer); // stop button the sampling
+            // btnTimer = NULL;
+            timerDetachInterrupt(btnTimer);
             cnt = 0;
         } else { /* should not be reached !*/ }
     }
@@ -250,6 +251,7 @@ namespace Button {
      */
     void init() {
         pinMode(BUTTON, INPUT);
+        btnTimer = timerBegin(1, 80, true); // initialize timer1
         attachInterrupt(BUTTON, ISR, RISING); // interrupt on change
     }
 
@@ -259,8 +261,8 @@ namespace Button {
      * done by calling the periodicButton() function every BTN_SAMPLING_RATE and checking the
      * state of the button input pin.
      */
-    void ISR() {
-        btnTimer = timerBegin(1, 80, true); // initialize timer1
+    void IRAM_ATTR ISR() {
+        // btnTimer = timerBegin(1, 80, true); // initialize timer1
         timerAttachInterrupt(btnTimer, &periodicButton, true);
         timerAlarmWrite(btnTimer, BTN_SAMPLING_RATE, true);
         timerAlarmEnable(btnTimer);
