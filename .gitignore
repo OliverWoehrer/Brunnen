@@ -1,6 +1,7 @@
+.pio
+.vscode
 build
-code/.vscode/
-results
+include
 reset
-Rechnung_AG5744[8468].pdf
+results
 Rechnung_AG5822.pdf
