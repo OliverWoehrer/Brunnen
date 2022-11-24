@@ -7,6 +7,8 @@
  */
 
 #include <ESP_Mail_Client.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 #include "Arduino.h"
 #include "gw.h"
 
@@ -16,11 +18,12 @@ namespace Gateway {
 // EMail
 //===============================================================================================
 namespace EMail {
-    SMTP_Message message;
-    SMTPSession smtp;
     ESP_Mail_Session session;
+    SMTPSession smtp;
+    SMTP_Message message;
     char mailText[MAIL_TEXT_LENGTH];
-    int index = 0;
+    char errorText[ERROR_TEXT_LENGTH];
+    size_t index = 0;
 
     void smtpCallback(SMTP_Status status);
 
@@ -70,7 +73,6 @@ namespace EMail {
      */
     int attachFile(const char* fileName) {
         //Attach File Data:
-        /** TODO: actually attach file from SD card*/
         SMTP_Attachment att; // declare attachment data objects
         att.descr.filename = F(fileName);
         att.descr.mime = F("text/plain");
@@ -84,6 +86,19 @@ namespace EMail {
         index += strlen(fileName)+2;
 
         return MAIL_TEXT_LENGTH - index;
+    }
+
+    /**
+     * @brief clears mail data by resetting mail and error text to NUL and cleaning the attachments
+     * @return SUCCESS
+     */
+    int clearData() {
+        for (; index > 0; index--) mailText[index-1] = '\0'; // clear mail text
+        errorText[0] = '\0'; // clear error text
+        message.clear();
+        smtp.closeSession();
+        smtp.sendingResult.clear(); // clear data to free memory
+        return SUCCESS;
     }
 
     /**
@@ -114,7 +129,6 @@ namespace EMail {
         message.addRecipient("Oliver Wohrer", EMAIL_RECIPIENT);
         // message.addCc("Peter Wohrer", );
         message.text.content = mailText;
-        Serial.printf("EMail::mailText: %s\r\n",mailText);
 
         //Make Connection to SMTP Server:
         if (!smtp.connect(&session)) {
@@ -126,11 +140,22 @@ namespace EMail {
         bool mailStatus = MailClient.sendMail(&smtp, &message, true);
         if (!mailStatus) {
             Serial.println("Error sending Email, " + smtp.errorReason());
+            sprintf(errorText,"%s",smtp.errorReason().c_str());
             return FAILURE;
         }
 
-        smtp.sendingResult.clear(); // clear data to free memory
+        //Clean up Mail Data:
+        clearData();
         return SUCCESS;
+    }
+
+    /**
+     * @brief returns the error text. Containes error message in case of error. Needs to be cleaned
+     * by calling the clearData() method in case of unsuccessful send of mail
+     * @return error text
+     */
+    const char* getErrorText() {
+        return errorText;
     }
 
     void smtpCallback(SMTP_Status status) {
@@ -146,18 +171,98 @@ namespace EMail {
             ESP_MAIL_PRINTF("Message No: %d\n", i + 1);
             ESP_MAIL_PRINTF("Status: %s\n", result.completed ? "success" : "failed");
             ESP_MAIL_PRINTF("Date/Time: %d/%d/%d %d:%d:%d\n", dt.tm_year + 1900, dt.tm_mon + 1, dt.tm_mday, dt.tm_hour, dt.tm_min, dt.tm_sec);
-            ESP_MAIL_PRINTF("Recipient: %s\n", result.recipients);
-            ESP_MAIL_PRINTF("Subject: %s\n", result.subject);
+            ESP_MAIL_PRINTF("Recipient: %s\n", result.recipients.c_str() );
+            ESP_MAIL_PRINTF("Subject: %s\n", result.subject.c_str());
             }
         }
     }
 }  
 
 //===============================================================================================
-// ZamgAPI
+// OpenMeteoAPI
 //===============================================================================================
-namespace ZamgAPI {
+namespace OpenMeteoAPI {
+    HTTPClient http;
+    char responseBuffer[RESPONSE_BUFFER_SIZE] = "";
+    int precipitation = 0;
 
+    int init() {
+        return SUCCESS; // no initialization needed atm
+    }
+
+    int requestWeatherData(const char* startDate, const char* endDate) {
+        Serial.printf("requestWeather(%s,%s)\n",startDate,endDate);
+        char requestBuffer[256];
+        sprintf(requestBuffer,"https://api.open-meteo.com/v1/forecast?latitude=48.11&longitude=16.39&timezone=auto&daily=precipitation_sum&start_date=%s&end_date=%s",startDate,endDate);
+        
+        Serial.printf("[HTTP] GET %s\r\n",requestBuffer);
+
+        // Initialize and Make GET Request:
+        if (!http.begin(requestBuffer)) {
+            sprintf(responseBuffer,"Failed to begin request!");
+            http.end(); // clear http object
+            return FAILURE;
+        }
+        int httpCode = http.GET(); // start connection and send HTTP header
+        if(httpCode < 0) { // httpCode will be negative on error
+            sprintf(responseBuffer,"GET request failed! %s", http.errorToString(httpCode).c_str());
+            http.end(); // clear http object
+            return FAILURE;
+        }
+        if (http.getSize() > RESPONSE_BUFFER_SIZE) { // check reponse body size
+            sprintf(responseBuffer,"Response body too large.");
+            http.end(); // clear http object
+            return FAILURE;
+        }
+
+        //Read HTTP Response Body:
+        sprintf(responseBuffer,"%s",http.getString().c_str());
+        Serial.printf("requestWeatherData response: %s\r\n",responseBuffer);
+        http.end(); // clear http object
+        if (httpCode != HTTP_CODE_OK) { // other response code, unhandled
+            return FAILURE;
+        } // else: succsess response code, handle response
+
+        // Parse JSON Data:
+        char jsonString[RESPONSE_BUFFER_SIZE];
+        memcpy(jsonString, responseBuffer, strlen(responseBuffer)+1);
+        DynamicJsonDocument doc(2048);
+        deserializeJson(doc, jsonString);
+        double rawPrecipitation = doc["daily"]["precipitation_sum"][0];
+        if (rawPrecipitation == 0) {
+            return FAILURE;  
+        }
+        precipitation = (int) rawPrecipitation;
+
+        return SUCCESS;
+    }
+
+    int getWeatherData(const char* data) {
+        if (strcmp(data,"precipitation") == 0) {
+            return precipitation;
+        } else {
+            return 0;
+        }
+    }
+
+    /**
+     * @brief returns the response message or error message in case of error. Needs to be cleaned
+     * by calling the clearData() method in case of unsuccessful send of mail
+     * @return error text
+     */
+    const char* getResponseMsg() {
+        return responseBuffer;
+    }
+
+    /**
+     * @brief clears http data by ending http object and setting error text to NUL
+     * @return SUCCESS
+     */
+    int clearData() {
+        responseBuffer[0] = '\0'; // clear error text
+        http.end(); // clear http object
+        return SUCCESS;
+    }
 }
 
 //===============================================================================================
@@ -200,6 +305,34 @@ int addData(const char* fileName) {
  */
 int sendData() {
     return EMail::send();
+}
+
+/**
+ * @brief returns the error text. Containes error message in case of error
+ * @return error text
+ */
+const char* getErrorMsg() {
+    return EMail::getErrorText();
+}
+
+/**
+ * @brief Clears all the data set by other methods previously.
+ * @return SUCCESS
+ */
+int clearData() {
+    return EMail::clearData();
+}
+
+int requestWeatherData(const char* startDate, const char* endDate) {
+    return OpenMeteoAPI::requestWeatherData(startDate,endDate);
+}
+
+int getWeatherData(const char* data) {
+    return OpenMeteoAPI::getWeatherData(data);
+}
+
+const char* getWeatherResponse() {
+    return OpenMeteoAPI::getResponseMsg();
 }
 
 }

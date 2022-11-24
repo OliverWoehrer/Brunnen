@@ -432,6 +432,26 @@ namespace Pref {
     }
 
     /**
+     * @brief reads the the values for the starting time for intervall i from preferences
+     * @param i index of intervall
+     * @return time struct holding the start time
+     */
+    tm getStartTime(unsigned int i) {
+        char startHrString[14] = "start_hour_XX";
+        char startMinString[13] = "start_min_XX";
+        sprintf(startHrString, "start_hour_%02d", i);
+        sprintf(startMinString, "start_min_%02d", i);
+
+        struct tm start;
+        preferences.begin("brunnen", false);
+        start.tm_hour = preferences.getUInt(startHrString);
+        start.tm_min = preferences.getUInt(startMinString);
+        start.tm_sec = 0;
+        preferences.end();
+        return start;
+    }
+
+    /**
      * @brief writes the the values for the stop time for intervall i into preferences
      * @param stop time struct holding stop time
      * @param i index of intervall
@@ -448,6 +468,26 @@ namespace Pref {
     }
 
     /**
+     * @brief reads the the values for the stop time for intervall i from preferences
+     * @param i index of intervall
+     * @return time struct holding the stop time
+     */
+    tm getStopTime(unsigned int i) {
+        char stopHrString[13] = "stop_hour_XX";
+        char stopMinString[12] = "stop_min_XX";
+        sprintf(stopHrString, "stop_hour_%02d", i);
+        sprintf(stopMinString, "stop_min_%02d", i);
+
+        struct tm stop;
+        preferences.begin("brunnen", false);
+        stop.tm_hour = preferences.getUInt(stopHrString);
+        stop.tm_min = preferences.getUInt(stopMinString);
+        stop.tm_sec = 0;
+        preferences.end();
+        return stop;
+    }
+
+    /**
      * @brief writes the the value for the week day for intervall i into preferences
      * @param wday value holding week days
      * @param i index of intervall
@@ -455,9 +495,23 @@ namespace Pref {
     void setWeekDay(unsigned char wday, unsigned int i) {
         char wdayString[8] = "wday_XX";
         sprintf(wdayString, "wday_%02d", i);      
-        bool ret = preferences.begin("brunnen", false);
+        preferences.begin("brunnen", false);
         preferences.putUChar(wdayString, wday);
         preferences.end();
+    }
+
+    /**
+     * @brief reads the the value for the week day for intervall i from preferences
+     * @param i index of intervall
+     * @return value for week days
+     */
+    unsigned char getWeekDay(unsigned int i) {
+        char wdayString[8] = "wday_XX";
+        sprintf(wdayString, "wday_%02d", i);
+        preferences.begin("brunnen", false);
+        unsigned char wd = preferences.getUChar(wdayString);
+        preferences.end();
+        return wd;
     }
 
     /**
@@ -468,6 +522,17 @@ namespace Pref {
         preferences.begin("brunnen", false);
         preferences.putUChar("jobLength", jobLength);
         preferences.end();
+    }
+
+    /**
+     * @brief reads the number of jobs to be done from preferences
+     * @return number of jobs to be done
+     */
+    unsigned char getJobLength() {
+        preferences.begin("brunnen", false);
+        unsigned char jl = preferences.getUChar("jobLength", 0);
+        preferences.end();
+        return jl;
     }
 
     /**
@@ -523,72 +588,7 @@ namespace Pref {
         preferences.putUInt(jobKey, hash);
         preferences.end();
     }
-
-    /**
-     * @brief reads the the values for the starting time for intervall i from preferences
-     * @param i index of intervall
-     * @return time struct holding the start time
-     */
-    tm getStartTime(unsigned int i) {
-        char startHrString[14] = "start_hour_XX";
-        char startMinString[13] = "start_min_XX";
-        sprintf(startHrString, "start_hour_%02d", i);
-        sprintf(startMinString, "start_min_%02d", i);
-
-        struct tm start;
-        preferences.begin("brunnen", false);
-        start.tm_hour = preferences.getUInt(startHrString);
-        start.tm_min = preferences.getUInt(startMinString);
-        start.tm_sec = 0;
-        preferences.end();
-        return start;
-    }
-
-    /**
-     * @brief reads the the values for the stop time for intervall i from preferences
-     * @param i index of intervall
-     * @return time struct holding the stop time
-     */
-    tm getStopTime(unsigned int i) {
-        char stopHrString[13] = "stop_hour_XX";
-        char stopMinString[12] = "stop_min_XX";
-        sprintf(stopHrString, "stop_hour_%02d", i);
-        sprintf(stopMinString, "stop_min_%02d", i);
-
-        struct tm stop;
-        preferences.begin("brunnen", false);
-        stop.tm_hour = preferences.getUInt(stopHrString);
-        stop.tm_min = preferences.getUInt(stopMinString);
-        stop.tm_sec = 0;
-        preferences.end();
-        return stop;
-    }
-
-    /**
-     * @brief reads the the value for the week day for intervall i from preferences
-     * @param i index of intervall
-     * @return value for week days
-     */
-    unsigned char getWeekDay(unsigned int i) {
-        char wdayString[8] = "wday_XX";
-        sprintf(wdayString, "wday_%02d", i);
-        preferences.begin("brunnen", false);
-        unsigned char wd = preferences.getUChar(wdayString);
-        preferences.end();
-        return wd;
-    }
-
-    /**
-     * @brief reads the number of jobs to be done from preferences
-     * @return number of jobs to be done
-     */
-    unsigned char getJobLength() {
-        preferences.begin("brunnen", false);
-        unsigned char jl = preferences.getUChar("jobLength", 0);
-        preferences.end();
-        return jl;
-    }
-
+    
     /**
      * @brief loads the file name from flash memory from position/index given by jobNumber
      * @param jobNumber position/index in job list to load from
@@ -608,6 +608,19 @@ namespace Pref {
 
         sprintf(fileNameBuffer, "/data_%04d-%02d-%02d.txt",year,month,day);
         return fileNameBuffer;
+    }
+
+    /**
+     * @brief delets the job with the given number from preferences memory
+     * @param jobNumber number (=index) of the number to delete
+     */
+    void removeJob(unsigned char jobNumber) {
+        char jobKey[7] = "job_XX"; // build string for preferences key
+        sprintf(jobKey,"job_%02d",jobNumber);
+
+        preferences.begin("brunnen", false);
+        preferences.remove(jobKey);
+        preferences.end();
     }
 }
 
@@ -794,19 +807,26 @@ void managePumpIntervals(tm timeinfo) {
         // do not toggel relais
         break;
     case Relais::SCHEDULED:
-        if (Relais::checkIntervals(timeinfo))
+        if (Relais::checkIntervals(timeinfo)) {
             Relais::turnOn();
-        else
+            Leds::turnOn(Leds::YELLOW);
+        } else {
             Relais::turnOff();
+            Leds::turnOff(Leds::YELLOW);
+        }   
         break;
     case Relais::AUTOMATIC:
-        if (Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel())
+        if (Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel()) {
             Relais::turnOn();
-        else
+            Leds::turnOn(Leds::YELLOW);
+        } else {
             Relais::turnOff();
+            Leds::turnOff(Leds::YELLOW);
+        }
         break;
     default:
         Relais::turnOff();
+        Leds::turnOff(Leds::YELLOW);
         break;
     }
 }
@@ -815,40 +835,43 @@ void saveStartTime(tm start, unsigned int i) {
     Pref::setStartTime(start, i);
 }
 
-void saveStopTime(tm stop, unsigned int i) {
-    Pref::setStopTime(stop, i);
-}
-
-void saveWeekDay(unsigned char wday, unsigned int i) {
-    Pref::setWeekDay(wday, i);
-}
-
-void saveJobLength(unsigned char jobLength) {
-    Pref::setJobLength(jobLength);
-}
-
-void saveJob(unsigned char jobNumber, const char* fileName) {
-    Pref::setJob(jobNumber, fileName);
-}
-
 tm loadStartTime(unsigned int i) {
     return Pref::getStartTime(i);
+}
+
+void saveStopTime(tm stop, unsigned int i) {
+    Pref::setStopTime(stop, i);
 }
 
 tm loadStopTime(unsigned int i) {
     return Pref::getStopTime(i);
 }
 
+void saveWeekDay(unsigned char wday, unsigned int i) {
+    Pref::setWeekDay(wday, i);
+}
+
 unsigned char loadWeekDay(unsigned int i) {
     return Pref::getWeekDay(i);
+}
+
+void saveJobLength(unsigned char jobLength) {
+    Pref::setJobLength(jobLength);
 }
 
 unsigned char loadJobLength() {
     return Pref::getJobLength();
 }
 
+void saveJob(unsigned char jobNumber, const char* fileName) {
+    Pref::setJob(jobNumber, fileName);
+}
+
 const char* loadJob(unsigned char jobNumber) {
     return Pref::getJob(jobNumber);
 }
 
+void deleteJob(unsigned char jobNumber) {
+    Pref::removeJob(jobNumber);
+}
 }

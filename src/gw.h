@@ -15,6 +15,16 @@
 #define EMAIL_RECIPIENT        "oliver.w@live.at"
 #define EMAIL_SUBJECT          "ESP32 Mail with Attachment"
 #define MAIL_TEXT_LENGTH 1024
+#define ERROR_TEXT_LENGTH 512
+
+//OpenMeteo API:
+#define RESPONSE_BUFFER_SIZE 1024
+#define OM_HOST "api.open-meteo.com"
+#define OM_PATH "/v1/forecast"
+#define LATITUDE "48.11"
+#define LONGITUDE "16.39"
+#define PARAMETER "precipitation_sum"
+#define TIME_ZONE_MODE "auto"
 
 //NTP Server:
 #define NTP_SERVER "pool.ntp.org"
@@ -31,6 +41,12 @@ int init();
 int addInfoText(const char* text);
 int addData(const char* fileName);
 int sendData();
+const char* getErrorMsg();
+int clearData();
+
+int requestWeatherData(const char* startDate, const char* endDate);
+int getWeatherData(const char* data);
+const char* getWeatherResponse();
 
 }
 

@@ -84,15 +84,16 @@ pump_intervall_t getPumpInterval(unsigned int i);
 void managePumpIntervals(tm timeinfo);
 
 void saveStartTime(tm start, unsigned int i);
-void saveStopTime(tm stop, unsigned int i);
-void saveWeekDay(unsigned char wday, unsigned int i);
-void saveJobLength(unsigned char jobLength);
-void saveJob(unsigned char jobNumber, const char* fileName);
 tm loadStartTime(unsigned int i);
+void saveStopTime(tm stop, unsigned int i);
 tm loadStopTime(unsigned int i);
+void saveWeekDay(unsigned char wday, unsigned int i);
 unsigned char loadWeekDay(unsigned int i);
+void saveJobLength(unsigned char jobLength);
 unsigned char loadJobLength();
+void saveJob(unsigned char jobNumber, const char* fileName);
 const char* loadJob(unsigned char jobNumber);
+void deleteJob(unsigned char jobNumber);
 
 }
 

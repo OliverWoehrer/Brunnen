@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>Brunnen IoT</title>
-    <link rel="icon" href="data:@file/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAP8AACAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIiIAAAAAAAAiIgAAAAAAACIiAAAAAAAAIiIAAAAAAAAiIgAAAAAAACIiAAAAAAAAIiIAAAAAABEREREAAAABERERERAAABEREREREQAAERERERERAAAREREREREAABEREREREQAAAREREREQAAAAEREREQAAAAABEREQAAD8PwAA/D8AAPw/AAD8PwAA/D8AAPw/AAD8PwAA8A8AAOAHAADAAwAAwAMAAMADAADAAwAA4AcAAPAPAAD4HwAA">
+    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAIXBaABUvawCW480ANpZ7ACzHnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgAAAAAAAAAiAAAAAAAAACIAAAAAAAAAIgAAAAAAAAAiAAAAAAAAACIAAAAAAAAAIgAAAAAAAAAREQAAAAAAERURAAAAAAERQREQAAABAUERMREAAAARETEVUQAAABEUEVEVEAAAARQRMTEAAAAAEVEVEAAAAAABE1EAAAD8/wAA/P8AAPz/AAD8/wAA/P8AAPz/AAD8/wAA/D8AAPA/AADgHwAAoA8AAMAPAADABwAA4A8AAPAfAAD4PwAA">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.0.0/chartjs-plugin-zoom.js"></script>
@@ -25,9 +25,8 @@
     </div>
 
     <script type="text/javascript">
-        //Declare Data Arrays:
+        //Declare Global Variables:
         var COMPRESS = 60;
-        var edgeTotal = 0;
 
         //Declare Canvas Variables:
         var myChart;
@@ -67,64 +66,30 @@
             config.data.datasets = [];
             var dataArray = [];
 
-            //Asynchronous Promises for Multiple Files:
-            var filesPromises = [];
-
-            //Check Number of Input Files and Set Compression Level Accordingly:
+            //Check Number of Input Files:
             const files = event.target.files; 
-            if (!files.length) {
-                return;
-            } else if (files.length <= 3) {
-                COMPRESS = 60; // default compression
-                config.options.plugins.title.text = files[0].name;
-            } else {
-                COMPRESS = Math.ceil(((files.length*85000)/4000) + 1); // increase compression
-            }
+            if (!files.length) return;
+            var filesPromises = []; // async promises for multiple files
 
             //Read Input File(s):
-            for (const file of files) {
-                filesPromises.push(readFileAsText(file)); // add new promise to array of promises
-            }
+            for (const file of files) filesPromises.push(readFileAsText(file)); // add new promise to array of promises
 
             //Extract Data from File Content (=Promise):
             let progress = 0;
             filesPromises.forEach(function(promise) {
                 promise.then(function(raw) { // awaits the promise (file to be read)
-                    //Extract Raw Data from File Content:
-                    const content = $.csv.toObjects(raw);
-                    const rawTimestamp = content.map(function(d) {return d.Timestamp});
-                    const rawFlow = content.map(function(d) {return d.Flow});
-                    const rawPressure = content.map(function(d) {return d.Pressure});
-                    const rawLevel = content.map(function(d) {return d.Level});
-
-                    //Compress Data over Average:
-                    var avg = 0;
-                    var objTimestamp = null; 
-                    var sumFlow = 0;
-                    var sumPressure = 0;
-                    var sumLevel = 0;
-                    for (var i = 0; i < rawTimestamp.length; i++) {
-                        avg++;
-                        if (!objTimestamp) objTimestamp = rawTimestamp[i]; // save first timestamp of samples for average
-                        sumFlow += parseInt(rawFlow[i]);
-                        sumPressure += parseInt(rawPressure[i]);
-                        sumLevel += parseInt(rawLevel[i]);
-                        if (avg >= COMPRESS || i == rawTimestamp.length-1) {
-                            const newData = {
-                                timestamp: parseStringToDate(objTimestamp),
-                                timeString: parseStringToLabel(objTimestamp),
-                                flow: sumFlow/avg,
-                                pressure: sumPressure/avg,
-                                level: sumLevel/avg
-                            }
-                            dataArray.push(newData);
-                            avg = 0;
-                            objTimestamp = null;
-                            edgeTotal += sumFlow;
-                            sumFlow = 0;
-                            sumPressure = 0;
-                            sumLevel = 0;
+                    var lines = raw.split('\n');
+                    for (var i = 1; i < lines.length-1; i++) {
+                        var split = lines[i].split(',');
+                        if (split[0] == "") console.log(split);
+                        const newData = {
+                            timestamp: parseStringToDate(split[0]),
+                            timeString: parseStringToLabel(split[0]),
+                            flow: parseInt(split[1]),
+                            pressure: parseInt(split[2]),
+                            level: parseInt(split[3])
                         }
+                        dataArray.push(newData);
                     }
 
                     //Set UI:
@@ -133,15 +98,130 @@
                 });
             });
 
+            ////Convert Data Array to Individual Sets for Plot:
             Promise.all(filesPromises).then((fileContents) => { // awaits all promises (all file contents to be extracted)
-                //Convert Data Array to Individual Sets:
-                arrayToSets(dataArray);
+                //Sort Array by Date:
+                const array = dataArray.sort(
+                    (objA, objB) => Number(objA.timestamp) - Number(objB.timestamp),
+                );
+
+                //Find Smallest Gap Between Dates in Seconds:
+                var smallestGap = 1000 * 60 * 60 * 24;
+                for (var i = 1; i < array.length; i++) {
+                    const dateGap = array[i]["timestamp"] - array[i-1]["timestamp"];
+                    if (dateGap < smallestGap) {
+                        smallestGap = dateGap + 1000; // +1000ms
+                    }
+                }
+                console.log("smallesGap: "+smallestGap/1000+" sec");
+
+                //Set Compression Level in Relation to Total Data Length:
+                var totalDateIntervall = array[array.length-1]["timestamp"] - array[0]["timestamp"];
+                COMPRESS = Math.ceil(totalDateIntervall/(smallestGap*2000));
+                console.log("Compress "+COMPRESS+" values together.");
+
+                //Convert Data into Seperate Sets:
+                var objTimestring = null;
+                var sumFlow = 0;
+                var sumPressure = 0;
+                var sumLevel = 0;
+                var avgLength = 0;
+                var timestampSet = [];
+                var flowSet = [];
+                var pressureSet = [];
+                var levelSet = [];
+                for (var i = 1; i < array.length; i++) {
+                    //Set Current Values:
+                    var dateGap = array[i]["timestamp"] - array[i-1]["timestamp"];
+                    var currentFlow = array[i-1]["flow"];
+                    var currentPressure = array[i-1]["pressure"];
+                    var currentLevel = array[i-1]["level"];
+                    
+                    //Accumulate Current Value to Sum for Average:
+                    if (!objTimestring) objTimestring = array[i]["timeString"]; // save only first timestamp of samples for average
+                    sumFlow += currentFlow;
+                    sumPressure += currentPressure;
+                    sumLevel += currentLevel;
+                    avgLength++;
+                    
+                    //Interpolate:
+                    while (dateGap > (10*smallestGap)) { // loop while there is a gap between dates and interpolate data
+                        /* Linear Interpolation:
+                        const flowGradient = (array[i]["flow"]-currentFlow) / dateGap;
+                        const pressureGradient = (array[i]["pressure"]-currentPressure) / dateGap;
+                        const levelGradient = (array[i]["level"]-currentLevel) / dateGap;
+                        currentFlow += flowGradient*smallestGap;
+                        currentPressure += pressureGradient*smallestGap;
+                        currentLevel += levelGradient*smallestGap;*/
+
+                        /* Exponential Interpolation: */
+                        currentFlow = currentFlow - (currentFlow-array[i]["flow"])*(1-Math.exp(-(3*smallestGap)/dateGap));
+                        currentPressure = currentPressure - (currentPressure-array[i]["pressure"])*(1-Math.exp(-(3*smallestGap)/dateGap));
+                        currentLevel = currentLevel - (currentLevel-array[i]["level"])*(1-Math.exp(-(3*smallestGap)/dateGap));
+
+                        //Accumulate Interpolated Value to Sum for Average:
+                        if (!objTimestring) objTimestring = "GAP"; // save only first timestamp of interpolated values for average
+                        sumFlow += currentFlow;
+                        sumPressure += currentPressure;
+                        sumLevel += currentLevel;
+                        avgLength++;
+
+                        // Check for Average Intervall Length:
+                        if (avgLength == COMPRESS) {
+                            timestampSet.push(objTimestring);
+                            flowSet.push(sumFlow/avgLength);
+                            pressureSet.push(sumPressure/avgLength);
+                            levelSet.push(sumLevel/avgLength);
+                            objTimestring = null;
+                            sumFlow = 0;
+                            sumPressure = 0;
+                            sumLevel = 0;
+                            avgLength = 0;
+                        }
+
+                        //Update New Date Gap After Interpolation:
+                        dateGap -= smallestGap;
+                    }
+                    
+                    if (avgLength >= COMPRESS || i == array.length-1) {
+                        timestampSet.push(objTimestring);
+                        flowSet.push(sumFlow/avgLength);
+                        pressureSet.push(sumPressure/avgLength);
+                        levelSet.push(sumLevel/avgLength);
+                        objTimestring = null;
+                        sumFlow = 0;
+                        sumPressure = 0;
+                        sumLevel = 0;
+                        avgLength = 0;
+                    }
+                    
+                }
+
+                //Add Sets to Canvas Config Object:
+                config.data.labels = timestampSet;
+                config.data.datasets.push({
+                    label: 'Flow',
+                    data: flowSet,
+                    borderColor: 'rgb(68, 114, 196)',
+                });
+                config.data.datasets.push({
+                    label: 'Pressure',
+                    data: pressureSet,
+                    borderColor: 'rgb(237, 125, 49)'
+                });
+                config.data.datasets.push({
+                    label: 'Level',
+                    data: levelSet,
+                    borderColor: 'rgb(165, 165, 165)'
+                });
 
                 //Set UI:
                 document.getElementById("controller").innerHTML = '<button onclick="makeChart()">Plot Data</button>';
-                document.getElementById("text").innerHTML = 'Ready to plot '+dataArray.length+' data points';
+                document.getElementById("text").innerHTML = 'Ready to plot '+config.data.labels.length+' data points';
             });
         }
+
+        
 
         /**
          * Read file content and return async promise
@@ -165,7 +245,7 @@
             const timeSplit = dateTimeSplit[1].split(":");
             
             const day = parseInt(dateSplit[0]);
-            const month = parseInt(dateSplit[1]);
+            const month = parseInt(dateSplit[1])-1;
             const year = parseInt(dateSplit[2]);
             const hour = parseInt(timeSplit[0]);
             const minute = parseInt(timeSplit[1]);
@@ -182,87 +262,8 @@
             const dateTimeSplit = dateString.split(" ");
             const dateSplit = dateTimeSplit[0].split("-");
             const timeSplit = dateTimeSplit[1].split(":");
-
             return ""+dateSplit[0]+"."+dateSplit[1]+" "+timeSplit[0]+":"+timeSplit[1];
         }
-
-        /**
-         * Converts the array of data json-objects into multiple arrays each holding a data trace (one for each physical value) 
-         */
-        function arrayToSets(unsortedArray) {
-            //Sort Array by Date:
-			const array = unsortedArray.sort(
-				(objA, objB) => Number(objA.timestamp) - Number(objB.timestamp),
-			);
-
-            //Find Smallest Gap Between Dates in Seconds:
-            var smallestGap = 1000 * 60 * 60 * 24;
-            for (var i = 1; i < array.length; i++) {
-                const dateGap = array[i]["timestamp"] - array[i-1]["timestamp"];
-                if (dateGap < smallestGap) {
-                    smallestGap = dateGap;
-                    console.log("smaller gap = "+smallestGap);
-                }
-            }
-            console.log("smallesGap="+smallestGap);
-
-            //Convert Data into Seperate Sets:
-            var timestampSet = [];
-            var flowSet = [];
-            var pressureSet = [];
-            var levelSet = [];
-            var prevDate = array[0]["timestamp"];
-            for (var i = 1; i < array.length; i++) {
-                var dateGap = array[i]["timestamp"] - array[i-1]["timestamp"];
-                var currentFlow = array[i-1]["flow"];
-                var currentPressure = array[i-1]["pressure"];
-                var currentLevel = array[i-1]["level"];
-
-                while (dateGap > (10*smallestGap)) { // loop while there is a gap between dates and interpolate data
-                    /* Linear Interpolation:
-                    const flowGradient = (array[i]["flow"]-currentFlow) / dateGap;
-                    const pressureGradient = (array[i]["pressure"]-currentPressure) / dateGap;
-                    const levelGradient = (array[i]["level"]-currentLevel) / dateGap;
-                    currentFlow += flowGradient*smallestGap;
-                    currentPressure += pressureGradient*smallestGap;
-                    currentLevel += levelGradient*smallestGap;*/
-
-                    /* Exponential Interpolation: */
-                    currentFlow = currentFlow - (currentFlow-array[i]["flow"])*(1-Math.exp(-(3*smallestGap)/dateGap));
-                    currentPressure = currentPressure - (currentPressure-array[i]["pressure"])*(1-Math.exp(-(3*smallestGap)/dateGap));
-                    currentLevel = currentLevel - (currentLevel-array[i]["level"])*(1-Math.exp(-(3*smallestGap)/dateGap));
-
-                    timestampSet.push("GAP");
-                    flowSet.push(currentFlow);
-                    pressureSet.push(currentPressure);
-                    levelSet.push(currentLevel);
-                    dateGap -= smallestGap;
-                }
-                
-                timestampSet.push(array[i]["timeString"]);
-                flowSet.push(array[i]["flow"]);
-                pressureSet.push(array[i]["pressure"]);
-                levelSet.push(array[i]["level"]);
-            }
-
-            //Add Sets to Canvas Config Object:
-            config.data.labels = timestampSet;
-            config.data.datasets.push({
-                label: 'Flow',
-                data: flowSet,
-                borderColor: 'rgb(68, 114, 196)',
-            });
-            config.data.datasets.push({
-                label: 'Pressure',
-                data: pressureSet,
-                borderColor: 'rgb(237, 125, 49)'
-            });
-            config.data.datasets.push({
-                label: 'Level',
-                data: levelSet,
-                borderColor: 'rgb(165, 165, 165)'
-            });
-        } 
 
         /**
          * builds the canvas plot and renders plot with config data
