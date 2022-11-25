@@ -124,9 +124,17 @@ void loop() {
                 DataTime::logErrorMsg("Failed to request weather data from OpenMeteo API.");
                 DataTime::logInfoMsg(errorMsg);
                 sprintf(weatherTxt,"Failed to request weather data. ");
+                Hardware::resumeScheduledPumpOperation();
             } else { // got data successfully
                 int rain = Gateway::getWeatherData("precipitation");
                 sprintf(weatherTxt,"It is about to rain %d mm today. ",rain);
+                if (rain > 2) {
+                    Serial.printf("Too much rain, pause pump operation\r\n");
+                    Hardware::pauseScheduledPumpOperation();
+                } else {
+                    Serial.printf("Too little rain, resume pump operation\r\n");
+                    Hardware::resumeScheduledPumpOperation();
+                } 
             }
             Gateway::addInfoText(weatherTxt);
 
@@ -216,7 +224,7 @@ void loop() {
     if (Hardware::buttonIsLongPressed()) {
         Hardware::resetButtonFlags();
         DataTime::logInfoMsg("toggle relais and operating mode");
-        Hardware::toggleWaterPump();
+        Hardware::manuallyToggleWaterPump();
     }
 
 }
