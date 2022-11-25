@@ -304,7 +304,8 @@ namespace Button {
 //===============================================================================================
 namespace Relais {
     op_mode_t operatingMode = SCHEDULED;
-    op_mode_t operatingModeChached = SCHEDULED;
+    op_mode_t cachedOperatingMode = SCHEDULED;
+    bool operating = true;
     interval_t intervals[MAX_INTERVALLS];
 
     /**
@@ -330,27 +331,43 @@ namespace Relais {
     }
 
     /**
-     * @brief Toggles the relais output pin as well as the operating mode
-     * @return true, if the new pin state is HIGH, false if LOW
-     */
-    bool toggle() {
-        digitalWrite(RELAIS, !digitalRead(RELAIS));
-        if (operatingMode == MANUAL) { // manual mode, currently switched on
-            operatingMode = operatingModeChached; // reset operating mode to original mode
-            return false;
-        } else { // chache original mode for later reset
-            operatingModeChached = operatingMode;
-            operatingMode = MANUAL;
-            return true;
-        }
-    }
-
-    /**
-     * @brief sets the operating mode of the relais to the given param
+     * @brief sets the operating mode of the relais to the given param, the previous operating
+     * mode gets cached and can be reset by calling resetOpMode.
      * @param mode operating mode to be set
      */
     void setOpMode(op_mode_t mode) {
-        operatingMode = mode;
+        if (mode != operatingMode) { // only set mode if it is new
+            cachedOperatingMode = operatingMode;
+            operatingMode = mode;
+        } // else: do nothing
+    }
+
+    /**
+     * @brief resets the operating mode of the relais to the cached mode
+     */
+    void resetOpMode() {
+        operatingMode = cachedOperatingMode;
+    }
+
+    /**
+     * @brief pauses the (scheduled) operation of the relias, manual mode still works
+     */
+    void pauseOperation() {
+        operating = false;
+    }
+
+    /**
+     * @brief resumes the (scheduled) operation of the relias, manual mode still works
+     */
+    void resumeOperation() {
+        operating = true;
+    }
+
+    /**
+     * @brief tells if the relais is on (scheduled) operation or paused
+     */
+    bool isOperating() {
+        return operating;
     }
 
     /**
@@ -740,39 +757,35 @@ void resetButtonFlags() {
 }
 
 /**
- * @brief Switch water pump on and indicate to user by setting yellow led ON
+ * @brief toggles the state of the waterpump and sets operating mode according to the new state.
+ * If the pump is now switched on the operating mode is set to manual otherwise the operating mode gets
+ * reset to the cached mode.
  */
-void switchWaterPumpOn() {
-    Relais::turnOn();
-    Leds::turnOn(Leds::YELLOW);
-}
-
-/**
- * @brief Switch water pump off and indicate to user by setting yellow led OFF
- */
-void switchWaterPumpOff() {
-    Relais::turnOff();
-    Leds::turnOff(Leds::YELLOW);
-}
-
-/**
- * @brief get the current operating mode of the relais
- * @return operating mode of the relais
- */
-void toggleWaterPump() {
-    bool state = Relais::toggle();
-    if (state)
+void manuallyToggleWaterPump() {
+    pump_op_mode_t currentMode = Relais::getOpMode();
+    if (currentMode != Relais::MANUAL) {
+        Relais::setOpMode(Relais::MANUAL);
+        Relais::turnOn();
         Leds::turnOn(Leds::YELLOW);
-    else
+    } else {
+        Relais::resetOpMode();
+        Relais::turnOff();
         Leds::turnOff(Leds::YELLOW);
+    }
 }
 
 /**
- * @brief sets the operating mode of the relais to the given param
- * @param mode operating mode to be set
+ * @brief pauses the (scheduled) operating pump, manual mode still works
  */
-void setPumpMode(Relais::op_mode_t mode) {
-    Relais::setOpMode(mode);
+void pauseScheduledPumpOperation() {
+    Relais::pauseOperation();
+}
+
+/**
+ * @brief resumes the (scheduled) operating pump, manual mode still works
+ */
+void resumeScheduledPumpOperation() {
+    Relais::resumeOperation();
 }
 
 /**
@@ -807,7 +820,7 @@ void managePumpIntervals(tm timeinfo) {
         // do not toggel relais
         break;
     case Relais::SCHEDULED:
-        if (Relais::checkIntervals(timeinfo)) {
+        if (Relais::isOperating() && Relais::checkIntervals(timeinfo)) {
             Relais::turnOn();
             Leds::turnOn(Leds::YELLOW);
         } else {
@@ -816,7 +829,7 @@ void managePumpIntervals(tm timeinfo) {
         }   
         break;
     case Relais::AUTOMATIC:
-        if (Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel()) {
+        if (Relais::isOperating() && Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel()) {
             Relais::turnOn();
             Leds::turnOn(Leds::YELLOW);
         } else {

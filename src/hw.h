@@ -47,7 +47,7 @@ namespace Button {
 
 namespace Relais {
     typedef enum {
-        MANUAL,     // toggle relais only when toggle() function is called
+        MANUAL,     // relais switched on manually
         SCHEDULED,  // turn on relais during scheduled intervals
         AUTOMATIC   // turn on relais during scheduled intervals only if there is enough water
     } op_mode_t;
@@ -61,6 +61,7 @@ namespace Relais {
 namespace Pref {}
 
 using pump_intervall_t = Relais::interval_t;
+using pump_op_mode_t = Relais::op_mode_t;
 
 int init();
 void setUILed(char value);
@@ -75,10 +76,9 @@ bool buttonIsShortPressed();
 bool buttonIsLongPressed();
 void resetButtonFlags();
 
-void switchWaterPumpOn();
-void switchWaterPumpOff();
-void toggleWaterPump();
-void setPumpMode(Relais::op_mode_t mode);
+void manuallyToggleWaterPump();
+void pauseScheduledPumpOperation();
+void resumeScheduledPumpOperation();
 void setPumpInterval(Relais::interval_t interval, unsigned int i);
 pump_intervall_t getPumpInterval(unsigned int i);
 void managePumpIntervals(tm timeinfo);
