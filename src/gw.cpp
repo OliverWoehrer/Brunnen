@@ -132,7 +132,6 @@ namespace EMail {
 
         //Make Connection to SMTP Server:
         if (!smtp.connect(&session)) {
-            Serial.printf("smtp.connect() failed\r\n");
             return FAILURE; // server connection failed
         }
 
@@ -182,7 +181,6 @@ namespace EMail {
 // OpenMeteoAPI
 //===============================================================================================
 namespace OpenMeteoAPI {
-    HTTPClient http;
     char responseBuffer[RESPONSE_BUFFER_SIZE] = "";
     int precipitation = 0;
 
@@ -194,10 +192,9 @@ namespace OpenMeteoAPI {
         Serial.printf("requestWeather(%s,%s)\n",startDate,endDate);
         char requestBuffer[256];
         sprintf(requestBuffer,"https://api.open-meteo.com/v1/forecast?latitude=48.11&longitude=16.39&timezone=auto&daily=precipitation_sum&start_date=%s&end_date=%s",startDate,endDate);
-        
-        Serial.printf("[HTTP] GET %s\r\n",requestBuffer);
 
         // Initialize and Make GET Request:
+        HTTPClient http;
         if (!http.begin(requestBuffer)) {
             sprintf(responseBuffer,"Failed to begin request!");
             http.end(); // clear http object
@@ -229,9 +226,6 @@ namespace OpenMeteoAPI {
         DynamicJsonDocument doc(2048);
         deserializeJson(doc, jsonString);
         double rawPrecipitation = doc["daily"]["precipitation_sum"][0];
-        if (rawPrecipitation == 0) {
-            return FAILURE;  
-        }
         precipitation = (int) rawPrecipitation;
 
         return SUCCESS;
@@ -260,7 +254,6 @@ namespace OpenMeteoAPI {
      */
     int clearData() {
         responseBuffer[0] = '\0'; // clear error text
-        http.end(); // clear http object
         return SUCCESS;
     }
 }
