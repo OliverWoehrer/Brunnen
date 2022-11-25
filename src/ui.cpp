@@ -189,6 +189,7 @@ namespace MyHandler {
 
     void POST_update(AsyncWebServerRequest *req) {
         req->send(SPIFFS, "/update.html", String(), false, processor);
+        delay(3000);
         ESP.restart();
     }
 
