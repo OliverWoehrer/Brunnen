@@ -222,6 +222,7 @@ namespace Sensors {
 namespace Button {
     unsigned int cnt = 0;
     indicator_t indicator;
+    TaskHandle_t btnHandler = NULL;
     hw_timer_t *btnTimer = NULL;
 
     /**
@@ -236,11 +237,13 @@ namespace Button {
             if (cnt == 30) { // do not use (>), to prevent resetting the flag multiple times!
                 indicator.shortPressed = false;
                 indicator.longPressed = true;
+                xTaskResumeFromISR(btnHandler);
             }
         } else if (btnTimer) { // button not pressed anymore
             if (1 < cnt && cnt < 30) {
                 indicator.shortPressed = true;
                 indicator.longPressed = false;
+                xTaskResumeFromISR(btnHandler);
             }
             
             // timerEnd(btnTimer); // stop button the sampling
@@ -254,8 +257,9 @@ namespace Button {
      * @brief initializes the button pin and attaches the ISR to handle the rising edge on
      * the button input pin
      */
-    void init() {
+    void init(TaskHandle_t* buttonHandler) {
         pinMode(BUTTON, INPUT);
+        btnHandler = *buttonHandler;
         btnTimer = timerBegin(1, 80, true); // initialize timer1
         attachInterrupt(BUTTON, ISR, RISING); // interrupt on change
     }
@@ -640,10 +644,10 @@ namespace Pref {
 /**
  * @brief Initializes the I/O ports and operational modes to the connected hardware modules
  */
-int init() {
+int init(TaskHandle_t* buttonHandler) {
     Leds::init();
     Sensors::init();
-    Button::init();
+    Button::init(buttonHandler);
     Relais::init();
     if(Pref::init()) {
         Serial.printf("Failed to read out preferences from flash memory!\r\n");
@@ -705,8 +709,10 @@ void setErrorLed(char value) {
  */
 void readSensorValues() {
     Sensors::requestValues();
-    while(Sensors::hasValuesReady() == false); // wait for sensor to weak up
-    return Sensors::readValues();
+    vTaskDelay((360+10) / portTICK_PERIOD_MS); // wait for sensor to weak up
+    if (Sensors::hasValuesReady()) {
+        Sensors::readValues();
+    }
 }
 
 /**

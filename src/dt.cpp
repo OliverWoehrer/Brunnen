@@ -522,16 +522,19 @@ int init() {
 }
 
 /**
- * @brief Connects to one of the predefined wifi networks available.
+ * @brief Connects to one of the predefined wifi networks available if not already connected to a network.
  * @return SUCCESS if the login process was succesfull. FAILURE otherwise
  */
 int connectWlan() {
-    int connectSuccess = Wlan::connect();
-    if (connectSuccess != SUCCESS) {
-        Log::msg(Log::ERROR,Time::toString(),"Failed to connect WiFi after multple retries.");
-        return FAILURE;
+    bool isConnected = Wlan::isConnected();
+    if (!isConnected) {
+        int connectSuccess = Wlan::connect();
+        if (connectSuccess != SUCCESS) {
+            Log::msg(Log::ERROR,Time::toString(),"Failed to connect WiFi after multple retries.");
+            return FAILURE;
+        }
+        Log::msg(Log::INFO,Time::toString(),"Connected to WiFi.");
     }
-    Log::msg(Log::INFO,Time::toString(),"Connected to WiFi.");
     return SUCCESS;
 }
 
@@ -542,24 +545,6 @@ int connectWlan() {
 int disconnectWlan() {
     Wlan::disconnect();
     Log::msg(Log::INFO,Time::toString(),"Disconnected from WiFi.");
-    return SUCCESS;
-}
-
-/**
- * @brief: Checks if there is currently a wifi network connected. If not, a connection in the form
- * of a login process is started. Otherwise nothing happens.
- * @return SUCCESS if the wifi was still connected or is now, FAILURE otherwise
- */
-int reconnectWlan() {
-    bool isConnected = Wlan::isConnected();
-    if (!isConnected) {
-        int connectSuccess = Wlan::connect();
-        if (connectSuccess != SUCCESS) {
-            Log::msg(Log::ERROR,Time::toString(),"Failed to reconnect to WiFi after multple retries.");
-            return FAILURE;
-        }
-        Log::msg(Log::INFO,Time::toString(),"reconnected to WiFi.");
-    }
     return SUCCESS;
 }
 

@@ -42,7 +42,6 @@ namespace FileSystem {}
 int init();
 int connectWlan();
 int disconnectWlan();
-int reconnectWlan();
 bool isWlanConnected();
 
 tm loadTimeinfo();
