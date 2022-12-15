@@ -221,8 +221,7 @@ namespace Sensors {
 //===============================================================================================
 namespace Button {
     unsigned int cnt = 0;
-    volatile bool shortPressed = false; // gets set true when button was pressed shortly
-    volatile bool longPressed = false; // true when button was pressed for at least 3 seconds
+    indicator_t indicator;
     hw_timer_t *btnTimer = NULL;
 
     /**
@@ -234,9 +233,15 @@ namespace Button {
     void static IRAM_ATTR periodicButton() { //static
         if (digitalRead(BUTTON) == HIGH) {
             cnt++;
-            if (cnt == 30) longPressed = true; // do not use (>), to prevent resetting the flag multiple times!
+            if (cnt == 30) { // do not use (>), to prevent resetting the flag multiple times!
+                indicator.shortPressed = false;
+                indicator.longPressed = true;
+            }
         } else if (btnTimer) { // button not pressed anymore
-            if (1 < cnt && cnt < 30) shortPressed = true;
+            if (1 < cnt && cnt < 30) {
+                indicator.shortPressed = true;
+                indicator.longPressed = false;
+            }
             
             // timerEnd(btnTimer); // stop button the sampling
             // btnTimer = NULL;
@@ -269,33 +274,21 @@ namespace Button {
     }
 
     /**
-     * @brief indicates if a short press occured
-     * @return true if a button short press was detected
+     * @brief Indicates if a button press occured. The indicator is a struct holding two boolean
+     * variables: shortPressed and longPressed which are set when the button was previously pressed
+     * for a long/short time.
+     * @return indicator struct, holding the button flags
      */
-    bool isShortPressed() {
-        return shortPressed;
+    indicator_t getIndicator() {
+        return indicator;
     }
 
     /**
-     * @brief indicates if a long press occured
-     * @return true if a button long press was detected
+     * @brief Reset the flags indicating that a button press occured
      */
-    bool isLongPressed() {
-        return longPressed;
-    }
-
-    /**
-     * @brief reset the boolean variable (flag) indicating a short button press occured
-     */
-    void resetShortFlag() {
-        shortPressed = false;
-    }
-
-    /**
-     * @brief reset the boolean variable (flag) indicating a long button press occured
-     */
-    void resetLongFlag() {
-        longPressed = false;
+    void resetIndicator() {
+        indicator.shortPressed = false;
+        indicator.longPressed = false;
     }
 }
 
@@ -658,7 +651,7 @@ int init() {
     }
 
     //Read Out Preferences from Flash Memory:
-    Serial.printf("[INFO] Intervals:\n");
+    Serial.printf("[INFO] Intervals:\r\n");
     for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
         //Read out preferences from flash:
         struct tm start = Pref::getStartTime(i);
@@ -668,7 +661,7 @@ int init() {
         //Initialize interval:
         Relais::interval_t interval = {.start = start, .stop = stop, .wday = wday};
         Relais::setInterval(interval, i);
-        Serial.printf("(%d) %d:%d - %d:%d {%u}\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
+        Serial.printf("(%d) %d:%d - %d:%d {%u}\r\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
     }
 
     return SUCCESS;
@@ -733,27 +726,20 @@ bool hasNominalSensorValues() {
 }
 
 /**
- * @brief Checks if a short button press recently occured
- * @return true, if short press occured
+ * @brief Indicates if a button press occured. The indicator is a struct holding two boolean
+ * variables: shortPressed and longPressed which are set when the button was previously pressed
+ * for a long/short time.
+ * @return indicator struct, holding the button flags
  */
-bool buttonIsShortPressed() {
-    return Button::isShortPressed();
+button_indicator_t getButtonIndicator() {
+    return Button::getIndicator();
 }
 
 /**
- * @brief Checks if a long button press recently occured
- * @return true, if long press occured
- */
-bool buttonIsLongPressed() {
-    return Button::isLongPressed();
-}
-
-/**
- * @brief reset the boolean variable (flag) indicating a short button press occured
+ * @brief reset the flags indicating that a button press occured
  */
 void resetButtonFlags() {
-    Button::resetShortFlag();
-    Button::resetLongFlag();
+    Button::resetIndicator();
 }
 
 /**
