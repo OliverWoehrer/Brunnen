@@ -316,14 +316,29 @@ int clearData() {
     return EMail::clearData();
 }
 
+/**
+ * @brief Request weather data for the fiven intervall/date periode over an api call
+ * @param startDate start of the periode (including)
+ * @param endDate end of the periode (including)
+ * @return SUCCESS if the request was successful, FAILURE otherwise
+ */
 int requestWeatherData(const char* startDate, const char* endDate) {
     return OpenMeteoAPI::requestWeatherData(startDate,endDate);
 }
 
+/**
+ * @brief Read the actual data previously requested idendified by the given handle
+ * @param data handle string of the given data to extract
+ * @return value of the data
+ */
 int getWeatherData(const char* data) {
     return OpenMeteoAPI::getWeatherData(data);
 }
 
+/**
+ * @brief Read the response of the previously requested api call
+ * @return response or info message
+ */
 const char* getWeatherResponse() {
     return OpenMeteoAPI::getResponseMsg();
 }

@@ -40,8 +40,10 @@ namespace Leds {
 namespace Sensors {}
 
 namespace Button {
-    extern volatile bool shortPressed; // gets set true when button was pressed shortly
-    extern volatile bool longPressed; // true when button was pressed for at least 3 seconds
+    typedef struct {
+        bool shortPressed; // gets set true when button was pressed shortly
+        bool longPressed; // true when button was pressed for at least 3 seconds
+    } indicator_t;
     void ISR();
 }
 
@@ -60,10 +62,11 @@ namespace Relais {
 
 namespace Pref {}
 
+using button_indicator_t = Button::indicator_t;
 using pump_intervall_t = Relais::interval_t;
 using pump_op_mode_t = Relais::op_mode_t;
 
-int init();
+int init(TaskHandle_t* buttonHandler);
 void setUILed(char value);
 void setIndexLed(char value);
 void setErrorLed(char value);
@@ -72,8 +75,7 @@ void readSensorValues();
 char* sensorValuesToString();
 bool hasNominalSensorValues();
 
-bool buttonIsShortPressed();
-bool buttonIsLongPressed();
+button_indicator_t getButtonIndicator();
 void resetButtonFlags();
 
 void manuallyToggleWaterPump();
