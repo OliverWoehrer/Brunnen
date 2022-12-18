@@ -177,6 +177,16 @@ namespace MyHandler {
                 }
             }
             req->send(SPIFFS, "/log.html", String(), false, processor);
+        } else if (req->hasParam("clearJobs", true)) {
+            unsigned char jobLength = Hardware::loadJobLength();
+            for (unsigned int i=0; i < jobLength; i++) {
+                const char* jobName = Hardware::loadJob(i);
+                DataTime::setActiveDataFile(jobName);
+                DataTime::deleteActiveDataFile();
+                Hardware::deleteJob(i);
+            }
+            Hardware::saveJobLength(0);
+            req->send(SPIFFS, "/log.html", String(), false, processor);
         } else { // invalid request
             req->send(400, "text/plain", "invalid request");
         }
