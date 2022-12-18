@@ -132,6 +132,8 @@ namespace EMail {
 
         //Make Connection to SMTP Server:
         if (!smtp.connect(&session)) {
+            Serial.println("Failed to establish STMP session, " + smtp.errorReason());
+            sprintf(errorText,"%s",smtp.errorReason().c_str());
             return FAILURE; // server connection failed
         }
 
@@ -189,7 +191,6 @@ namespace OpenMeteoAPI {
     }
 
     int requestWeatherData(const char* startDate, const char* endDate) {
-        Serial.printf("requestWeather(%s,%s)\n",startDate,endDate);
         char requestBuffer[256];
         sprintf(requestBuffer,"https://api.open-meteo.com/v1/forecast?latitude=48.11&longitude=16.39&timezone=auto&daily=precipitation_sum&start_date=%s&end_date=%s",startDate,endDate);
 
