@@ -18,6 +18,10 @@
         <input type="submit" value="Clear Log File">
     </form>
     <form action="/log" method="post">
+        <input type="hidden" name="clearJobs" value="clear" />
+        <input type="submit" value="Clear Job List">
+    </form>
+    <form action="/log" method="post">
         <input type="hidden" name="clearLed" value="clear" />
         <input type="submit" value="Clear Error Light">
     </form>
