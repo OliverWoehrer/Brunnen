@@ -214,8 +214,7 @@ namespace OpenMeteoAPI {
         }
 
         //Read HTTP Response Body:
-        sprintf(responseBuffer,"%s",http.getString().c_str());
-        Serial.printf("requestWeatherData response: %s\r\n",responseBuffer);
+        
         http.end(); // clear http object
         if (httpCode != HTTP_CODE_OK) { // other response code, unhandled
             return FAILURE;
@@ -223,7 +222,7 @@ namespace OpenMeteoAPI {
 
         // Parse JSON Data:
         char jsonString[RESPONSE_BUFFER_SIZE];
-        memcpy(jsonString, responseBuffer, strlen(responseBuffer)+1);
+        memcpy(jsonString, http.getString().c_str(), strlen(responseBuffer)+1);
         DynamicJsonDocument doc(2048);
         deserializeJson(doc, jsonString);
         double rawPrecipitation = doc["daily"]["precipitation_sum"][0];
