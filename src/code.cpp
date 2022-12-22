@@ -266,7 +266,8 @@ void heapWatcherTask(void* parameter) {
             DataTime::connectWlan();
 
             // Create Tasks for Sending Mail:
-            freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
+            size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
+            char heapInfoTxt[60];
             sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
             DataTime::logDebugMsg(heapInfoTxt);
             xTaskCreate(sendMailTask,"sendMailTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
