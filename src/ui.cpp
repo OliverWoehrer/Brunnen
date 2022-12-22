@@ -11,6 +11,7 @@
 #include "Arduino.h"
 #include "hw.h"
 #include "dt.h"
+#include "gw.h"
 #include "ui.h"
 
 namespace UserInterface {
@@ -41,11 +42,11 @@ String wdayToString(unsigned char wday) {
     if (wday & 0b00010000) ret = ret + "Thu ";
     if (wday & 0b00100000) ret = ret + "Fri ";
     if (wday & 0b01000000) ret = ret + "Sat ";
-    if (wday & 0b00000001) ret = ret + "Sun ";
+    if (wday & 0b00000001) ret = ret + "Sun";
     return ret;
 }
 
-String processor(const String& var){
+String processor(const String& var) {
     if (var == "INTERVAL_0") {
         Hardware::pump_intervall_t inv = Hardware::getPumpInterval(0);
         return String(inv.start.tm_hour)+":"+String(inv.start.tm_min)+" - "+String(inv.stop.tm_hour)+":"+String(inv.stop.tm_min)+" {"+wdayToString(inv.wday)+"}"; 
@@ -79,8 +80,19 @@ String processor(const String& var){
         String logStr = String(logString);
         logStr.replace("\n","<br>");
         return String(logStr);
+    } else if(var == "RAIN") {
+        int rain = Gateway::getWeatherData("precipitation");
+        String str = "To my knowledge it is about to rain "+String(rain)+ "mm today. ";
+        if (rain >= Hardware::getRainThresholdLevel()) str += "That's enough rain, I will pause pump operation for today. ";
+        else str += "That's too little rain, I will resume pump operation for today. ";
+        return str;
+    } else if (var == "THRESHOLD") {
+        return String(Hardware::getRainThresholdLevel());
+    } else if (var == "JOB_LENGTH") {
+        return String(Hardware::loadJobLength()+1);
     } else if (var == "STATUS") {
-        return Update.hasError() ? "FAIL" : "OK";
+        if (Update.isRunning()) return "IN PROGRESS";
+        else return Update.hasError() ? "FAIL" : "OK";
     } else {
         return String();
     }
@@ -92,12 +104,48 @@ String processor(const String& var){
 namespace MyHandler {
     //Homepage:
     void GET_homepage(AsyncWebServerRequest *req) {
-        req->send(SPIFFS, "/index.html","text/html");
+        req->send(SPIFFS, "/index.html", String(), false, processor);
+    }
+
+    void POST_homepage(AsyncWebServerRequest *req) {
+        if (req->hasParam("clearLed", true)) {
+            Hardware::setErrorLed(LOW);
+            req->send(SPIFFS, "/index.html", String(), false, processor);
+        } else if (req->hasParam("threshold", true)) {
+            AsyncWebParameter* p = req->getParam("threshold",true,false);
+            String s = p->value();
+            int level = s.toInt();
+            Hardware::setRainThresholdLevel(level);
+            req->send(SPIFFS, "/index.html", String(), false, processor);
+        } else if (req->hasParam("clearJobs", true)) {
+            unsigned char jobLength = Hardware::loadJobLength();
+            for (unsigned int i=0; i < jobLength; i++) {
+                const char* jobName = Hardware::loadJob(i);
+                DataTime::setActiveDataFile(jobName);
+                DataTime::deleteActiveDataFile();
+                Hardware::deleteJob(i);
+            }
+            Hardware::saveJobLength(0);
+            req->send(SPIFFS, "/index.html", String(), false, processor);
+        } else { // invalid request
+            req->send(400, "text/plain", "invalid request");
+        }
     }
 
     //Live Data:
     void GET_live(AsyncWebServerRequest *req) {
-        String str = String(DataTime::timeToString())+", "+String(Hardware::sensorValuesToString());
+        String str = "";
+        if (req->hasParam("dataString",false,false)) {
+            AsyncWebParameter* p = req->getParam("dataString",false,false);
+            if (p->value().equals("true")) {
+                str = String(DataTime::timeToString())+", "+String(Hardware::sensorValuesToString());
+            }
+        } else if (req->hasParam("progress",false,false)) {
+            AsyncWebParameter* p = req->getParam("progress",false,false);
+            if (p->value().equals("true")) {
+                str = Update.isRunning() ? "Upload "+String((Update.progress()*100) / Update.size())+"%" : "";
+            }
+        }
         req->send(200, "text/plain", str.c_str());
     }
 
@@ -107,49 +155,60 @@ namespace MyHandler {
     }
 
     void POST_interval(AsyncWebServerRequest *req) {
-        if (req->hasParam("start_time", true) && req->hasParam("stop_time", true)) {
-            struct tm start;
-            struct tm stop;
-            unsigned char wday = 0; // 0xFF
-            int index = 0;
+        struct tm start;
+        struct tm stop;
+        unsigned char wday = 0; // 0xFF
+        int index = 0;
 
-            int paramsNr = req->params();
-            for(int i=0;i<paramsNr;i++){
-                AsyncWebParameter* p = req->getParam(i);
-                if (p->name().equals("start_time")) {
-                    String s = p->value();
-                    start.tm_hour = split(s, ':', 0).toInt();
-                    start.tm_min = split(s, ':', 1).toInt();
-                    start.tm_sec = 0;
-                } else if (p->name().equals("stop_time")) {
-                    String s = p->value();
-                    stop.tm_hour = split(s, ':', 0).toInt();
-                    stop.tm_min = split(s, ':', 1).toInt();
-                    stop.tm_sec = 0;
-                } else if (p->name().equals("index")) {
-                    index = (p->value()).toInt();
-                } else {
-                    if (p->name().equals("sun")) wday = wday | 0b00000001;
-                    if (p->name().equals("mon")) wday = wday | 0b00000010;
-                    if (p->name().equals("tue")) wday = wday | 0b00000100;
-                    if (p->name().equals("wed")) wday = wday | 0b00001000;
-                    if (p->name().equals("thu")) wday = wday | 0b00010000;
-                    if (p->name().equals("fri")) wday = wday | 0b00100000;
-                    if (p->name().equals("sat")) wday = wday | 0b01000000;
-                }
-            }
-
-            //Initialize interval:
-            Hardware::pump_intervall_t interval = {.start = start, .stop = stop, .wday = wday};
-            Hardware::setPumpInterval(interval, index);
-            Hardware::saveStartTime(start, index);
-            Hardware::saveStopTime(stop, index);
-            Hardware::saveWeekDay(wday, index);
-
-            req->send(SPIFFS, "/interval.html", String(), false, processor);
+        // Check Start Time Parameter:
+        if (req->hasParam("start_time", true)) {
+            AsyncWebParameter* p = req->getParam("start_time",true,false);
+            String s = p->value();
+            start.tm_hour = split(s, ':', 0).toInt();
+            start.tm_min = split(s, ':', 1).toInt();
+            start.tm_sec = 0;
         } else { // invalid request
-            req->send(400, "text/plain", "invalid request");
+            req->send(400, "text/plain", "invalid request: missing start_time parameter");
         }
+
+        // Check Stop Time Parameter:
+        if (req->hasParam("stop_time", true)) {
+            AsyncWebParameter* p = req->getParam("stop_time",true,false);
+            String s = p->value();
+            stop.tm_hour = split(s, ':', 0).toInt();
+            stop.tm_min = split(s, ':', 1).toInt();
+            stop.tm_sec = 0;
+        } else { // invalid request
+            req->send(400, "text/plain", "invalid request: missing stop_time parameter");
+        }
+
+        // Check Index Parameter:
+        if (req->hasParam("index", true)) {
+            AsyncWebParameter* p = req->getParam("index",true,false);
+            index = (p->value()).toInt();
+        } else { // invalid request
+            req->send(400, "text/plain", "invalid request: missing index parameter");
+        }
+
+        // Check Weekday Parameter:
+        if (req->hasParam("sun", true)) wday = wday | 0b00000001;
+        if (req->hasParam("mon", true)) wday = wday | 0b00000010;
+        if (req->hasParam("tue", true)) wday = wday | 0b00000100;
+        if (req->hasParam("wed", true)) wday = wday | 0b00001000;
+        if (req->hasParam("thu", true)) wday = wday | 0b00010000;
+        if (req->hasParam("fri", true)) wday = wday | 0b00100000;
+        if (req->hasParam("sat", true)) wday = wday | 0b01000000;
+        if (wday == 0) req->send(400, "text/plain", "invalid request: missing weekday parameter");
+
+        // Initialize interval:
+        Hardware::pump_intervall_t interval = {.start = start, .stop = stop, .wday = wday};
+        Hardware::setPumpInterval(interval, index);
+        Hardware::saveStartTime(start, index);
+        Hardware::saveStopTime(stop, index);
+        Hardware::saveWeekDay(wday, index);
+
+        // Send Response After Success:
+        req->send(SPIFFS, "/interval.html", String(), false, processor);
     }
 
     //Log Page:
@@ -159,32 +218,7 @@ namespace MyHandler {
 
     void POST_log(AsyncWebServerRequest *req) {
         if (req->hasParam("clearBtn", true)) {
-            int paramsNr = req->params();
-            for(int i=0;i<paramsNr;i++) {
-                AsyncWebParameter* p = req->getParam(i);
-                if (p->name().equals("clearBtn")) {
-                    DataTime::checkLogFile(0);
-                    Hardware::saveJobLength(0);
-                }
-            }
-            req->send(SPIFFS, "/log.html", String(), false, processor);
-        } else if (req->hasParam("clearLed", true)) {
-            int paramsNr = req->params();
-            for(int i=0;i<paramsNr;i++) {
-                AsyncWebParameter* p = req->getParam(i);
-                if (p->name().equals("clearLed")) {
-                    Hardware::setErrorLed(LOW);
-                }
-            }
-            req->send(SPIFFS, "/log.html", String(), false, processor);
-        } else if (req->hasParam("clearJobs", true)) {
-            unsigned char jobLength = Hardware::loadJobLength();
-            for (unsigned int i=0; i < jobLength; i++) {
-                const char* jobName = Hardware::loadJob(i);
-                DataTime::setActiveDataFile(jobName);
-                DataTime::deleteActiveDataFile();
-                Hardware::deleteJob(i);
-            }
+            DataTime::checkLogFile(0);
             Hardware::saveJobLength(0);
             req->send(SPIFFS, "/log.html", String(), false, processor);
         } else { // invalid request
@@ -243,6 +277,7 @@ namespace MyServer {
     int init() {
         started = false;
         server.on("/", HTTP_GET, MyHandler::GET_homepage);
+        server.on("/", HTTP_POST, MyHandler::POST_homepage);
         server.on("/live", HTTP_GET, MyHandler::GET_live);
         server.on("/interval", HTTP_GET, MyHandler::GET_interval);
         server.on("/interval", HTTP_POST, MyHandler::POST_interval);
