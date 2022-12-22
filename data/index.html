@@ -12,6 +12,26 @@
     <p  id="dataString">
         Live Data
     </p>
+    <form action="/" method="post">
+        <input type="hidden" name="clearLed" value="clear" />
+        <input type="submit" value="Clear Error Light">
+    </form>
+    <p>
+        %RAIN%
+    </p>
+    <form action="/" method="post">
+        <label for="threshold">Rain threshold level in mm:</label>
+        <input type="number" id="threshold" name="threshold" min="0" max="10" value="%THRESHOLD%"><br>
+        <input type="submit" value="Update Threshold Level">
+    </form>
+    <p>
+        With %JOB_LENGTH% files to send.
+    </p>
+    <form action="/" method="post">
+        <input type="hidden" name="clearJobs" value="clear" />
+        <input type="submit" value="Clear Job List">
+    </form>
+    
     <script>
         (function() {
             var httpRequest;
@@ -26,7 +46,7 @@
             var intervalId = setInterval(function() {
                 httpRequest = new XMLHttpRequest();
                 httpRequest.onreadystatechange = cbFunction;
-                httpRequest.open('GET', '/live');
+                httpRequest.open('GET', '/live?dataString=true');
                 httpRequest.send();
             }, 1000);
         })();
