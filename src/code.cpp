@@ -236,15 +236,15 @@ void heapWatcherTask(void* parameter) {
     // Periodic Loop:
     while (1) {
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
-        //Check for midnight:
         struct tm timeinfo = DataTime::loadTimeinfo();
-        if ((timeinfo.tm_hour & 0x1) == 0) { //(timeinfo.tm_hour == 0) OR ((timeinfo.tm_hour & 0x1) == 0)
+
+        if (timeinfo.tm_hour == 0) { // request weather data once at/after midnight
+            // Wait to Get Notified for Free Heap:
+            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 120 seconds
+
             // (Re-)Connect to WiFi:
             bool isConnected = DataTime::isWlanConnected();
             DataTime::connectWlan();
-
-            // Wait to Get Notified for Free Heap:
-            ulTaskNotifyTake(pdTRUE, (120*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 120 seconds
             
             // Create Task for Requesting Weather:
             size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
@@ -252,9 +252,18 @@ void heapWatcherTask(void* parameter) {
             sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
             DataTime::logDebugMsg(heapInfoTxt);
             xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
-            
+
+            // Reset Connection WiFi Connection:
+            if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
+        }
+
+        if ((timeinfo.tm_hour & 0x1) == 0) { // send mail every other hour
             // Wait to Get Notified for Free Heap:
-            ulTaskNotifyTake(pdTRUE, (120*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 120 seconds
+            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 120 seconds
+
+            // (Re-)Connect to WiFi:
+            bool isConnected = DataTime::isWlanConnected();
+            DataTime::connectWlan();
 
             // Create Tasks for Sending Mail:
             freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
