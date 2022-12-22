@@ -303,6 +303,7 @@ namespace Relais {
     op_mode_t operatingMode = SCHEDULED;
     op_mode_t cachedOperatingMode = SCHEDULED;
     bool operating = true;
+    int operatingLevel = 0;
     interval_t intervals[MAX_INTERVALLS];
 
     /**
@@ -365,6 +366,22 @@ namespace Relais {
      */
     bool isOperating() {
         return operating;
+    }
+
+    /**
+     * @brief get the current threshold rain level for pump operation
+     * @return rain threashold in mm
+     */
+    int getOperatingLevel() {
+        return operatingLevel;
+    }
+
+    /**
+     * @brief set the threshold rain level for pump operation
+     * @param level rain threashold in mm
+     */
+    void setOperatingLevel(int level) {
+        operatingLevel = level;
     }
 
     /**
@@ -636,6 +653,27 @@ namespace Pref {
         preferences.remove(jobKey);
         preferences.end();
     }
+
+    /**
+     * @brief loads the threshold level from flash memory
+     * @return threshold level from memory
+     */
+    int getThreshold() {
+        preferences.begin("brunnen", false);
+        int threshold = preferences.getInt("threshold");
+        preferences.end();
+        return threshold;
+    }
+
+    /**
+     * @brief takes the threshold level and stores it into flash memory
+     * @param level threshold level to store
+     */
+    void setThreshold(int level) {
+        preferences.begin("brunnen", false);
+        preferences.putInt("threshold", level);
+        preferences.end();
+    }
 }
 
 //===============================================================================================
@@ -667,6 +705,10 @@ int init(TaskHandle_t* buttonHandler) {
         Relais::setInterval(interval, i);
         Serial.printf("(%d) %d:%d - %d:%d {%u}\r\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
     }
+
+    //Read Out Rain Threshold Level from Flash Memory:
+    int rainThreshold = Pref::getThreshold();
+    Relais::setOperatingLevel(rainThreshold);
 
     return SUCCESS;
 }
@@ -778,6 +820,23 @@ void pauseScheduledPumpOperation() {
  */
 void resumeScheduledPumpOperation() {
     Relais::resumeOperation();
+}
+
+/**
+ * @brief get the current threshold rain level for pump operation
+ * @return rain threashold in mm
+ */
+int getRainThresholdLevel() {
+    return Relais::getOperatingLevel();
+}
+
+/**
+ * @brief set the threshold rain level for pump operation. The level is also stored into flash memory
+ * @param level rain threashold in mm
+ */
+void setRainThresholdLevel(int level) {
+    Relais::setOperatingLevel(level);
+    Pref::setThreshold(level);
 }
 
 /**

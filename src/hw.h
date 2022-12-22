@@ -81,6 +81,8 @@ void resetButtonFlags();
 void manuallyToggleWaterPump();
 void pauseScheduledPumpOperation();
 void resumeScheduledPumpOperation();
+int getRainThresholdLevel();
+void setRainThresholdLevel(int level);
 void setPumpInterval(Relais::interval_t interval, unsigned int i);
 pump_intervall_t getPumpInterval(unsigned int i);
 void managePumpIntervals(tm timeinfo);
