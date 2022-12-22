@@ -26,7 +26,7 @@ namespace DataTime {
 //===============================================================================================
 namespace Wlan {
     /**
-     * @brief Initalizes the Wlan module by setting the mode to STA (=station mode: the ESP32
+     * Initalizes the Wlan module by setting the mode to STA (=station mode: the ESP32
      * connects to an access point). Connects afterwards to the WiFi network. And to prevent any
      * unexpected failures the device is disconnted (in case it was before).
      * @return SUCCESS (=0)
@@ -38,7 +38,7 @@ namespace Wlan {
     }
 
     /**
-     * @brief Does the actual linking to the WiFi by the provided credentials and
+     * Does the actual linking to the WiFi by the provided credentials and
      * prints out the IP-adress on the network. If a failure occures during login the process is
      * repeated/retried 3 times. This function is called by connect().
      * @return SUCCESS if the login succeded and FAILURE if something went wrong
@@ -71,7 +71,7 @@ namespace Wlan {
     }
 
     /**
-     * @brief Scans the available wifi networks and connects to the predefined WiFi network(s) by
+     * Scans the available wifi networks and connects to the predefined WiFi network(s) by
      * trying to log in.
      * @return SUCCESS if the login process was succesfull. FAILURE otherwise
      */
@@ -89,7 +89,7 @@ namespace Wlan {
     } 
 
     /**
-     * @brief Disconnects the Wifi connection if there is any connection alive
+     * Disconnects the Wifi connection if there is any connection alive
      * @return SUCCESS
      */
     int disconnect() {
@@ -98,7 +98,7 @@ namespace Wlan {
     }
 
     /**
-     * @brief Wrapper function to check the current status of the WiFi connection
+     * Wrapper function to check the current status of the WiFi connection
      * @return true if the network is connected, false otherwise
      */
     bool isConnected() {
@@ -113,7 +113,7 @@ namespace Time {
     char timeString[TIME_STRING_LENGTH]; // format[20]: "DD-MM-YYYY HH:MM:SS"
 
     /**
-     * @brief Checks if the onboard(local) time system is valid and returns the time struct
+     * Checks if the onboard(local) time system is valid and returns the time struct
      * @return time struct holding current time if valid or default time (00:00:00 00/00/0000) if not 
      */
     tm getTimeinfo() {
@@ -135,7 +135,7 @@ namespace Time {
     }
 
     /**
-     * @brief Coneverts the current time into a string with format[20]: "DD-MM-YYYY HH:MM:SS"
+     * Coneverts the current time into a string with format[20]: "DD-MM-YYYY HH:MM:SS"
      * @return char string of current time
      */
     char* toString() {
@@ -145,7 +145,7 @@ namespace Time {
     }
 
     /**
-     * @brief Initalizes the onboard(local) time system by connecting to the defined NTP server
+     * Initalizes the onboard(local) time system by connecting to the defined NTP server
      * @return SUCCESS
      */
     int init() {
@@ -161,7 +161,7 @@ namespace Time {
 //===============================================================================================
 namespace Log {
     /**
-     * @brief Mounts the internal file system and initializes the logfile (/log.txt) with a welcome
+     * Mounts the internal file system and initializes the logfile (/log.txt) with a welcome
      * message. If there is already a log file in place the new content is appended at the end.
      * @return SUCCESS if the welcome message was written successfully
      */
@@ -191,7 +191,7 @@ namespace Log {
     }
 
     /**
-     * @brief Concatenates a log message in following form: [TIMESTAMP] [HEADER] [msg] [LF] and prints
+     * Concatenates a log message in following form: [TIMESTAMP] [HEADER] [msg] [LF] and prints
      * it to serial. If there is a timeString given the message is also written to log file ("/log.txt").
      * The message itself followed by a linefeed ("\r\n").
      * @param mode type of message (e.g INFO, ERROR, ...), matches the HEADER field
@@ -235,7 +235,7 @@ namespace Log {
     }
 
     /**
-     * @brief Reads the content of the log file (/log.txt) and returns it
+     * Reads the content of the log file (/log.txt) and returns it
      * @return content of the log file
      */
     const char* readFile() {
@@ -276,7 +276,7 @@ namespace Log {
     }*/
 
     /**
-     * @brief Looks for the log file (/log.txt) and returns it size
+     * Looks for the log file (/log.txt) and returns it size
      * @return size of log file in bytes
      */
     int getFileSize() {
@@ -295,7 +295,7 @@ namespace Log {
     }
 
     /**
-     * @brief Clears all content of the log file (/log.txt) by creats a new log file instead
+     * Clears all content of the log file (/log.txt) by creats a new log file instead
      * @return SUCCESS if the new (empty/cleared) file was created successfully, FAILURE otherwise
      */
     int clearFile() {
@@ -320,7 +320,7 @@ namespace FileSystem {
     char fileNameBuffer[FILE_NAME_LENGTH]; // format[21]: "/data_YYYY-MM-DD.txt"
 
     /**
-     * @brief Uses the serial interface to print the contents of the given directory
+     * Uses the serial interface to print the contents of the given directory
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param dirname name of the directory (e.g "/")
      * @param levels the number of hierachy levels to print
@@ -353,7 +353,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Creats a new directory (=sub-folder) in the given directory
+     * Creats a new directory (=sub-folder) in the given directory
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param path name of the directory (e.g "/")
      */
@@ -364,7 +364,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Removes the directory in the given oath
+     * Removes the directory in the given oath
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param path name of the directory (e.g "/")
      */
@@ -375,7 +375,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Reads the content of the file at the given path
+     * Reads the content of the file at the given path
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param path name of the directory (e.g "/")
      */
@@ -392,7 +392,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Writes the given message to the beginning of the file at the given path
+     * Writes the given message to the beginning of the file at the given path
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param path name of the directory (e.g "/")
      * @param message text to be written into file
@@ -410,7 +410,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Writes the given message to the end of the file at the given path and 
+     * Writes the given message to the end of the file at the given path and 
      * therefor appending the given data to the existing file
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param path name of the directory (e.g "/")
@@ -427,7 +427,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Delets the file at the given path
+     * Delets the file at the given path
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param path name of the directory (e.g "/")
      */
@@ -438,7 +438,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Mounts the SD card and looks for a file named "fileName". This is the file currently
+     * Mounts the SD card and looks for a file named "fileName". This is the file currently
      * used to store the data. If there is non found, a new file is created with the headers in
      * place. This way multiple initalizations/reboots of the system do not lead to multiple files.
      * Last the free storage space on the SD card is checked.
@@ -468,7 +468,7 @@ namespace FileSystem {
     }
 
     /**
-     * @brief Returns the name of the file currently used.
+     * Returns the name of the file currently used.
      * @return file name in format[21]: "/data_YYYY-MM-DD.txt"
      */
     char* getFileName() {
@@ -480,7 +480,7 @@ namespace FileSystem {
 // DATA & TIME
 //===============================================================================================
 /**
- * @brief Initializes the Wlan module and sets the system time (local time) by connecting to the
+ * Initializes the Wlan module and sets the system time (local time) by connecting to the
  * defined NTP server. Afterwards the wifi is disconnected again and the two file systems
  * (log file and data file) are mounted and initialized by setting up the files and their contents
  * @return SUCCESS is all modules are initalized correctly, FAILURE otherwise
@@ -522,7 +522,7 @@ int init() {
 }
 
 /**
- * @brief Connects to one of the predefined wifi networks available if not already connected to a network.
+ * Connects to one of the predefined wifi networks available if not already connected to a network.
  * @return SUCCESS if the login process was succesfull. FAILURE otherwise
  */
 int connectWlan() {
@@ -539,7 +539,7 @@ int connectWlan() {
 }
 
 /**
- * @brief Disconnects the Wifi connection if there is any connection alive
+ * Disconnects the Wifi connection if there is any connection alive
  * @return SUCCESS
  */
 int disconnectWlan() {
@@ -549,7 +549,7 @@ int disconnectWlan() {
 }
 
 /**
- * @brief returns the status of the wifi connection
+ * Returns the status of the wifi connection
  * @return true, if a network is connected
  */
 bool isWlanConnected() {
@@ -557,7 +557,7 @@ bool isWlanConnected() {
 }
 
 /**
- * @brief Loads the current time (local time) from system and returns it
+ * Loads the current time (local time) from system and returns it
  * @return struct holding the current time
  */
 tm loadTimeinfo() {
@@ -565,7 +565,7 @@ tm loadTimeinfo() {
 }
 
 /**
- * @brief Converts the current time into a readable string format[20]: "DD-MM-YYYY HH:MM:SS"
+ * Converts the current time into a readable string format[20]: "DD-MM-YYYY HH:MM:SS"
  * @return timestamp in string format with max length TIME_STRING_LENGTH
  */
 char* timeToString() {
@@ -573,7 +573,7 @@ char* timeToString() {
 }
 
 /**
- * @brief writes info message into log file.
+ * Writes info message into log file.
  * @param msg the actual message
  * @return SUCCESS
  */
@@ -582,7 +582,7 @@ int logInfoMsg(const char* msg) {
 }
 
 /**
- * @brief writes warning message into log file.
+ * Writes warning message into log file.
  * @param msg the actual message
  * @return SUCCESS
  */
@@ -591,7 +591,7 @@ int logWarningMsg(const char* msg) {
 }
 
 /**
- * @brief writes error message into log file.
+ * Writes error message into log file.
  * @param msg the actual message
  * @return SUCCESS
  */
@@ -600,7 +600,7 @@ int logErrorMsg(const char* msg) {
 }
 
 /**
- * @brief writes debug message into log file.
+ * Writes debug message into log file.
  * @param msg the actual message
  * @return SUCCESS
  */
@@ -609,7 +609,7 @@ int logDebugMsg(const char* msg) {
 }
 
 /**
- * @brief Reads the content of the log file and returns it
+ * Reads the content of the log file and returns it
  * @return content of the log file
  */
 const char* readLogFile() {
@@ -617,7 +617,7 @@ const char* readLogFile() {
 }
 
 /**
- * @brief Checks the size of the log file. If its bigger than maxSize the log file gets cleared
+ * Checks the size of the log file. If its bigger than maxSize the log file gets cleared
  * so its empty again.
  * @param maxSize maximum size of lof file in bytes (e.g 1MB = 1000000)
  * @return SUCCESS if 
@@ -636,7 +636,7 @@ int checkLogFile(int maxSize) {
 }
 
 /**
- * @brief Looks for the log file (/log.txt) and returns its size
+ * Looks for the log file (/log.txt) and returns its size
  * @return size of log file in bytes
  */
 int getLogFileSize() {
@@ -644,7 +644,7 @@ int getLogFileSize() {
 }
 
 /**
- * @brief sets the file name of the file currently used to store data to the current date.
+ * Sets the file name of the file currently used to store data to the current date.
  * @return SUCCESS if the file was created/opened correcly, FAILURE otherwise.
  */
 int createCurrentDataFile() {
@@ -660,7 +660,7 @@ int createCurrentDataFile() {
 }
 
 /**
- * @brief Loads the file name of the file currently used to store the sensor data
+ * Loads the file name of the file currently used to store the sensor data
  * @return file name of file currently used
  */
 char* loadActiveDataFileName() {
@@ -668,14 +668,14 @@ char* loadActiveDataFileName() {
 }
 
 /**
- * @brief Deletes the file currently used to store the sensor data
+ * Deletes the file currently used to store the sensor data
  */
 void deleteActiveDataFile() {
     FileSystem::deleteFile(SD, FileSystem::getFileName());
 }
 
 /**
- * @brief sets the file name of the file currently used to store data. Similar to createCurrentDataFile()
+ * Sets the file name of the file currently used to store data. Similar to createCurrentDataFile()
  * @param fName file name to set (name of the file to be used now)
  * @return SUCCESS if the file was created/opened correcly, FAILURE otherwise.
  */
@@ -689,7 +689,7 @@ int setActiveDataFile(const char* fName) {
 }
 
 /**
- * @brief appends the given string into the (currently active) data file
+ * Appends the given string into the (currently active) data file
  * @param msg data string to write to data file
  */
 void writeToDataFile(const char* msg) {

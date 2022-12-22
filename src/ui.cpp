@@ -271,7 +271,7 @@ namespace MyServer {
     bool started;
 
     /**
-     * @brief initalize the web server and set the path handlers
+     * Initalize the web server and set the path handlers
      * @return SUCCESS
      */
     int init() {
@@ -292,7 +292,7 @@ namespace MyServer {
     }
 
     /**
-     * @brief tells if the web server is started
+     * Tells if the web server is started
      * @return true if started, false otherwise
      */
     bool isStarted() {
@@ -300,7 +300,7 @@ namespace MyServer {
     }
 
     /**
-     * @brief starts the web server and sets the status variable used for tracking
+     * Starts the web server and sets the status variable used for tracking
      */
     void start() {
         server.begin();
@@ -308,7 +308,7 @@ namespace MyServer {
     }
 
     /**
-     * @brief stop the web server and sets the status variable used for tracking
+     * Stop the web server and sets the status variable used for tracking
      */
     void stop() {
         server.end();
@@ -321,7 +321,7 @@ namespace MyServer {
 //===============================================================================================
 
 /**
- * @brief initalize the user interface
+ * initalize the user interface
  * @return SUCCESS if all started, FAILURE otherwise
  */
 int init() {
@@ -333,7 +333,7 @@ int init() {
 }
 
 /**
- * @brief Tells if the user interface is currently active/enabled
+ * Tells if the user interface is currently active/enabled
  * @return true is enabled, false otherwise
  */
 bool isEnabled() {
@@ -341,14 +341,14 @@ bool isEnabled() {
 }
 
 /**
- * @brief Enable user interface
+ * Enable user interface
  */
 void enableInterface() {
     MyServer::start();
 }
 
 /**
- * @brief Disable user interface
+ * Disable user interface
  */
 void disableInterface() {
     MyServer::stop();

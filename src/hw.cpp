@@ -18,7 +18,7 @@ namespace Hardware {
 //===============================================================================================
 namespace Leds {
     /**
-     * @brief Initializes the pins of the color LEDs and performes a short blinking animation.
+     * Initializes the pins of the color LEDs and performes a short blinking animation.
      */
     void init() {
         pinMode(LED_RED, OUTPUT);
@@ -32,7 +32,7 @@ namespace Leds {
     }
 
     /**
-     * @brief Turns on the led given in the param
+     * Turns on the led given in the param
      * @param color color of the led to be turned on
      */
     void turnOn(color_t color) {
@@ -55,7 +55,7 @@ namespace Leds {
     }
     
     /**
-     * @brief Turns off the led given in the param
+     * Turns off the led given in the param
      * @param color color of the led to be turned off
      */
     void turnOff(color_t color) {
@@ -78,7 +78,7 @@ namespace Leds {
     }
 
     /**
-     * @brief Toggles the led given in the param, e.g turns off the led when it is currently on
+     * Toggles the led given in the param, e.g turns off the led when it is currently on
      * and otherwise
      * @param color color of the led to be toggled
      */
@@ -120,7 +120,7 @@ namespace Sensors {
     char valueString[VALUE_STRING_LENGTH] = "";
 
     /**
-     * @brief Interrupt service routine gets called every time a rising edge gets detected at the
+     * Interrupt service routine gets called every time a rising edge gets detected at the
      * output of the water flow sensor. This variable is then used and reset at sensor readout.
      */
     void edgeCounterISR() {
@@ -128,8 +128,8 @@ namespace Sensors {
     }
 
     /**
-     * @brief initializes the sensors connected to the esp32 board. The sensors being for
-     * water flow, water pressure and water level.
+     * Initializes the sensors connected to the esp32 board. The sensors being for water flow,
+     * water pressure and water level.
      */
     void init() {
         //Initialze sensor values:
@@ -152,7 +152,7 @@ namespace Sensors {
     }
 
     /**
-     * @brief This function switches the power supply of the water level sensor to ON and enables
+     * This function switches the power supply of the water level sensor to ON and enables
      * the sensor by weaking it up.
      */
     void requestValues() {
@@ -161,7 +161,7 @@ namespace Sensors {
     }
 
     /**
-     * @brief Checks if the water level sensor is already up and running. This is
+     * Checks if the water level sensor is already up and running. This is
      * the case when the requestValues() function has been called at least 360 milliseconds in
      * advance, because the sensor has a weak up delay of approxemately 360 milliseconds.
      * @return true, if the water level sensor is up and running
@@ -171,7 +171,7 @@ namespace Sensors {
     }
 
     /**
-     * @brief The values of all sensors are read and/or stored in a local variable (sensor readout).
+     * The values of all sensors are read and/or stored in a local variable (sensor readout).
      * Afterwards the water level sensor is being disabled again. The values are all read at the
      * same time to ensure data consistency. For further use, the values are written to the valueString
      * buffer as a string.
@@ -187,7 +187,7 @@ namespace Sensors {
     }
 
     /**
-     * @brief Checks if all sensor values are in between their min/max threaholds
+     * Checks if all sensor values are in between their min/max threaholds
      * @return true, if all sensors are in nominal ranges
      */
     bool hasNominalValues() {
@@ -200,7 +200,7 @@ namespace Sensors {
     }
 
     /**
-     * @brief get the water level updated at the last sensor read out
+     * Get the water level updated at the last sensor read out
      * @return water level raw value
      */
     int hasMinWaterLevel() {
@@ -208,7 +208,7 @@ namespace Sensors {
     }
 
     /**
-     * @brief returns the string representation of the sensor values from the last sensor readout 
+     * Returns the string representation of the sensor values from the last sensor readout 
      * @return valueString with max length VALUE_STRING_LENGTH
      */
     char* toString() {
@@ -226,10 +226,11 @@ namespace Button {
     hw_timer_t *btnTimer = NULL;
 
     /**
-     * @brief Once the button is pressed this interrupt service routine get called peroidically
+     * Once the button is pressed this interrupt service routine get called peroidically
      * every BTN_SAMPLING_RATE and checks if the button is stilled pressed to determine if it
      * is a long button press or just a single button tap. Every button press lasting shorter
-     * than BTN_SAMPLING_RATE is not detected. 
+     * than BTN_SAMPLING_RATE is not detected.
+     * @note IRAM_ATTR prefix so the code gets placed in IRAM and is faster loaded when needed
      */
     void static IRAM_ATTR periodicButton() { //static
         if (digitalRead(BUTTON) == HIGH) {
@@ -254,7 +255,7 @@ namespace Button {
     }
 
     /**
-     * @brief initializes the button pin and attaches the ISR to handle the rising edge on
+     * Initializes the button pin and attaches the ISR to handle the rising edge on
      * the button input pin
      */
     void init(TaskHandle_t* buttonHandler) {
@@ -265,10 +266,11 @@ namespace Button {
     }
 
     /**
-     * @brief called when a rising edge is detected in the button input pin. This means that the
+     * Called when a rising edge is detected in the button input pin. This means that the
      * button is pressed and therefore the periodic button sampling is stated. The sampling ISR
      * done by calling the periodicButton() function every BTN_SAMPLING_RATE and checking the
      * state of the button input pin.
+     * @note IRAM_ATTR prefix so the code gets placed in IRAM and is faster loaded when needed
      */
     void IRAM_ATTR ISR() {
         // btnTimer = timerBegin(1, 80, true); // initialize timer1
@@ -278,7 +280,7 @@ namespace Button {
     }
 
     /**
-     * @brief Indicates if a button press occured. The indicator is a struct holding two boolean
+     * Indicates if a button press occured. The indicator is a struct holding two boolean
      * variables: shortPressed and longPressed which are set when the button was previously pressed
      * for a long/short time.
      * @return indicator struct, holding the button flags
@@ -288,7 +290,7 @@ namespace Button {
     }
 
     /**
-     * @brief Reset the flags indicating that a button press occured
+     * Reset the flags indicating that a button press occured
      */
     void resetIndicator() {
         indicator.shortPressed = false;
@@ -307,7 +309,7 @@ namespace Relais {
     interval_t intervals[MAX_INTERVALLS];
 
     /**
-     * @brief Initializes the relais pin to controll the connected N-FET and switch the relais.
+     * Initializes the relais pin to controll the connected N-FET and switch the relais.
      */
     void init() {
         pinMode(RELAIS, OUTPUT);
@@ -315,21 +317,21 @@ namespace Relais {
     }
 
     /**
-     * @brief turns the relais output pin on
+     * Turns the relais output pin on
      */
     void turnOn() {
         digitalWrite(RELAIS, HIGH);
     }
 
     /**
-     * @brief turns the relais output pin off
+     * Turns the relais output pin off
      */
     void turnOff() {
         digitalWrite(RELAIS, LOW);
     }
 
     /**
-     * @brief sets the operating mode of the relais to the given param, the previous operating
+     * Sets the operating mode of the relais to the given param, the previous operating
      * mode gets cached and can be reset by calling resetOpMode.
      * @param mode operating mode to be set
      */
@@ -341,35 +343,35 @@ namespace Relais {
     }
 
     /**
-     * @brief resets the operating mode of the relais to the cached mode
+     * Resets the operating mode of the relais to the cached mode
      */
     void resetOpMode() {
         operatingMode = cachedOperatingMode;
     }
 
     /**
-     * @brief pauses the (scheduled) operation of the relias, manual mode still works
+     * Pauses the (scheduled) operation of the relias, manual mode still works
      */
     void pauseOperation() {
         operating = false;
     }
 
     /**
-     * @brief resumes the (scheduled) operation of the relias, manual mode still works
+     * Resumes the (scheduled) operation of the relias, manual mode still works
      */
     void resumeOperation() {
         operating = true;
     }
 
     /**
-     * @brief tells if the relais is on (scheduled) operation or paused
+     * Tells if the relais is on (scheduled) operation or paused
      */
     bool isOperating() {
         return operating;
     }
 
     /**
-     * @brief get the current threshold rain level for pump operation
+     * Get the current threshold rain level for pump operation
      * @return rain threashold in mm
      */
     int getOperatingLevel() {
@@ -377,7 +379,7 @@ namespace Relais {
     }
 
     /**
-     * @brief set the threshold rain level for pump operation
+     * Set the threshold rain level for pump operation
      * @param level rain threashold in mm
      */
     void setOperatingLevel(int level) {
@@ -385,7 +387,7 @@ namespace Relais {
     }
 
     /**
-     * @brief get the current operating mode of the relais
+     * Get the current operating mode of the relais
      * @return operating mode of the relais
      */
     op_mode_t getOpMode() {
@@ -393,7 +395,7 @@ namespace Relais {
     }
 
     /**
-     * @brief sets the given interval at the given index
+     * Sets the given interval at the given index
      * @param interval interval to be set at the timed scheduled
      * @param i index of the interval array
      */
@@ -402,7 +404,7 @@ namespace Relais {
     }
 
     /**
-     * @brief Getter method for intervals of relais
+     * Getter method for intervals of relais
      * @param i index of the interval to be returned
      * @return interval with the given index
      */
@@ -411,7 +413,7 @@ namespace Relais {
     }
 
     /**
-     * @brief checks weather the time passed is inside an interval
+     * Checks if the time passed is inside an interval
      * @param timeinfo time to check for intervals
      * @return true, when the given time is inside an interval
      */
@@ -438,7 +440,7 @@ namespace Pref {
     char fileNameBuffer[FILE_NAME_LENGTH];
 
     /**
-     * @brief initalizes the preferences and mounts the flash memory
+     * Initalizes the preferences and mounts the flash memory
      */
     int init() {
         bool ret = preferences.begin("brunnen", false);
@@ -447,7 +449,7 @@ namespace Pref {
     }
 
     /**
-     * @brief writes the the values for the starting time for intervall i into preferences
+     * Writes the the values for the starting time for intervall i into preferences
      * @param start time struct holding starting time
      * @param i index of intervall
      */
@@ -463,7 +465,7 @@ namespace Pref {
     }
 
     /**
-     * @brief reads the the values for the starting time for intervall i from preferences
+     * Reads the the values for the starting time for intervall i from preferences
      * @param i index of intervall
      * @return time struct holding the start time
      */
@@ -483,7 +485,7 @@ namespace Pref {
     }
 
     /**
-     * @brief writes the the values for the stop time for intervall i into preferences
+     * Writes the the values for the stop time for intervall i into preferences
      * @param stop time struct holding stop time
      * @param i index of intervall
      */
@@ -499,7 +501,7 @@ namespace Pref {
     }
 
     /**
-     * @brief reads the the values for the stop time for intervall i from preferences
+     * Reads the the values for the stop time for intervall i from preferences
      * @param i index of intervall
      * @return time struct holding the stop time
      */
@@ -519,7 +521,7 @@ namespace Pref {
     }
 
     /**
-     * @brief writes the the value for the week day for intervall i into preferences
+     * Writes the the value for the week day for intervall i into preferences
      * @param wday value holding week days
      * @param i index of intervall
      */
@@ -532,7 +534,7 @@ namespace Pref {
     }
 
     /**
-     * @brief reads the the value for the week day for intervall i from preferences
+     * Reads the the value for the week day for intervall i from preferences
      * @param i index of intervall
      * @return value for week days
      */
@@ -546,7 +548,7 @@ namespace Pref {
     }
 
     /**
-     * @brief writes the number of jobs to be done into preferences
+     * Writes the number of jobs to be done into preferences
      * @param jobLength number to set
      */
     void setJobLength(uint8_t jobLength) {
@@ -556,7 +558,7 @@ namespace Pref {
     }
 
     /**
-     * @brief reads the number of jobs to be done from preferences
+     * Reads the number of jobs to be done from preferences
      * @return number of jobs to be done
      */
     unsigned char getJobLength() {
@@ -567,7 +569,7 @@ namespace Pref {
     }
 
     /**
-     * @brief takes the fileName and stores it into flash memory at the position/index given by jobNumber
+     * Takes the fileName and stores it into flash memory at the position/index given by jobNumber
      * @param jobNumber position/index in job list to write to
      * @param fileName name of the data file to save to
      */
@@ -621,7 +623,7 @@ namespace Pref {
     }
     
     /**
-     * @brief loads the file name from flash memory from position/index given by jobNumber
+     * Loads the file name from flash memory from position/index given by jobNumber
      * @param jobNumber position/index in job list to load from
      * @return name of data file loaded from job list
      */
@@ -642,7 +644,7 @@ namespace Pref {
     }
 
     /**
-     * @brief delets the job with the given number from preferences memory
+     * Delets the job with the given number from preferences memory
      * @param jobNumber number (=index) of the number to delete
      */
     void removeJob(unsigned char jobNumber) {
@@ -655,7 +657,7 @@ namespace Pref {
     }
 
     /**
-     * @brief loads the threshold level from flash memory
+     * Loads the threshold level from flash memory
      * @return threshold level from memory
      */
     int getThreshold() {
@@ -666,7 +668,7 @@ namespace Pref {
     }
 
     /**
-     * @brief takes the threshold level and stores it into flash memory
+     * Takes the threshold level and stores it into flash memory
      * @param level threshold level to store
      */
     void setThreshold(int level) {
@@ -680,7 +682,7 @@ namespace Pref {
 // HARDWARE
 //===============================================================================================
 /**
- * @brief Initializes the I/O ports and operational modes to the connected hardware modules
+ * Initializes the I/O ports and operational modes to the connected hardware modules
  */
 int init(TaskHandle_t* buttonHandler) {
     Leds::init();
@@ -714,7 +716,7 @@ int init(TaskHandle_t* buttonHandler) {
 }
 
 /**
- * @brief Set the led indicating the status of the UI
+ * Set the led indicating the status of the UI
  * @param value zero to turn the led off, otherwise the led is turned on
  */
 void setUILed(char value) {
@@ -723,7 +725,7 @@ void setUILed(char value) {
 }
 
 /**
- * @brief Set the led indicating the status of the UI
+ * Set the led indicating the status of the UI
  * @param value zero to turn the led off, otherwise the led is turned on
  */
 void setIndexLed(char value) {
@@ -732,7 +734,7 @@ void setIndexLed(char value) {
 }
 
 /**
- * @brief Set the led indicating the status of the UI
+ * Set the led indicating the status of the UI
  * @param value zero to turn the led off, otherwise the led is turned on
  */
 void setErrorLed(char value) {
@@ -741,7 +743,7 @@ void setErrorLed(char value) {
 }
 
 /**
- * @brief This function reads out the sensor values when the sensors are ready and brings a delay of approx. 360ms. This is
+ * This function reads out the sensor values when the sensors are ready and brings a delay of approx. 360ms. This is
  * done by swithcing the power supply of the water level sensor to ON and weaking it up. Afterwards it checks if the
  * water level sensor is already up and running. This is the case after approxemately 360 milliseconds. The values of all
  * sensors are then read and/or stored in a local variable (sensor readout). Then the water level sensor is being disabled
@@ -758,7 +760,7 @@ void readSensorValues() {
 }
 
 /**
- * @brief returns the string representation of the sensor values from the last sensor readout 
+ * Returns the string representation of the sensor values from the last sensor readout 
  * @return string with max length VALUE_STRING_LENGTH
  */
 char* sensorValuesToString() {
@@ -766,7 +768,7 @@ char* sensorValuesToString() {
 }
 
 /**
- * @brief Checks if all sensor values are in between their min/max threaholds
+ * Checks if all sensor values are in between their min/max threaholds
  * @return true, if all sensors are in nominal ranges
  */
 bool hasNominalSensorValues() {
@@ -774,7 +776,7 @@ bool hasNominalSensorValues() {
 }
 
 /**
- * @brief Indicates if a button press occured. The indicator is a struct holding two boolean
+ * Indicates if a button press occured. The indicator is a struct holding two boolean
  * variables: shortPressed and longPressed which are set when the button was previously pressed
  * for a long/short time.
  * @return indicator struct, holding the button flags
@@ -784,14 +786,14 @@ button_indicator_t getButtonIndicator() {
 }
 
 /**
- * @brief reset the flags indicating that a button press occured
+ * Reset the flags indicating that a button press occured
  */
 void resetButtonFlags() {
     Button::resetIndicator();
 }
 
 /**
- * @brief toggles the state of the waterpump and sets operating mode according to the new state.
+ * Toggles the state of the waterpump and sets operating mode according to the new state.
  * If the pump is now switched on the operating mode is set to manual otherwise the operating mode gets
  * reset to the cached mode.
  */
@@ -809,21 +811,21 @@ void manuallyToggleWaterPump() {
 }
 
 /**
- * @brief pauses the (scheduled) operating pump, manual mode still works
+ * Pauses the (scheduled) operating pump, manual mode still works
  */
 void pauseScheduledPumpOperation() {
     Relais::pauseOperation();
 }
 
 /**
- * @brief resumes the (scheduled) operating pump, manual mode still works
+ * Resumes the (scheduled) operating pump, manual mode still works
  */
 void resumeScheduledPumpOperation() {
     Relais::resumeOperation();
 }
 
 /**
- * @brief get the current threshold rain level for pump operation
+ * Get the current threshold rain level for pump operation
  * @return rain threashold in mm
  */
 int getRainThresholdLevel() {
@@ -831,7 +833,7 @@ int getRainThresholdLevel() {
 }
 
 /**
- * @brief set the threshold rain level for pump operation. The level is also stored into flash memory
+ * Set the threshold rain level for pump operation. The level is also stored into flash memory
  * @param level rain threashold in mm
  */
 void setRainThresholdLevel(int level) {
@@ -840,7 +842,7 @@ void setRainThresholdLevel(int level) {
 }
 
 /**
- * @brief sets the given interval at the given index
+ * Sets the given interval at the given index
  * @param interval interval to be set at the timed scheduled
  * @param i index of the interval array
  */
@@ -849,7 +851,7 @@ void setPumpInterval(Relais::interval_t interval, unsigned int i) {
 }
 
 /**
- * @brief Getter method for intervals of water pump
+ * Getter method for intervals of water pump
  * @param i index of the interval to be returned
  * @return interval with the given index
  */
@@ -858,7 +860,7 @@ pump_intervall_t getPumpInterval(unsigned int i) {
 }
 
 /**
- * @brief Checks if the water pump should be switched/toggled and does so in case the operational mode
+ * Checks if the water pump should be switched/toggled and does so in case the operational mode
  * is set to SCHEDULED or AUTOMATIC. If the pump is operating on schedul the given timeinfo checked if
  * it is inside an interval (switch ON) or outside (switch OFF). If the pump is operating automatically
  * the water level is checked to see if their is enough water.

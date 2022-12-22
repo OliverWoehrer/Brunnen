@@ -28,7 +28,7 @@ namespace EMail {
     void smtpCallback(SMTP_Status status);
 
     /**
-     * @brief Initializes the E-Mail module by setting the mail-server and time zone variables. Furthermore
+     * Initializes the E-Mail module by setting the mail-server and time zone variables. Furthermore
      * the callback function for the SMTP connnection is set as well as the debug level (relevant for the
      * detail of debug messages)
      * @return SUCCESS
@@ -51,7 +51,7 @@ namespace EMail {
     }
 
     /**
-     * @brief Appends the given text to the mail text. There is a total amount of 1KiB reserved for text.
+     * Appends the given text to the mail text. There is a total amount of 1KiB reserved for text.
      * Make sure to not overflow that buffer. To keep track of how much of the reserved memory is already
      * used the number of free memory space is returned
      * @param text message to append to the mail text
@@ -64,7 +64,7 @@ namespace EMail {
     }
 
     /**
-     * @brief Creats an attachment which gets used when actually sending the mail. This is done by loading
+     * Creats an attachment which gets used when actually sending the mail. This is done by loading
      * the file from the given fileName path. It also appends the file name as a new line to the mail text.
      * There is a total amount of 1KiB reserved for text. Make sure to not overflow that buffer. To keep
      * track of how much of the reserved memory is already used the number of free memory space is returned
@@ -89,7 +89,7 @@ namespace EMail {
     }
 
     /**
-     * @brief clears mail data by resetting mail and error text to NUL and cleaning the attachments
+     * clears mail data by resetting mail and error text to NUL and cleaning the attachments
      * @return SUCCESS
      */
     int clearData() {
@@ -102,7 +102,7 @@ namespace EMail {
     }
 
     /**
-     * @brief Sends the mail which was created by the other functions.
+     * Sends the mail which was created by the other functions.
      * @return SUCCESS if the mail and all its attachments could be send, FAILURE otherwise
      */
     int send() {
@@ -151,7 +151,7 @@ namespace EMail {
     }
 
     /**
-     * @brief returns the error text. Containes error message in case of error. Needs to be cleaned
+     * Returns the error text. Containes error message in case of error. Needs to be cleaned
      * by calling the clearData() method in case of unsuccessful send of mail
      * @return error text
      */
@@ -186,10 +186,20 @@ namespace OpenMeteoAPI {
     char responseBuffer[RESPONSE_BUFFER_SIZE] = "";
     int precipitation = 0;
 
+    /**
+     * Initalizes the OpenMeteoAPI module, unused for now
+     * @return SUCCESS
+     */
     int init() {
         return SUCCESS; // no initialization needed atm
     }
 
+    /**
+     * Request weather data for the fiven intervall/date periode over an api call
+     * @param startDate start of the periode (including)
+     * @param endDate end of the periode (including)
+     * @return SUCCESS if the request was successful, FAILURE otherwise
+     */
     int requestWeatherData(const char* startDate, const char* endDate) {
         char requestBuffer[256];
         sprintf(requestBuffer,"https://api.open-meteo.com/v1/forecast?latitude=48.11&longitude=16.39&timezone=auto&daily=precipitation_sum&start_date=%s&end_date=%s",startDate,endDate);
@@ -231,6 +241,11 @@ namespace OpenMeteoAPI {
         return SUCCESS;
     }
 
+    /**
+     * Read the actual data previously requested idendified by the given handle
+     * @param data handle string of the given data to extract
+     * @return value of the data
+     */
     int getWeatherData(const char* data) {
         if (strcmp(data,"precipitation") == 0) {
             return precipitation;
@@ -240,7 +255,7 @@ namespace OpenMeteoAPI {
     }
 
     /**
-     * @brief returns the response message or error message in case of error. Needs to be cleaned
+     * Returns the response message or error message in case of error. Needs to be cleaned
      * by calling the clearData() method in case of unsuccessful send of mail
      * @return error text
      */
@@ -249,7 +264,7 @@ namespace OpenMeteoAPI {
     }
 
     /**
-     * @brief clears http data by ending http object and setting error text to NUL
+     * Clears http data by ending http object and setting error text to NUL
      * @return SUCCESS
      */
     int clearData() {
@@ -262,7 +277,7 @@ namespace OpenMeteoAPI {
 // Gateway
 //===============================================================================================
 /**
- * @brief Initializes the Gateway module by setting up the e-mail module.
+ * Initializes the Gateway module by setting up the e-mail module.
  * @return SUCCESS
  */
 int init() {
@@ -274,7 +289,7 @@ int init() {
 }
 
 /**
- * @brief Appends the given text to the mail text. There is a total amount of 1KiB reserved for text.
+ * Appends the given text to the mail text. There is a total amount of 1KiB reserved for text.
  * Make sure to not overflow that buffer. To keep track of how much of the reserved memory is already
  * used the number of free memory space is returned
  * @param text message to append to the mail text
@@ -285,7 +300,7 @@ int addInfoText(const char* text) {
 }
 
 /**
- * @brief Sends the mail which was created by the other functions.
+ * Sends the mail which was created by the other functions.
  * @return number of free memory in bytes
  */
 int addData(const char* fileName) {
@@ -293,7 +308,7 @@ int addData(const char* fileName) {
 }
 
 /**
- * @brief Sends the mail which was created by the other functions.
+ * Sends the mail which was created by the other functions.
  * @return SUCCESS if the mail and all its attachments could be send, FAILURE otherwise
  */
 int sendData() {
@@ -301,7 +316,7 @@ int sendData() {
 }
 
 /**
- * @brief returns the error text. Containes error message in case of error
+ * Returns the error text. Containes error message in case of error
  * @return error text
  */
 const char* getErrorMsg() {
@@ -309,7 +324,7 @@ const char* getErrorMsg() {
 }
 
 /**
- * @brief Clears all the data set by other methods previously.
+ * Clears all the data set by other methods previously.
  * @return SUCCESS
  */
 int clearData() {
@@ -317,7 +332,7 @@ int clearData() {
 }
 
 /**
- * @brief Request weather data for the fiven intervall/date periode over an api call
+ * Request weather data for the fiven intervall/date periode over an api call
  * @param startDate start of the periode (including)
  * @param endDate end of the periode (including)
  * @return SUCCESS if the request was successful, FAILURE otherwise
@@ -327,7 +342,7 @@ int requestWeatherData(const char* startDate, const char* endDate) {
 }
 
 /**
- * @brief Read the actual data previously requested idendified by the given handle
+ * Read the actual data previously requested idendified by the given handle
  * @param data handle string of the given data to extract
  * @return value of the data
  */
@@ -336,7 +351,7 @@ int getWeatherData(const char* data) {
 }
 
 /**
- * @brief Read the response of the previously requested api call
+ * Read the response of the previously requested api call
  * @return response or info message
  */
 const char* getWeatherResponse() {
