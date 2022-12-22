@@ -97,21 +97,16 @@ void requestWeatherDataTask(void* parameter) {
     struct tm timeinfo = DataTime::loadTimeinfo();
     char currentDate[11]; // Format: "YYYY-MM-DD"
     sprintf(currentDate, "%04d-%02d-%02d",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
-    
-    // Send Request to OpenMeteoAPI:
-    DataTime::logInfoMsg("Requesting weather data from OpenMeteo API.");
-    if (Gateway::requestWeatherData(currentDate, currentDate)) { // failed to request data
-        // Write Error Message to Log:
-        const char* errorMsg = Gateway::getWeatherResponse(); // response is error on fail
-        DataTime::logErrorMsg("Failed to request weather data from OpenMeteo API.");
-        DataTime::logInfoMsg(errorMsg);
-        
-        // Append Info Message to Gateway Text:
-        Gateway::addInfoText("Failed to request weather data. ");
 
-        // Unknown Weather Report; Resume Scheduled Operation Just in Case:
-        Hardware::resumeScheduledPumpOperation();
-    } else { // got data successfully
+    // Send Request to OpenMeteoAPI:
+    bool isConnected = DataTime::isWlanConnected();
+    DataTime::connectWlan(); // (re-)connect to wifi
+    DataTime::logInfoMsg("Requesting weather data from OpenMeteo API.");
+    int ret = Gateway::requestWeatherData(currentDate, currentDate);
+    if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
+
+    // Check Result of Request:
+    if (ret == SUCCESS) { // got data successfully
         // Get Amount of Rain:
         int rain = Gateway::getWeatherData("precipitation");
 
@@ -130,6 +125,17 @@ void requestWeatherDataTask(void* parameter) {
             DataTime::logInfoMsg("Too little rain, resume pump operation.");
             Hardware::resumeScheduledPumpOperation();
         }
+    } else { // failed to request data
+        // Write Error Message to Log:
+        const char* errorMsg = Gateway::getWeatherResponse(); // response is error on fail
+        DataTime::logErrorMsg("Failed to request weather data from OpenMeteo API.");
+        DataTime::logInfoMsg(errorMsg);
+        
+        // Append Info Message to Gateway Text:
+        Gateway::addInfoText("Failed to request weather data. ");
+
+        // Unknown Weather Report; Resume Scheduled Operation Just in Case:
+        Hardware::resumeScheduledPumpOperation();
     }
 
     // Exit This Task:
@@ -174,16 +180,14 @@ void sendMailTask(void* parameter) {
     DataTime::checkLogFile(1000000); // check free space for log file
 
     // Send Data:
+    bool isConnected = DataTime::isWlanConnected();
+    DataTime::connectWlan(); // (re-)connect to wifi
     DataTime::logInfoMsg("Sending Mail.");
-    if (Gateway::sendData()) { // error occured while sending mail
-        const char* errorMsg = Gateway::getErrorMsg();
-        DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
-        DataTime::logInfoMsg(errorMsg);
-        Gateway::clearData();
-        const char* fName = DataTime::loadActiveDataFileName();
-        Hardware::saveJob(jobLength, fName);
-        Hardware::saveJobLength(jobLength+1);
-    } else { // delete old file after successful send
+    int ret = Gateway::sendData();
+    if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
+    
+    // Check Result of Send Mail:
+    if (ret == SUCCESS) { // delete old file after successful send
         DataTime::deleteActiveDataFile();
         for (unsigned int i=0; i < jobLength; i++) {
             const char* jobName = Hardware::loadJob(i);
@@ -192,6 +196,14 @@ void sendMailTask(void* parameter) {
             Hardware::deleteJob(i);
         }
         Hardware::saveJobLength(0);
+    } else { // error occured while sending mail
+        const char* errorMsg = Gateway::getErrorMsg();
+        DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
+        DataTime::logInfoMsg(errorMsg);
+        Gateway::clearData();
+        const char* fName = DataTime::loadActiveDataFileName();
+        Hardware::saveJob(jobLength, fName);
+        Hardware::saveJobLength(jobLength+1);
     }
 
     //Set up new data file:
@@ -240,40 +252,30 @@ void heapWatcherTask(void* parameter) {
 
         if (timeinfo.tm_hour == 0) { // request weather data once at/after midnight
             // Wait to Get Notified for Free Heap:
-            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 120 seconds
-
-            // (Re-)Connect to WiFi:
-            bool isConnected = DataTime::isWlanConnected();
-            DataTime::connectWlan();
+            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
             
-            // Create Task for Requesting Weather:
+            // Check Heap Size:
             size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
             char heapInfoTxt[60];
             sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
             DataTime::logDebugMsg(heapInfoTxt);
-            xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
 
-            // Reset Connection WiFi Connection:
-            if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
+            // Create Task for Requesting Weather:
+            xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
         }
 
         if ((timeinfo.tm_hour & 0x1) == 0) { // send mail every other hour
             // Wait to Get Notified for Free Heap:
-            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 120 seconds
+            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
 
-            // (Re-)Connect to WiFi:
-            bool isConnected = DataTime::isWlanConnected();
-            DataTime::connectWlan();
-
-            // Create Tasks for Sending Mail:
+            // Check Heap Size:
             size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
             char heapInfoTxt[60];
             sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
             DataTime::logDebugMsg(heapInfoTxt);
+            
+            // Create Task for Sending Mail:
             xTaskCreate(sendMailTask,"sendMailTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
-
-            // Reset Connection WiFi Connection:
-            if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
         }
     }
 }
