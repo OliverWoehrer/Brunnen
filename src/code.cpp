@@ -107,21 +107,15 @@ void requestWeatherDataTask(void* parameter) {
 
     // Check Result of Request:
     if (ret == SUCCESS) { // got data successfully
-        // Get Amount of Rain:
         int rain = Gateway::getWeatherData("precipitation");
+        char weatherTxt[30];
+        sprintf(weatherTxt,"Rain today is %d mm.",rain);
+        DataTime::logInfoMsg(weatherTxt);
 
-        // Append Info Message to Gateway Text:
-        char weatherTxt[60];
-        sprintf(weatherTxt,"To my knowledge it is about to rain %d mm today. ",rain);
-        Gateway::addInfoText(weatherTxt);
-
-        // Check the Amount of Predicted Precipitation:
         if (rain >= Hardware::getRainThresholdLevel()) {
-            Gateway::addInfoText("That's enough rain, I will pause pump operation for today. ");
             DataTime::logInfoMsg("Too much rain, pause pump operation.");
             Hardware::pauseScheduledPumpOperation();
         } else {
-            Gateway::addInfoText("That's too little rain, I will resume pump operation for today. ");
             DataTime::logInfoMsg("Too little rain, resume pump operation.");
             Hardware::resumeScheduledPumpOperation();
         }
@@ -130,9 +124,6 @@ void requestWeatherDataTask(void* parameter) {
         const char* errorMsg = Gateway::getWeatherResponse(); // response is error on fail
         DataTime::logErrorMsg("Failed to request weather data from OpenMeteo API.");
         DataTime::logInfoMsg(errorMsg);
-        
-        // Append Info Message to Gateway Text:
-        Gateway::addInfoText("Failed to request weather data. ");
 
         // Unknown Weather Report; Resume Scheduled Operation Just in Case:
         Hardware::resumeScheduledPumpOperation();
@@ -160,11 +151,26 @@ void sendMailTask(void* parameter) {
 
     //Build Text to Send:
     bool isNominal = Hardware::hasNominalSensorValues();
-    const char* nomTxt = isNominal ? "All sensors in nominal range." : "Sensors out of nominal range.";
+    const char* nomTxt = isNominal ? "All sensors in nominal range. " : "Sensors out of nominal range. ";
     Gateway::addInfoText(nomTxt);
     unsigned char jobLength = Hardware::loadJobLength();
-    char jobTxt[34];
-    sprintf(jobTxt," With %d data file(s) to send.\r\n",jobLength+1);
+
+    // Append Info Message to Gateway Text:
+    int rain = Gateway::getWeatherData("precipitation");
+    char weatherTxt[60];
+    sprintf(weatherTxt,"To my knowledge it is about to rain %d mm today. ",rain);
+    Gateway::addInfoText(weatherTxt);
+
+    // Check the Amount of Predicted Precipitation:
+    if (rain >= Hardware::getRainThresholdLevel()) {
+        Gateway::addInfoText("That's enough rain, I will pause pump operation for now. ");
+    } else {
+        Gateway::addInfoText("That's too little rain, I will resume pump operation for now. ");
+    }
+
+    //Build Text to Send:
+    char jobTxt[50];
+    sprintf(jobTxt,"With %d data file(s) to attache, namly\r\n",jobLength+1);
     Gateway::addInfoText(jobTxt);
 
     // Attach File(s) to Object:
