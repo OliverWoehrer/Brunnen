@@ -44,27 +44,20 @@ namespace Wlan {
      * @return SUCCESS if the login succeded and FAILURE if something went wrong
      */
     int login(const char* ssid, const char* pw) {
-        unsigned char retries = 3; // number of tries to login
-        while(retries > 0) {
-            retries--;
-            WiFi.begin(ssid, pw);
-            unsigned long now = millis();
-            while (WiFi.status() != WL_CONNECTED) { // wait for max. 100 sec for WiFi to connect
-                Serial.printf(".");
-                delay(500);
-                if (millis() > now+100000) { // connection attempt timed out
-                    Serial.printf("Unable to connect to WiFi\r\n");
-                    break;
-                }
+        WiFi.begin(ssid, pw);
+        unsigned long now = millis();
+        while (WiFi.status() != WL_CONNECTED) {
+            delay(500);
+            if (millis() > now+10000) { // wait for max. 100 sec for WiFi to connect
+                Serial.printf("login attempt timed out\r\n");
+                break;
             }
+        }
 
-            if (WiFi.status() == WL_CONNECTED) { // print local IP address if connected
-                // delay(500);
-                Serial.printf("\r\nWifi connected at ");Serial.println(WiFi.localIP());
-                return SUCCESS;
-            }
-
-            Serial.printf("Failed to connect WiFi\r\n");     
+        if (WiFi.status() == WL_CONNECTED) { // print local IP address if connected
+            // delay(500);
+            Serial.printf("Wifi connected at ");Serial.println(WiFi.localIP());
+            return SUCCESS;
         }
 
         return FAILURE;
@@ -76,14 +69,23 @@ namespace Wlan {
      * @return SUCCESS if the login process was succesfull. FAILURE otherwise
      */
     int connect() {
-        int n = WiFi.scanNetworks();
-        for (int i = 0; i < n; ++i) {
-            if (String(WiFi.SSID(i)).equals(WIFI_SSID_HOME)) {
-                return login(WIFI_SSID_HOME, WIFI_PASSWORD_HOME);
+        unsigned char retries = 2; // number of tries to login
+        while(retries > 0) {
+            retries--;
+            Serial.printf("try with mobile ssid\r\n");
+            if (login(WIFI_SSID_MOBILE, WIFI_PASSWORD_MOBILE) == SUCCESS) {
+                return SUCCESS;
             }
-            if (String(WiFi.SSID(i)).equals(WIFI_SSID_FIELD)) {
-                return login(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD);
-            } // else: continue search
+                
+            Serial.printf("try with home ssid\r\n");
+            if (login(WIFI_SSID_HOME, WIFI_PASSWORD_HOME) == SUCCESS) {
+                return SUCCESS;
+            }
+
+            Serial.printf("try with field ssid\r\n");
+            if (login(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD) == SUCCESS) {
+                return SUCCESS;
+            }  
         }
         return FAILURE;
     } 

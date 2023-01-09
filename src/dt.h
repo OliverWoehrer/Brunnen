@@ -10,6 +10,8 @@
 //Network Credentials:
 #define WIFI_SSID_HOME "RadlerfreieWohnung_2.4G"
 #define WIFI_PASSWORD_HOME "radlerraus"
+#define WIFI_SSID_MOBILE "Pixel_4a"
+#define WIFI_PASSWORD_MOBILE "1gutespasswort"
 #define WIFI_SSID_FIELD "TP-Link_BCDC"
 #define WIFI_PASSWORD_FIELD "69001192"
 
