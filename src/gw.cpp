@@ -244,13 +244,13 @@ namespace OpenMeteoAPI {
     /**
      * Read the actual data previously requested idendified by the given handle
      * @param data handle string of the given data to extract
-     * @return value of the data
+     * @return value of the data, -1 if data is unknown
      */
     int getWeatherData(const char* data) {
         if (strcmp(data,"precipitation") == 0) {
             return precipitation;
         } else {
-            return 0;
+            return -1;
         }
     }
 
