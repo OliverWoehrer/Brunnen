@@ -21,13 +21,9 @@
 #define GMT_TIME_ZONE 3600
 #define DAYLIGHT_OFFSET 3600
 
-//File System:
+//Preferences:
 #define FILE_NAME_LENGTH 21
-#define SD_CARD
-#define SPI_CD 5
-#define SPI_MOSI 23
-#define SPI_CLK 18
-#define SPI_MISO 19
+#define MAX_INTERVALLS 8
 
 namespace DataTime {
 
@@ -39,7 +35,8 @@ namespace Log {
     typedef enum {INFO, WARNING, ERROR, DEBUG} log_mode_t;
 }
 
-namespace FileSystem {}
+// namespace FileSystem {}
+namespace Pref {}
 
 int init();
 int connectWlan();
@@ -57,11 +54,25 @@ const char* readLogFile();
 int checkLogFile(int maxSize);
 int getLogFileSize();
 
-int createCurrentDataFile();
-char* loadActiveDataFileName();
-void deleteActiveDataFile();
-int setActiveDataFile(const char* fName);
-void writeToDataFile(const char* msg);
+// int createCurrentDataFile();
+// char* loadActiveDataFileName();
+// void deleteActiveDataFile();
+// int setActiveDataFile(const char* fName);
+// void writeToDataFile(const char* msg);
+
+void saveStartTime(tm start, unsigned int i);
+tm loadStartTime(unsigned int i);
+void saveStopTime(tm stop, unsigned int i);
+tm loadStopTime(unsigned int i);
+void saveWeekDay(unsigned char wday, unsigned int i);
+unsigned char loadWeekDay(unsigned int i);
+void saveJobLength(unsigned char jobLength);
+unsigned char loadJobLength();
+void saveJob(unsigned char jobNumber, const char* fileName);
+const char* loadJob(unsigned char jobNumber);
+void deleteJob(unsigned char jobNumber);
+void saveRainThresholdLevel(unsigned char level);
+unsigned char loadRainThresholdLevel();
 
 }
 

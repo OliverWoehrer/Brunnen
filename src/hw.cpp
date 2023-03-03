@@ -8,6 +8,10 @@
  * have to be requested an can be read when they are ready (after aprox. 360 ms). 
  */
 #include <Preferences.h>
+#include <SPIFFS.h>
+#include "FS.h"
+#include "SD.h"
+#include "SPI.h"
 #include "Arduino.h"
 #include "hw.h"
 
@@ -433,248 +437,165 @@ namespace Relais {
 }
 
 //===============================================================================================
-// PREFERENCES
+// FILE SYSTEM
 //===============================================================================================
-namespace Pref {
-    Preferences preferences; // format[20]: "/data_YYYY-MM-DD.txt"
-    char fileNameBuffer[FILE_NAME_LENGTH];
+namespace FileSystem {
+    char fileNameBuffer[FILE_NAME_LENGTH]; // format[21]: "/data_YYYY-MM-DD.txt"
 
     /**
-     * Initalizes the preferences and mounts the flash memory
+     * Uses the serial interface to print the contents of the given directory
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param dirname name of the directory (e.g "/")
+     * @param levels the number of hierachy levels to print
      */
-    int init() {
-        bool ret = preferences.begin("brunnen", false);
-        preferences.end();
-        return ret ? SUCCESS : FAILURE;
-    }
-
-    /**
-     * Writes the the values for the starting time for intervall i into preferences
-     * @param start time struct holding starting time
-     * @param i index of intervall
-     */
-    void setStartTime(tm start, unsigned int i) {
-        char startHrString[14] = "start_hour_XX";
-        char startMinString[13] = "start_min_XX";
-        sprintf(startHrString, "start_hour_%02d", i);
-        sprintf(startMinString, "start_min_%02d", i);
-        preferences.begin("brunnen", false);
-        preferences.putUInt(startHrString, start.tm_hour);
-        preferences.putUInt(startMinString, start.tm_min);
-        preferences.end();
-    }
-
-    /**
-     * Reads the the values for the starting time for intervall i from preferences
-     * @param i index of intervall
-     * @return time struct holding the start time
-     */
-    tm getStartTime(unsigned int i) {
-        char startHrString[14] = "start_hour_XX";
-        char startMinString[13] = "start_min_XX";
-        sprintf(startHrString, "start_hour_%02d", i);
-        sprintf(startMinString, "start_min_%02d", i);
-
-        struct tm start;
-        preferences.begin("brunnen", false);
-        start.tm_hour = preferences.getUInt(startHrString);
-        start.tm_min = preferences.getUInt(startMinString);
-        start.tm_sec = 0;
-        preferences.end();
-        return start;
-    }
-
-    /**
-     * Writes the the values for the stop time for intervall i into preferences
-     * @param stop time struct holding stop time
-     * @param i index of intervall
-     */
-    void setStopTime(tm stop, unsigned int i) {
-        char stopHrString[13] = "stop_hour_XX";
-        char stopMinString[12] = "stop_min_XX";
-        sprintf(stopHrString, "stop_hour_%02d", i);
-        sprintf(stopMinString, "stop_min_%02d", i);
-        preferences.begin("brunnen", false);
-        preferences.putUInt(stopHrString, stop.tm_hour);
-        preferences.putUInt(stopMinString, stop.tm_min);
-        preferences.end();
-    }
-
-    /**
-     * Reads the the values for the stop time for intervall i from preferences
-     * @param i index of intervall
-     * @return time struct holding the stop time
-     */
-    tm getStopTime(unsigned int i) {
-        char stopHrString[13] = "stop_hour_XX";
-        char stopMinString[12] = "stop_min_XX";
-        sprintf(stopHrString, "stop_hour_%02d", i);
-        sprintf(stopMinString, "stop_min_%02d", i);
-
-        struct tm stop;
-        preferences.begin("brunnen", false);
-        stop.tm_hour = preferences.getUInt(stopHrString);
-        stop.tm_min = preferences.getUInt(stopMinString);
-        stop.tm_sec = 0;
-        preferences.end();
-        return stop;
-    }
-
-    /**
-     * Writes the the value for the week day for intervall i into preferences
-     * @param wday value holding week days
-     * @param i index of intervall
-     */
-    void setWeekDay(unsigned char wday, unsigned int i) {
-        char wdayString[8] = "wday_XX";
-        sprintf(wdayString, "wday_%02d", i);      
-        preferences.begin("brunnen", false);
-        preferences.putUChar(wdayString, wday);
-        preferences.end();
-    }
-
-    /**
-     * Reads the the value for the week day for intervall i from preferences
-     * @param i index of intervall
-     * @return value for week days
-     */
-    unsigned char getWeekDay(unsigned int i) {
-        char wdayString[8] = "wday_XX";
-        sprintf(wdayString, "wday_%02d", i);
-        preferences.begin("brunnen", false);
-        unsigned char wd = preferences.getUChar(wdayString);
-        preferences.end();
-        return wd;
-    }
-
-    /**
-     * Writes the number of jobs to be done into preferences
-     * @param jobLength number to set
-     */
-    void setJobLength(uint8_t jobLength) {
-        preferences.begin("brunnen", false);
-        preferences.putUChar("jobLength", jobLength);
-        preferences.end();
-    }
-
-    /**
-     * Reads the number of jobs to be done from preferences
-     * @return number of jobs to be done
-     */
-    unsigned char getJobLength() {
-        preferences.begin("brunnen", false);
-        unsigned char jl = preferences.getUChar("jobLength", 0);
-        preferences.end();
-        return jl;
-    }
-
-    /**
-     * Takes the fileName and stores it into flash memory at the position/index given by jobNumber
-     * @param jobNumber position/index in job list to write to
-     * @param fileName name of the data file to save to
-     */
-    void setJob(unsigned char jobNumber, const char* fileName) {
-        //Convert filename into hash integer (DDMMYYYY as integer number)
-        unsigned char i = 0; // format for fileName "/data_2022-06-23.txt"
-        unsigned char offset = 0;
-        while(fileName[i] != '_') {
-            i++;
+    void listDirectory(fs::FS &fs, const char *dirname, uint8_t levels) {
+        Serial.printf("Listing directory: %s\r\n", dirname);
+        File root = fs.open(dirname);
+        if (!root) {
+            Serial.println("Failed to open directory");
+            return;
         }
-        i++;
-
-        char yearString[5] = "XXXX";
-        offset = 0;
-        while(fileName[i] != '-') {
-            yearString[offset] = fileName[i];
-            i++;
-            offset++;
+        if (!root.isDirectory()) {
+            Serial.println("Not a directory");
+            return;
         }
-        i++;
-        
-        char monthString[3] = "XX";
-        offset = 0;
-        while(fileName[i] != '-') {
-            monthString[offset] = fileName[i];
-            i++;
-            offset++;
+        File file = root.openNextFile();
+        while (file) {
+            if (file.isDirectory()) {
+                Serial.print("  DIR : ");
+                Serial.println(file.name());
+                if (levels) listDirectory(fs, file.name(), levels - 1);
+            } else {
+                Serial.print("  FILE: ");
+                Serial.print(file.name());
+                Serial.print("  SIZE: ");
+                Serial.println(file.size());
+            }
+            file = root.openNextFile();
         }
-        i++;
-
-        char dayString[3] = "XX";
-        offset = 0;
-        while(fileName[i] != '.') {
-            dayString[offset] = fileName[i];
-            i++;
-            offset++;
-        }
-        i++;
-        
-        long int year = strtol(yearString,NULL,10);
-        long int month = strtol(monthString,NULL,10);
-        long int day = strtol(dayString,NULL,10);
-        unsigned int hash = year*10000 + month*100 + day; // hash integer (YYYYMMDD as integer number)
-
-        char jobKey[7] = "job_XX"; // build string for preferences key
-        sprintf(jobKey,"job_%02d",jobNumber);
-
-        preferences.begin("brunnen", false);
-        preferences.putUInt(jobKey, hash);
-        preferences.end();
     }
-    
+
     /**
-     * Loads the file name from flash memory from position/index given by jobNumber
-     * @param jobNumber position/index in job list to load from
-     * @return name of data file loaded from job list
+     * Creats a new directory (=sub-folder) in the given directory
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
      */
-    const char* getJob(unsigned char jobNumber) {
-        char jobKey[7] = "job_XX"; // build string for preferences key
-        sprintf(jobKey,"job_%02d",jobNumber);
+    void createDir(fs::FS &fs, const char *path) {
+        Serial.printf("Creating Dir: %s\r\n", path);
+        if (fs.mkdir(path)) Serial.println("Dir created");
+        else Serial.println("mkdir failed");
+    }
 
-        preferences.begin("brunnen", false);
-        const unsigned int hash = preferences.getUInt(jobKey); // hash integer (YYYYMMDD as integer number)
-        preferences.end();
-        
-        const unsigned int year = (hash/10000) % 10000;
-        const unsigned int month = (hash/100) % 100;
-        const unsigned int day = hash % 100;
+    /**
+     * Removes the directory in the given oath
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
+     */
+    void removeDir(fs::FS &fs, const char *path) {
+        Serial.printf("Removing Dir: %s\r\n", path);
+        if (fs.rmdir(path)) Serial.println("Dir removed");
+        else Serial.println("rmdir failed");
+    }
 
-        sprintf(fileNameBuffer, "/data_%04d-%02d-%02d.txt",year,month,day);
+    /**
+     * Reads the content of the file at the given path
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
+     */
+    void readFile(fs::FS &fs, const char *path) {
+        Serial.printf("Reading file: %s\r\n", path);
+        File file = fs.open(path);
+        if (!file) {
+            Serial.println("Failed to open file for reading");
+            return;
+        }
+        Serial.print("Read from file: ");
+        while (file.available()) Serial.write(file.read());
+        file.close();
+    }
+
+    /**
+     * Writes the given message to the beginning of the file at the given path
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
+     * @param message text to be written into file
+     */
+    void writeFile(fs::FS &fs, const char *path, const char *message) {
+        Serial.printf("Writing file: %s\r\n", path);
+        File file = fs.open(path, FILE_WRITE);
+        if (!file) {
+            Serial.println("Failed to open file for writing");
+            return;
+        }
+        if (file.print(message)) Serial.println("File written");
+        else Serial.println("Write failed");
+        file.close();
+    }
+
+    /**
+     * Writes the given message to the end of the file at the given path and 
+     * therefor appending the given data to the existing file
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
+     * @param message text to be appended into file
+     */
+    void appendFile(fs::FS &fs, const char *path, const char *message) {
+        File file = fs.open(path, FILE_APPEND);
+        if (!file) {
+            Serial.println("Failed to open file for appending");
+            return;
+        }
+        if (!file.print(message)) Serial.println("Append failed");
+        file.close();
+    }
+
+    /**
+     * Delets the file at the given path
+     * @param fs address of the file system in use (e.g. SD or SPIFFS)
+     * @param path name of the directory (e.g "/")
+     */
+    void deleteFile(fs::FS &fs, const char *path) {
+        Serial.printf("Deleting file: %s\r\n", path);
+        if (fs.remove(path)) Serial.println("File deleted");
+        else Serial.println("Delete failed");
+    }
+
+    /**
+     * Mounts the SD card and looks for a file named "fileName". This is the file currently
+     * used to store the data. If there is non found, a new file is created with the headers in
+     * place. This way multiple initalizations/reboots of the system do not lead to multiple files.
+     * Last the free storage space on the SD card is checked.
+     * @return SUCCESS is the file was found or created, FAILURE otherwise
+     */
+    int init(const char* fName) {
+        if (!SD.begin(SPI_CD)) {
+            Serial.printf("Card Mount Failed");
+            return FAILURE; // error code: no card shield found
+        }
+
+        //Create a file on the SD card if does not exist:
+        File file = SD.open(fName);
+        if(!file) {
+            writeFile(SD, fName, "Timestamp,Flow,Pressure,Level\r\n");
+        }
+        file.close();
+
+        //Check SD card size:
+        unsigned long long usedBytes = SD.usedBytes() / (1024 * 1024);
+        Serial.printf("Mounted SD card with %llu MB used.\r\n", usedBytes);
+        strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
+        return SUCCESS;
+
+        /*strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
+        return SUCCESS;*/
+    }
+
+    /**
+     * Returns the name of the file currently used.
+     * @return file name in format[21]: "/data_YYYY-MM-DD.txt"
+     */
+    char* getFileName() {
         return fileNameBuffer;
-    }
-
-    /**
-     * Delets the job with the given number from preferences memory
-     * @param jobNumber number (=index) of the number to delete
-     */
-    void removeJob(unsigned char jobNumber) {
-        char jobKey[7] = "job_XX"; // build string for preferences key
-        sprintf(jobKey,"job_%02d",jobNumber);
-
-        preferences.begin("brunnen", false);
-        preferences.remove(jobKey);
-        preferences.end();
-    }
-
-    /**
-     * Loads the threshold level from flash memory
-     * @return threshold level from memory
-     */
-    int getThreshold() {
-        preferences.begin("brunnen", false);
-        int threshold = preferences.getInt("threshold");
-        preferences.end();
-        return threshold;
-    }
-
-    /**
-     * Takes the threshold level and stores it into flash memory
-     * @param level threshold level to store
-     */
-    void setThreshold(int level) {
-        preferences.begin("brunnen", false);
-        preferences.putInt("threshold", level);
-        preferences.end();
     }
 }
 
@@ -689,28 +610,6 @@ int init(TaskHandle_t* buttonHandler) {
     Sensors::init();
     Button::init(buttonHandler);
     Relais::init();
-    if(Pref::init()) {
-        Serial.printf("Failed to read out preferences from flash memory!\r\n");
-        return FAILURE;
-    }
-
-    //Read Out Preferences from Flash Memory:
-    Serial.printf("[INFO] Intervals:\r\n");
-    for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
-        //Read out preferences from flash:
-        struct tm start = Pref::getStartTime(i);
-        struct tm stop = Pref::getStopTime(i);
-        unsigned char wday = Pref::getWeekDay(i);
-
-        //Initialize interval:
-        Relais::interval_t interval = {.start = start, .stop = stop, .wday = wday};
-        Relais::setInterval(interval, i);
-        Serial.printf("(%d) %d:%d - %d:%d {%u}\r\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
-    }
-
-    //Read Out Rain Threshold Level from Flash Memory:
-    int rainThreshold = Pref::getThreshold();
-    Relais::setOperatingLevel(rainThreshold);
 
     return SUCCESS;
 }
@@ -765,6 +664,19 @@ void readSensorValues() {
  */
 char* sensorValuesToString() {
     return Sensors::toString();
+}
+
+/**
+ * Appends the last sensor values after read together with the given timestring to the (currently active) data file
+ * @param timeString string timestamp to write to data file
+ */
+void saveSensorValues(const char* timeString) {
+    size_t len = strlen(timeString);
+    char dataString[len+1+VALUE_STRING_LENGTH+3];
+    sprintf(dataString,"%s,%s\r\n",timeString,Sensors::toString());
+    FileSystem::appendFile(SD, FileSystem::getFileName(), dataString);
+
+
 }
 
 /**
@@ -828,7 +740,7 @@ void resumeScheduledPumpOperation() {
  * Get the current threshold rain level for pump operation
  * @return rain threashold in mm
  */
-int getRainThresholdLevel() {
+int getPumpOperatingLevel() {
     return Relais::getOperatingLevel();
 }
 
@@ -836,9 +748,8 @@ int getRainThresholdLevel() {
  * Set the threshold rain level for pump operation. The level is also stored into flash memory
  * @param level rain threashold in mm
  */
-void setRainThresholdLevel(int level) {
+void setPumpOperatingLevel(int level) {
     Relais::setOperatingLevel(level);
-    Pref::setThreshold(level);
 }
 
 /**
@@ -897,47 +808,80 @@ void managePumpIntervals(tm timeinfo) {
     }
 }
 
-void saveStartTime(tm start, unsigned int i) {
-    Pref::setStartTime(start, i);
+
+
+
+
+// void saveStartTime(tm start, unsigned int i) {
+//     Pref::setStartTime(start, i);
+// }
+
+// tm loadStartTime(unsigned int i) {
+//     return Pref::getStartTime(i);
+// }
+
+// void saveStopTime(tm stop, unsigned int i) {
+//     Pref::setStopTime(stop, i);
+// }
+
+// tm loadStopTime(unsigned int i) {
+//     return Pref::getStopTime(i);
+// }
+
+// void saveWeekDay(unsigned char wday, unsigned int i) {
+//     Pref::setWeekDay(wday, i);
+// }
+
+// unsigned char loadWeekDay(unsigned int i) {
+//     return Pref::getWeekDay(i);
+// }
+
+// void saveJobLength(unsigned char jobLength) {
+//     Pref::setJobLength(jobLength);
+// }
+
+// unsigned char loadJobLength() {
+//     return Pref::getJobLength();
+// }
+
+// void saveJob(unsigned char jobNumber, const char* fileName) {
+//     Pref::setJob(jobNumber, fileName);
+// }
+
+// const char* loadJob(unsigned char jobNumber) {
+//     return Pref::getJob(jobNumber);
+// }
+
+// void deleteJob(unsigned char jobNumber) {
+//     Pref::removeJob(jobNumber);
+// }
+
+
+
+
+/**
+ * Loads the file name of the file currently used to store the sensor data
+ * @return file name of file currently used
+ */
+char* loadActiveDataFileName() {
+    return FileSystem::getFileName();
 }
 
-tm loadStartTime(unsigned int i) {
-    return Pref::getStartTime(i);
+/**
+ * Deletes the file currently used to store the sensor data
+ */
+void deleteActiveDataFile() {
+    FileSystem::deleteFile(SD, FileSystem::getFileName());
 }
 
-void saveStopTime(tm stop, unsigned int i) {
-    Pref::setStopTime(stop, i);
+/**
+ * Sets the file name of the file currently used to store data. Similar to createCurrentDataFile()
+ * @param fName file name to set (name of the file to be used now)
+ * @return SUCCESS if the file was created/opened correcly, FAILURE otherwise.
+ */
+int setActiveDataFile(const char* fName) {
+    return FileSystem::init(fName);
 }
 
-tm loadStopTime(unsigned int i) {
-    return Pref::getStopTime(i);
-}
 
-void saveWeekDay(unsigned char wday, unsigned int i) {
-    Pref::setWeekDay(wday, i);
-}
-
-unsigned char loadWeekDay(unsigned int i) {
-    return Pref::getWeekDay(i);
-}
-
-void saveJobLength(unsigned char jobLength) {
-    Pref::setJobLength(jobLength);
-}
-
-unsigned char loadJobLength() {
-    return Pref::getJobLength();
-}
-
-void saveJob(unsigned char jobNumber, const char* fileName) {
-    Pref::setJob(jobNumber, fileName);
-}
-
-const char* loadJob(unsigned char jobNumber) {
-    return Pref::getJob(jobNumber);
-}
-
-void deleteJob(unsigned char jobNumber) {
-    Pref::removeJob(jobNumber);
-}
 }
