@@ -35,7 +35,6 @@ namespace Log {
     typedef enum {INFO, WARNING, ERROR, DEBUG} log_mode_t;
 }
 
-// namespace FileSystem {}
 namespace Pref {}
 
 int init();
@@ -53,12 +52,6 @@ int logDebugMsg(const char* msg);
 const char* readLogFile();
 int checkLogFile(int maxSize);
 int getLogFileSize();
-
-// int createCurrentDataFile();
-// char* loadActiveDataFileName();
-// void deleteActiveDataFile();
-// int setActiveDataFile(const char* fName);
-// void writeToDataFile(const char* msg);
 
 void saveStartTime(tm start, unsigned int i);
 tm loadStartTime(unsigned int i);
