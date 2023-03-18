@@ -239,23 +239,23 @@ namespace Button {
     void static IRAM_ATTR periodicButton() { //static
         if (digitalRead(BUTTON) == HIGH) {
             cnt++;
-            if (cnt == 30) { // do not use (>), to prevent resetting the flag multiple times!
+            if (cnt == 30) { // max cnt 30: long press
                 indicator.shortPressed = false;
                 indicator.longPressed = true;
                 xTaskResumeFromISR(btnHandler);
             }
-        } else if (btnTimer) { // button not pressed anymore
+        } else { // button not pressed anymore
             if (1 < cnt && cnt < 30) {
                 indicator.shortPressed = true;
                 indicator.longPressed = false;
                 xTaskResumeFromISR(btnHandler);
             }
             
-            // timerEnd(btnTimer); // stop button the sampling
-            // btnTimer = NULL;
-            timerDetachInterrupt(btnTimer);
+            // Disable Periodic Btn Sampling:
             cnt = 0;
-        } else { /* should not be reached !*/ }
+            attachInterrupt(BUTTON, ISR, ONHIGH); // interrupt on "high level", "rising edge" not supported by arduino-esp32 framework
+            timerDetachInterrupt(btnTimer);
+        }
     }
 
     /**
@@ -265,8 +265,12 @@ namespace Button {
     void init(TaskHandle_t* buttonHandler) {
         pinMode(BUTTON, INPUT);
         btnHandler = *buttonHandler;
+        attachInterrupt(BUTTON, ISR, ONHIGH); // interrupt on high level, otherwise RISING
+
+        // Initalize Btn Sampling Timer:
         btnTimer = timerBegin(1, 80, true); // initialize timer1
-        attachInterrupt(BUTTON, ISR, RISING); // interrupt on change
+        timerAlarmWrite(btnTimer, BTN_SAMPLING_RATE, true);
+        timerAlarmEnable(btnTimer);
     }
 
     /**
@@ -277,10 +281,8 @@ namespace Button {
      * @note IRAM_ATTR prefix so the code gets placed in IRAM and is faster loaded when needed
      */
     void IRAM_ATTR ISR() {
-        // btnTimer = timerBegin(1, 80, true); // initialize timer1
-        timerAttachInterrupt(btnTimer, &periodicButton, true);
-        timerAlarmWrite(btnTimer, BTN_SAMPLING_RATE, true);
-        timerAlarmEnable(btnTimer);
+        detachInterrupt(BUTTON); // disable interrupt
+        timerAttachInterrupt(btnTimer, &periodicButton, false); // enable periodic btn sampling
     }
 
     /**
@@ -540,11 +542,8 @@ namespace FileSystem {
      * @param message text to be appended into file
      */
     void appendFile(fs::FS &fs, const char *path, const char *message) {
-        if (!fs.exists("/")) return;
-
         File file = fs.open(path, FILE_APPEND);
         if (!file) {
-            Serial.println("Failed to open file for appending");
             return;
         }
 
