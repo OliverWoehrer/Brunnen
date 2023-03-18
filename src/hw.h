@@ -71,14 +71,13 @@ using button_indicator_t = Button::indicator_t;
 using pump_intervall_t = Relais::interval_t;
 using pump_op_mode_t = Relais::op_mode_t;
 
-int init(TaskHandle_t* buttonHandler);
+int init(TaskHandle_t* buttonHandler,const char* fileName);
 void setUILed(char value);
 void setIndexLed(char value);
 void setErrorLed(char value);
 
-void readSensorValues();
+void sampleSensorValues(const char* timeString);
 char* sensorValuesToString();
-void saveSensorValues(const char* timeString);
 bool hasNominalSensorValues();
 
 button_indicator_t getButtonIndicator();
@@ -92,18 +91,6 @@ void setPumpOperatingLevel(int level);
 void setPumpInterval(Relais::interval_t interval, unsigned int i);
 pump_intervall_t getPumpInterval(unsigned int i);
 void managePumpIntervals(tm timeinfo);
-
-// void saveStartTime(tm start, unsigned int i);
-// tm loadStartTime(unsigned int i);
-// void saveStopTime(tm stop, unsigned int i);
-// tm loadStopTime(unsigned int i);
-// void saveWeekDay(unsigned char wday, unsigned int i);
-// unsigned char loadWeekDay(unsigned int i);
-// void saveJobLength(unsigned char jobLength);
-// unsigned char loadJobLength();
-// void saveJob(unsigned char jobNumber, const char* fileName);
-// const char* loadJob(unsigned char jobNumber);
-// void deleteJob(unsigned char jobNumber);
 
 int createCurrentDataFile();
 char* loadActiveDataFileName();

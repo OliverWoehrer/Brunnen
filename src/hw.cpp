@@ -540,11 +540,14 @@ namespace FileSystem {
      * @param message text to be appended into file
      */
     void appendFile(fs::FS &fs, const char *path, const char *message) {
+        if (!fs.exists("/")) return;
+
         File file = fs.open(path, FILE_APPEND);
         if (!file) {
             Serial.println("Failed to open file for appending");
             return;
         }
+
         if (!file.print(message)) Serial.println("Append failed");
         file.close();
     }
@@ -569,7 +572,7 @@ namespace FileSystem {
      */
     int init(const char* fName) {
         if (!SD.begin(SPI_CD)) {
-            Serial.printf("Card Mount Failed");
+            Serial.printf("Failed to mount SD card!\r\n");
             return FAILURE; // error code: no card shield found
         }
 
@@ -585,9 +588,6 @@ namespace FileSystem {
         Serial.printf("Mounted SD card with %llu MB used.\r\n", usedBytes);
         strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
         return SUCCESS;
-
-        /*strncpy(fileNameBuffer, fName, FILE_NAME_LENGTH-1); // set file name currently used
-        return SUCCESS;*/
     }
 
     /**
@@ -605,11 +605,15 @@ namespace FileSystem {
 /**
  * Initializes the I/O ports and operational modes to the connected hardware modules
  */
-int init(TaskHandle_t* buttonHandler) {
+int init(TaskHandle_t* buttonHandler,const char* fileName) {
     Leds::init();
     Sensors::init();
     Button::init(buttonHandler);
     Relais::init();
+    if(FileSystem::init(fileName)) {
+        Serial.printf("Failed to initialize file system.\r\n");
+        return FAILURE;
+    }
 
     return SUCCESS;
 }
@@ -627,35 +631,40 @@ void setUILed(char value) {
  * Set the led indicating the status of the UI
  * @param value zero to turn the led off, otherwise the led is turned on
  */
-void setIndexLed(char value) {
-    if(value) Leds::turnOn(Leds::BLUE);
-    else Leds::turnOff(Leds::BLUE);
-}
-
-/**
- * Set the led indicating the status of the UI
- * @param value zero to turn the led off, otherwise the led is turned on
- */
 void setErrorLed(char value) {
     if(value) Leds::turnOn(Leds::RED);
     else Leds::turnOff(Leds::RED);
 }
 
 /**
- * This function reads out the sensor values when the sensors are ready and brings a delay of approx. 360ms. This is
- * done by swithcing the power supply of the water level sensor to ON and weaking it up. Afterwards it checks if the
- * water level sensor is already up and running. This is the case after approxemately 360 milliseconds. The values of all
- * sensors are then read and/or stored in a local variable (sensor readout). Then the water level sensor is being disabled
- * again. The values are all read at the same time to ensure data consistency. For further use, the values are written to
- * the valueString buffer as a string.
+ * This function reads out the sensor values when the sensors are ready. This is done by switching the power supply of the
+ * water level sensor to ON and weaking it up. Afterwards it checks if the water level sensor is ready (delay of approx.
+ * 360ms). The values of all sensors are then read and/or stored in a local variable (sensor readout). Then the water
+ * level sensor is being disabled again. The values are all read at the same time to ensure data consistency. Afterwards
+ * the sensor values together with the given timestring are written to the (currently active) data file. The index led is
+ * also switched on to indicate data sampling.
+ * @param timeString string timestamp to write to data file
  * @return false, if a sensor is out of its nominal range
  */
-void readSensorValues() {
+void sampleSensorValues(const char* timeString) {
+    // Indicate Start of Sensor Sampling:
+    Leds::turnOn(Leds::BLUE); 
+
+    // Read Sensor Values:
     Sensors::requestValues();
     vTaskDelay((360+10) / portTICK_PERIOD_MS); // wait for sensor to weak up
     if (Sensors::hasValuesReady()) {
         Sensors::readValues();
     }
+
+    // Save Sensor Values:
+    size_t len = strlen(timeString);
+    char dataString[len+1+VALUE_STRING_LENGTH+3];
+    sprintf(dataString,"%s,%s\r\n",timeString,Sensors::toString());
+    FileSystem::appendFile(SD, FileSystem::getFileName(), dataString);
+
+    // Indicate End of Sensor Sampling:
+    Leds::turnOff(Leds::BLUE);
 }
 
 /**
@@ -664,19 +673,6 @@ void readSensorValues() {
  */
 char* sensorValuesToString() {
     return Sensors::toString();
-}
-
-/**
- * Appends the last sensor values after read together with the given timestring to the (currently active) data file
- * @param timeString string timestamp to write to data file
- */
-void saveSensorValues(const char* timeString) {
-    size_t len = strlen(timeString);
-    char dataString[len+1+VALUE_STRING_LENGTH+3];
-    sprintf(dataString,"%s,%s\r\n",timeString,Sensors::toString());
-    FileSystem::appendFile(SD, FileSystem::getFileName(), dataString);
-
-
 }
 
 /**
@@ -807,57 +803,6 @@ void managePumpIntervals(tm timeinfo) {
         break;
     }
 }
-
-
-
-
-
-// void saveStartTime(tm start, unsigned int i) {
-//     Pref::setStartTime(start, i);
-// }
-
-// tm loadStartTime(unsigned int i) {
-//     return Pref::getStartTime(i);
-// }
-
-// void saveStopTime(tm stop, unsigned int i) {
-//     Pref::setStopTime(stop, i);
-// }
-
-// tm loadStopTime(unsigned int i) {
-//     return Pref::getStopTime(i);
-// }
-
-// void saveWeekDay(unsigned char wday, unsigned int i) {
-//     Pref::setWeekDay(wday, i);
-// }
-
-// unsigned char loadWeekDay(unsigned int i) {
-//     return Pref::getWeekDay(i);
-// }
-
-// void saveJobLength(unsigned char jobLength) {
-//     Pref::setJobLength(jobLength);
-// }
-
-// unsigned char loadJobLength() {
-//     return Pref::getJobLength();
-// }
-
-// void saveJob(unsigned char jobNumber, const char* fileName) {
-//     Pref::setJob(jobNumber, fileName);
-// }
-
-// const char* loadJob(unsigned char jobNumber) {
-//     return Pref::getJob(jobNumber);
-// }
-
-// void deleteJob(unsigned char jobNumber) {
-//     Pref::removeJob(jobNumber);
-// }
-
-
-
 
 /**
  * Loads the file name of the file currently used to store the sensor data
