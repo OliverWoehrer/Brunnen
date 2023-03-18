@@ -112,7 +112,7 @@ void requestWeatherDataTask(void* parameter) {
         sprintf(weatherTxt,"Rain today is %d mm.",rain);
         DataTime::logInfoMsg(weatherTxt);
 
-        if (rain >= Hardware::getRainThresholdLevel()) {
+        if (rain >= Hardware::getPumpOperatingLevel()) {
             DataTime::logInfoMsg("Too much rain, pause pump operation.");
             Hardware::pauseScheduledPumpOperation();
         } else {
@@ -153,7 +153,7 @@ void sendMailTask(void* parameter) {
     bool isNominal = Hardware::hasNominalSensorValues();
     const char* nomTxt = isNominal ? "All sensors in nominal range. " : "Sensors out of nominal range. ";
     Gateway::addInfoText(nomTxt);
-    unsigned char jobLength = Hardware::loadJobLength();
+    unsigned char jobLength = DataTime::loadJobLength();
 
     // Append Info Message to Gateway Text:
     int rain = Gateway::getWeatherData("precipitation");
@@ -162,7 +162,7 @@ void sendMailTask(void* parameter) {
     Gateway::addInfoText(weatherTxt);
 
     // Check the Amount of Predicted Precipitation:
-    if (rain >= Hardware::getRainThresholdLevel()) {
+    if (rain >= Hardware::getPumpOperatingLevel()) {
         Gateway::addInfoText("That's enough rain, I will pause pump operation for now. ");
     } else {
         Gateway::addInfoText("That's too little rain, I will resume pump operation for now. ");
@@ -174,9 +174,9 @@ void sendMailTask(void* parameter) {
     Gateway::addInfoText(jobTxt);
 
     // Attach File(s) to Object:
-    Gateway::addData(DataTime::loadActiveDataFileName());
+    Gateway::addData(Hardware::loadActiveDataFileName());
     for (unsigned int i=0; i < jobLength; i++) {
-        const char* jobName = Hardware::loadJob(i);
+        const char* jobName = DataTime::loadJob(i);
         int freeMemory = Gateway::addData(jobName);
         Serial.printf("EMail::attachFile(%s); with %d bytes left.\r\n",jobName,freeMemory);
         if (freeMemory <= 0) break;
@@ -194,26 +194,29 @@ void sendMailTask(void* parameter) {
     
     // Check Result of Send Mail:
     if (ret == SUCCESS) { // delete old file after successful send
-        DataTime::deleteActiveDataFile();
+        Hardware::deleteActiveDataFile();
         for (unsigned int i=0; i < jobLength; i++) {
-            const char* jobName = Hardware::loadJob(i);
-            DataTime::setActiveDataFile(jobName);
-            DataTime::deleteActiveDataFile();
-            Hardware::deleteJob(i);
+            const char* jobName = DataTime::loadJob(i);
+            Hardware::setActiveDataFile(jobName);
+            Hardware::deleteActiveDataFile();
+            DataTime::deleteJob(i);
         }
-        Hardware::saveJobLength(0);
+        DataTime::saveJobLength(0);
     } else { // error occured while sending mail
         const char* errorMsg = Gateway::getErrorMsg();
         DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
         DataTime::logInfoMsg(errorMsg);
         Gateway::clearData();
-        const char* fName = DataTime::loadActiveDataFileName();
-        Hardware::saveJob(jobLength, fName);
-        Hardware::saveJobLength(jobLength+1);
+        const char* fName = Hardware::loadActiveDataFileName();
+        DataTime::saveJob(jobLength, fName);
+        DataTime::saveJobLength(jobLength+1);
     }
 
     //Set up new data file:
-    if (DataTime::createCurrentDataFile()) {
+    struct tm timeinfo = DataTime::loadTimeinfo();
+    char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
+    sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
+    if (Hardware::setActiveDataFile(fileName)) {
         DataTime::logErrorMsg("Failed to initialize file system (SD-Card)");
         Hardware::setErrorLed(HIGH);
         return;
@@ -249,7 +252,7 @@ void heapWatcherTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = TRANSMISSION_PERIODE / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("[DEBUG] Created heapWatcherTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    Serial.printf("Created heapWatcherTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
@@ -270,7 +273,7 @@ void heapWatcherTask(void* parameter) {
             xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
         }
 
-        if ((timeinfo.tm_hour & 0x1) == 0) { // send mail every other hour
+        if ((timeinfo.tm_hour & 0x1) == 0) { /** TODO: change to send only once per day */
             // Wait to Get Notified for Free Heap:
             ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
 
@@ -298,7 +301,7 @@ void serviceTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = SERVICE_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("[DEBUG] Created serviceTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    Serial.printf("Created serviceTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
@@ -320,24 +323,12 @@ void measurementTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = MEASUREMENT_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("[DEBUG] Created measurementTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    Serial.printf("Created measurementTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
-        // Indicate Loop Entry:
-        Hardware::setIndexLed(HIGH);
-
-        // Read sensors:
-        Hardware::readSensorValues();
-        
-        // Write data to file:
-        char dataString[TIME_STRING_LENGTH+1+VALUE_STRING_LENGTH+3];
-        sprintf(dataString,"%s,%s\r\n",DataTime::timeToString(),Hardware::sensorValuesToString());
-        DataTime::writeToDataFile(dataString);
-
-        // Indicate Loop Exit:
-        Hardware::setIndexLed(LOW);
+        Hardware::sampleSensorValues(DataTime::timeToString());
     }
 }
 
@@ -353,35 +344,57 @@ void measurementTask(void* parameter) {
 void setup() {
     delay(1000); // wait for hardware on PCB to wake up
 
-    Hardware::setIndexLed(HIGH);
     Serial.begin(BAUD_RATE);
 
-    // Create Button Handler Task:
-    xTaskCreate(buttonHandlerTask, "buttonHandlerTask",DEFAULT_STACK_SIZE,NULL,1,&buttonHandlerHandle);
-    configASSERT(buttonHandlerHandle);
-
-    //Initialize system hardware:
-    if(Hardware::init(&buttonHandlerHandle)) {
-        Serial.printf("Failed to initialize hardware module!\r\n");
-        Hardware::setErrorLed(HIGH);
-        return;
-    }
-
-    //Initialize data&time module:
+    // Initialize data&time module:
     if (DataTime::init()) {
         Serial.printf("Failed to initialize DataTime module!\r\n");
         Hardware::setErrorLed(HIGH);
         return;
+    } 
+    
+    // Create Button Handler Task:
+    xTaskCreate(buttonHandlerTask, "buttonHandlerTask",DEFAULT_STACK_SIZE,NULL,1,&buttonHandlerHandle);
+    configASSERT(buttonHandlerHandle);
+
+    // Build Data File Name:
+    struct tm timeinfo = DataTime::loadTimeinfo();
+    char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
+    sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
+
+    // Initialize system hardware:
+    if(Hardware::init(&buttonHandlerHandle,fileName)) {
+        Serial.printf("Failed to initialize hardware module!\r\n");
+        Hardware::setErrorLed(HIGH);
+        // return; disable for software testing on missing hardware
     }
 
-    //Initialize e-mail client:
+    // Read Preferences from Flash Memory:
+    Serial.printf("[INFO] Intervals:\r\n");
+    for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
+        //Read out preferences from flash:
+        struct tm start = DataTime::loadStartTime(i);
+        struct tm stop = DataTime::loadStopTime(i);
+        unsigned char wday = DataTime::loadWeekDay(i);
+
+        //Initialize interval:
+        Hardware::pump_intervall_t interval = {.start = start, .stop = stop, .wday = wday};
+        Hardware::setPumpInterval(interval, i);
+        Serial.printf("(%d) %d:%d - %d:%d {%u}\r\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
+    }
+
+    // Read Rain Threshold Level from Flash Memory:
+    int rainThreshold = DataTime::loadRainThresholdLevel();
+    Hardware::setPumpOperatingLevel(rainThreshold);
+
+    // Initialize e-mail client:
     if (Gateway::init()) { // error connecting to SD card
         Serial.printf("Failed to setup gateway.\r\n");
         Hardware::setErrorLed(HIGH);
         return;
     }
 
-    //Initialize Web Server User Interface:
+    // Initialize Web Server User Interface:
     if (UserInterface::init()) {
         Serial.printf("Failed to init ui.\r\n");
         Hardware::setErrorLed(HIGH);
@@ -399,7 +412,6 @@ void setup() {
 
     // Finish Setup:
     DataTime::logInfoMsg("Device setup.");
-    Hardware::setIndexLed(LOW);
     vTaskDelete(NULL); // delete this task to prevent busy idling in empty loop()
 }
 

@@ -83,13 +83,13 @@ String processor(const String& var) {
     } else if(var == "RAIN") {
         int rain = Gateway::getWeatherData("precipitation");
         String str = "To my knowledge it is about to rain "+String(rain)+ "mm today. ";
-        if (rain >= Hardware::getRainThresholdLevel()) str += "That's enough rain, I will pause pump operation for today. ";
+        if (rain >= Hardware::getPumpOperatingLevel()) str += "That's enough rain, I will pause pump operation for today. ";
         else str += "That's too little rain, I will resume pump operation for today. ";
         return str;
     } else if (var == "THRESHOLD") {
-        return String(Hardware::getRainThresholdLevel());
+        return String(Hardware::getPumpOperatingLevel());
     } else if (var == "JOB_LENGTH") {
-        return String(Hardware::loadJobLength()+1);
+        return String(DataTime::loadJobLength()+1);
     } else if (var == "STATUS") {
         if (Update.isRunning()) return "IN PROGRESS";
         else return Update.hasError() ? "FAIL" : "OK";
@@ -115,17 +115,18 @@ namespace MyHandler {
             AsyncWebParameter* p = req->getParam("threshold",true,false);
             String s = p->value();
             int level = s.toInt();
-            Hardware::setRainThresholdLevel(level);
+            Hardware::setPumpOperatingLevel(level);
+            DataTime::saveRainThresholdLevel(level);
             req->send(SPIFFS, "/index.html", String(), false, processor);
         } else if (req->hasParam("clearJobs", true)) {
-            unsigned char jobLength = Hardware::loadJobLength();
+            unsigned char jobLength = DataTime::loadJobLength();
             for (unsigned int i=0; i < jobLength; i++) {
-                const char* jobName = Hardware::loadJob(i);
-                DataTime::setActiveDataFile(jobName);
-                DataTime::deleteActiveDataFile();
-                Hardware::deleteJob(i);
+                const char* jobName = DataTime::loadJob(i);
+                Hardware::setActiveDataFile(jobName);
+                Hardware::deleteActiveDataFile();
+                DataTime::deleteJob(i);
             }
-            Hardware::saveJobLength(0);
+            DataTime::saveJobLength(0);
             req->send(SPIFFS, "/index.html", String(), false, processor);
         } else { // invalid request
             req->send(400, "text/plain", "invalid request");
@@ -203,9 +204,9 @@ namespace MyHandler {
         // Initialize interval:
         Hardware::pump_intervall_t interval = {.start = start, .stop = stop, .wday = wday};
         Hardware::setPumpInterval(interval, index);
-        Hardware::saveStartTime(start, index);
-        Hardware::saveStopTime(stop, index);
-        Hardware::saveWeekDay(wday, index);
+        DataTime::saveStartTime(start, index);
+        DataTime::saveStopTime(stop, index);
+        DataTime::saveWeekDay(wday, index);
 
         // Send Response After Success:
         req->send(SPIFFS, "/interval.html", String(), false, processor);
@@ -219,7 +220,7 @@ namespace MyHandler {
     void POST_log(AsyncWebServerRequest *req) {
         if (req->hasParam("clearBtn", true)) {
             DataTime::checkLogFile(0);
-            Hardware::saveJobLength(0);
+            DataTime::saveJobLength(0);
             req->send(SPIFFS, "/log.html", String(), false, processor);
         } else { // invalid request
             req->send(400, "text/plain", "invalid request");

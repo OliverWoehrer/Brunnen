@@ -28,8 +28,13 @@
 #define MAX_INTERVALLS 8
 #define VALUE_STRING_LENGTH 40
 
-//Preferences:
+//File System:
 #define FILE_NAME_LENGTH 21
+#define SD_CARD
+#define SPI_CD 5
+#define SPI_MOSI 23
+#define SPI_CLK 18
+#define SPI_MISO 19
 
 namespace Hardware {
 
@@ -60,18 +65,18 @@ namespace Relais {
     } interval_t;
 }
 
-namespace Pref {}
+namespace FileSystem {}
 
 using button_indicator_t = Button::indicator_t;
 using pump_intervall_t = Relais::interval_t;
 using pump_op_mode_t = Relais::op_mode_t;
 
-int init(TaskHandle_t* buttonHandler);
+int init(TaskHandle_t* buttonHandler,const char* fileName);
 void setUILed(char value);
 void setIndexLed(char value);
 void setErrorLed(char value);
 
-void readSensorValues();
+void sampleSensorValues(const char* timeString);
 char* sensorValuesToString();
 bool hasNominalSensorValues();
 
@@ -81,23 +86,16 @@ void resetButtonFlags();
 void manuallyToggleWaterPump();
 void pauseScheduledPumpOperation();
 void resumeScheduledPumpOperation();
-int getRainThresholdLevel();
-void setRainThresholdLevel(int level);
+int getPumpOperatingLevel();
+void setPumpOperatingLevel(int level);
 void setPumpInterval(Relais::interval_t interval, unsigned int i);
 pump_intervall_t getPumpInterval(unsigned int i);
 void managePumpIntervals(tm timeinfo);
 
-void saveStartTime(tm start, unsigned int i);
-tm loadStartTime(unsigned int i);
-void saveStopTime(tm stop, unsigned int i);
-tm loadStopTime(unsigned int i);
-void saveWeekDay(unsigned char wday, unsigned int i);
-unsigned char loadWeekDay(unsigned int i);
-void saveJobLength(unsigned char jobLength);
-unsigned char loadJobLength();
-void saveJob(unsigned char jobNumber, const char* fileName);
-const char* loadJob(unsigned char jobNumber);
-void deleteJob(unsigned char jobNumber);
+int createCurrentDataFile();
+char* loadActiveDataFileName();
+void deleteActiveDataFile();
+int setActiveDataFile(const char* fName);
 
 }
 
