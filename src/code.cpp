@@ -252,7 +252,7 @@ void heapWatcherTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = TRANSMISSION_PERIODE / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("[DEBUG] Created heapWatcherTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    Serial.printf("Created heapWatcherTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
@@ -273,7 +273,7 @@ void heapWatcherTask(void* parameter) {
             xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
         }
 
-        if ((timeinfo.tm_hour & 0x1) == 0) { // send mail every other hour
+        if ((timeinfo.tm_hour & 0x1) == 0) { /** TODO: change to send only once per day */
             // Wait to Get Notified for Free Heap:
             ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
 
@@ -301,7 +301,7 @@ void serviceTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = SERVICE_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("[DEBUG] Created serviceTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    Serial.printf("Created serviceTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
@@ -323,16 +323,12 @@ void measurementTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = MEASUREMENT_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("[DEBUG] Created measurementTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    Serial.printf("Created measurementTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
-        /** TODO: implement function to include all following */
-        Hardware::setIndexLed(HIGH); // indicate loop entry
-        Hardware::readSensorValues();
-        Hardware::saveSensorValues(DataTime::timeToString()); // write data to file
-        Hardware::setIndexLed(LOW); // indicate loop exit
+        Hardware::sampleSensorValues(DataTime::timeToString());
     }
 }
 
@@ -348,37 +344,32 @@ void measurementTask(void* parameter) {
 void setup() {
     delay(1000); // wait for hardware on PCB to wake up
 
-    Hardware::setIndexLed(HIGH);
     Serial.begin(BAUD_RATE);
 
-    // Create Button Handler Task:
-    xTaskCreate(buttonHandlerTask, "buttonHandlerTask",DEFAULT_STACK_SIZE,NULL,1,&buttonHandlerHandle);
-    configASSERT(buttonHandlerHandle);
-
-    //Initialize system hardware:
-    if(Hardware::init(&buttonHandlerHandle)) {
-        Serial.printf("Failed to initialize hardware module!\r\n");
-        Hardware::setErrorLed(HIGH);
-        return;
-    }
-
-    //Initialize data&time module:
+    // Initialize data&time module:
     if (DataTime::init()) {
         Serial.printf("Failed to initialize DataTime module!\r\n");
         Hardware::setErrorLed(HIGH);
         return;
-    }
+    } 
+    
+    // Create Button Handler Task:
+    xTaskCreate(buttonHandlerTask, "buttonHandlerTask",DEFAULT_STACK_SIZE,NULL,1,&buttonHandlerHandle);
+    configASSERT(buttonHandlerHandle);
 
-    //Initalize Data File:
+    // Build Data File Name:
     struct tm timeinfo = DataTime::loadTimeinfo();
     char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
     sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
-    if(Hardware::setActiveDataFile(fileName)) {
-        Serial.printf("Failed to initialize file system (SD-Card).\r\n");
-        return;
+
+    // Initialize system hardware:
+    if(Hardware::init(&buttonHandlerHandle,fileName)) {
+        Serial.printf("Failed to initialize hardware module!\r\n");
+        Hardware::setErrorLed(HIGH);
+        // return; disable for software testing on missing hardware
     }
 
-    //Read Out Preferences from Flash Memory:
+    // Read Preferences from Flash Memory:
     Serial.printf("[INFO] Intervals:\r\n");
     for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
         //Read out preferences from flash:
@@ -392,18 +383,18 @@ void setup() {
         Serial.printf("(%d) %d:%d - %d:%d {%u}\r\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
     }
 
-    //Read Out Rain Threshold Level from Flash Memory:
+    // Read Rain Threshold Level from Flash Memory:
     int rainThreshold = DataTime::loadRainThresholdLevel();
     Hardware::setPumpOperatingLevel(rainThreshold);
 
-    //Initialize e-mail client:
+    // Initialize e-mail client:
     if (Gateway::init()) { // error connecting to SD card
         Serial.printf("Failed to setup gateway.\r\n");
         Hardware::setErrorLed(HIGH);
         return;
     }
 
-    //Initialize Web Server User Interface:
+    // Initialize Web Server User Interface:
     if (UserInterface::init()) {
         Serial.printf("Failed to init ui.\r\n");
         Hardware::setErrorLed(HIGH);
@@ -421,7 +412,6 @@ void setup() {
 
     // Finish Setup:
     DataTime::logInfoMsg("Device setup.");
-    Hardware::setIndexLed(LOW);
     vTaskDelete(NULL); // delete this task to prevent busy idling in empty loop()
 }
 
