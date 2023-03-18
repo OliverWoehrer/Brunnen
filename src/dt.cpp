@@ -72,20 +72,21 @@ namespace Wlan {
         unsigned char retries = 2; // number of tries to login
         while(retries > 0) {
             retries--;
-            Serial.printf("try with mobile ssid\r\n");
-            if (login(WIFI_SSID_MOBILE, WIFI_PASSWORD_MOBILE) == SUCCESS) {
-                return SUCCESS;
-            }
                 
-            Serial.printf("try with home ssid\r\n");
+            Serial.printf("trying to login at %s network\r\n",WIFI_SSID_HOME);
             if (login(WIFI_SSID_HOME, WIFI_PASSWORD_HOME) == SUCCESS) {
                 return SUCCESS;
             }
 
-            Serial.printf("try with field ssid\r\n");
+            Serial.printf("trying to login at %s network\r\n",WIFI_SSID_FIELD);
             if (login(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD) == SUCCESS) {
                 return SUCCESS;
-            }  
+            }
+
+            Serial.printf("trying to login at %s network\r\n",WIFI_SSID_MOBILE);
+            if (login(WIFI_SSID_MOBILE, WIFI_PASSWORD_MOBILE) == SUCCESS) {
+                return SUCCESS;
+            }
         }
         return FAILURE;
     } 
@@ -725,62 +726,6 @@ int checkLogFile(int maxSize) {
 int getLogFileSize() {
     return Log::getFileSize();
 }
-
-// /**
-//  * Sets the file name of the file currently used to store data to the current date.
-//  * @return SUCCESS if the file was created/opened correcly, FAILURE otherwise.
-//  */
-// int createCurrentDataFile() {
-//     struct tm timeinfo = Time::getTimeinfo();
-//     char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
-//     sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
-//     int ret = FileSystem::init(fileName);
-//     if(ret != SUCCESS) {
-//         Log::msg(Log::ERROR,Time::toString(),"Failed to initialize file system (SD-Card).");
-//         return FAILURE;
-//     }
-//     return SUCCESS;
-// }
-
-// /**
-//  * Loads the file name of the file currently used to store the sensor data
-//  * @return file name of file currently used
-//  */
-// char* loadActiveDataFileName() {
-//     return FileSystem::getFileName();
-// }
-
-// /**
-//  * Deletes the file currently used to store the sensor data
-//  */
-// void deleteActiveDataFile() {
-//     FileSystem::deleteFile(SD, FileSystem::getFileName());
-// }
-
-// /**
-//  * Sets the file name of the file currently used to store data. Similar to createCurrentDataFile()
-//  * @param fName file name to set (name of the file to be used now)
-//  * @return SUCCESS if the file was created/opened correcly, FAILURE otherwise.
-//  */
-// int setActiveDataFile(const char* fName) {
-//     int fsSuccess = FileSystem::init(fName);
-//     if (fsSuccess != SUCCESS) {
-//         Log::msg(Log::ERROR,Time::toString(),"Failed to initalize new data file.");
-//         return FAILURE;
-//     }
-//     return SUCCESS; 
-// }
-
-// /**
-//  * Appends the given string into the (currently active) data file
-//  * @param msg data string to write to data file
-//  */
-// void writeToDataFile(const char* msg) {
-//     FileSystem::appendFile(SD, FileSystem::getFileName(), msg);
-// }
-
-
-
 
 void saveStartTime(tm start, unsigned int i) {
     Pref::setStartTime(start, i);
