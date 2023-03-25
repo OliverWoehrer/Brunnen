@@ -110,6 +110,7 @@ namespace MyHandler {
     void POST_homepage(AsyncWebServerRequest *req) {
         if (req->hasParam("clearLed", true)) {
             Hardware::setErrorLed(LOW);
+            DataTime::logInfoMsg("Cleared error led.");
             req->send(SPIFFS, "/index.html", String(), false, processor);
         } else if (req->hasParam("threshold", true)) {
             AsyncWebParameter* p = req->getParam("threshold",true,false);
@@ -117,6 +118,9 @@ namespace MyHandler {
             int level = s.toInt();
             Hardware::setPumpOperatingLevel(level);
             DataTime::saveRainThresholdLevel(level);
+            char txtBuffer[40];
+            sprintf(txtBuffer,"Updated rain threshold to %02d mm.",level);
+            DataTime::logInfoMsg(txtBuffer);
             req->send(SPIFFS, "/index.html", String(), false, processor);
         } else if (req->hasParam("clearJobs", true)) {
             unsigned char jobLength = DataTime::loadJobLength();
@@ -127,6 +131,7 @@ namespace MyHandler {
                 DataTime::deleteJob(i);
             }
             DataTime::saveJobLength(0);
+            DataTime::logInfoMsg("Cleared list of jobs.");
             req->send(SPIFFS, "/index.html", String(), false, processor);
         } else { // invalid request
             req->send(400, "text/plain", "invalid request");
@@ -208,6 +213,11 @@ namespace MyHandler {
         DataTime::saveStopTime(stop, index);
         DataTime::saveWeekDay(wday, index);
 
+        // Log Update:
+        char txtBuffer[40];
+        sprintf(txtBuffer,"Updated interval %02d (%02d:%02d - %02d:%02d).",index,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min);
+        DataTime::logInfoMsg(txtBuffer);
+
         // Send Response After Success:
         req->send(SPIFFS, "/interval.html", String(), false, processor);
     }
@@ -235,6 +245,7 @@ namespace MyHandler {
     void POST_update(AsyncWebServerRequest *req) {
         req->send(SPIFFS, "/update.html", String(), false, processor);
         delay(3000);
+        DataTime::logInfoMsg("Device updated.");
         ESP.restart();
     }
 
