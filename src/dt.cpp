@@ -122,7 +122,6 @@ namespace Time {
     tm getTimeinfo() {
         struct tm timeinfo;
         if (!getLocalTime(&timeinfo)) { // set time manually
-            Serial.printf("Failed to obtain time\r\n");
             timeinfo.tm_sec = 0;
             timeinfo.tm_min = 0;
             timeinfo.tm_min = 0;
@@ -149,11 +148,16 @@ namespace Time {
 
     /**
      * Initalizes the onboard(local) time system by connecting to the defined NTP server
-     * @return SUCCESS
+     * @return FAILURE if the time could get configured, SUCCESS otherwise
      */
     int init() {
         configTime(GMT_TIME_ZONE, DAYLIGHT_OFFSET, NTP_SERVER);
         delay(700);
+        struct tm timeinfo;
+        if (!getLocalTime(&timeinfo)) { // check for local time
+            Serial.printf("Failed to config time.\r\n");
+            return FAILURE;
+        }
         Serial.printf("time initialized at %s\r\n", toString());
         return SUCCESS;
     }
@@ -774,6 +778,7 @@ void deleteJob(unsigned char jobNumber) {
 void saveRainThresholdLevel(unsigned char level) {
     Pref::setThreshold(level);
 }
+
 unsigned char loadRainThresholdLevel() {
     return Pref::getThreshold();
 }
