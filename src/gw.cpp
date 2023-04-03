@@ -212,7 +212,7 @@ namespace OpenMeteoAPI {
             return FAILURE;
         }
         int httpCode = http.GET(); // start connection and send HTTP header
-        if(httpCode < 0) { // httpCode will be negative on error
+        if(httpCode != HTTP_CODE_OK) { // httpCode will be negative on error
             sprintf(responseBuffer,"GET request failed! %s", http.errorToString(httpCode).c_str());
             http.end(); // clear http object
             return FAILURE;
@@ -224,18 +224,19 @@ namespace OpenMeteoAPI {
         }
 
         //Read HTTP Response Body:
-        
+        char jsonString[RESPONSE_BUFFER_SIZE];
+        memcpy(jsonString, http.getString().c_str(), http.getSize());
         http.end(); // clear http object
-        if (httpCode != HTTP_CODE_OK) { // other response code, unhandled
-            return FAILURE;
-        } // else: succsess response code, handle response
 
         // Parse JSON Data:
-        char jsonString[RESPONSE_BUFFER_SIZE];
-        memcpy(jsonString, http.getString().c_str(), strlen(responseBuffer)+1);
         DynamicJsonDocument doc(2048);
-        deserializeJson(doc, jsonString);
-        double rawPrecipitation = doc["daily"]["precipitation_sum"][0];
+        DeserializationError error = deserializeJson(doc, jsonString);
+        if (error) {
+            sprintf(responseBuffer,"Failed to parse JSON data: %s",error.f_str());
+            return FAILURE;
+        }
+
+        double rawPrecipitation = doc["daily"]["precipitation_sum"][0].as<double>();
         precipitation = (int) rawPrecipitation;
 
         return SUCCESS;
