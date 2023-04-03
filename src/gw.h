@@ -35,7 +35,7 @@ namespace Gateway {
 
 namespace EMail {}
 
-namespace ZamgAPI {}
+namespace OpenMeteoAPI {}
 
 int init();
 int addInfoText(const char* text);
