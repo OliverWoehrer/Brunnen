@@ -93,6 +93,14 @@ String processor(const String& var) {
     } else if (var == "STATUS") {
         if (Update.isRunning()) return "IN PROGRESS";
         else return Update.hasError() ? "FAIL" : "OK";
+    } else if (var == "SMTP_SERVER") {
+        return String(SMTP_SERVER);
+    } else if (var == "SMTP_PORT") {
+        return String(SMTP_SERVER_PORT);
+    } else if (var == "ADDRESS") {
+        return String(EMAIL_SENDER_ACCOUNT);
+    } else if (var == "PASSWORD") {
+        return String(DataTime::loadPassword());
     } else {
         return String();
     }
@@ -237,6 +245,59 @@ namespace MyHandler {
         }
     }
 
+    //Account Page:
+    void GET_account(AsyncWebServerRequest *req) {
+        req->send(SPIFFS, "/account.html", String(), false, processor);
+    }
+
+    void POST_account(AsyncWebServerRequest *req) {
+        char smtpServer[STRING_LENGTH] = "";
+        int smtpPort = 0;
+        char address[STRING_LENGTH] = "";
+        char password[STRING_LENGTH] = "";
+
+        // Check SMTP Server Parameter:
+        if (req->hasParam("smtpServer", true)) {
+            AsyncWebParameter* p = req->getParam("smtpServer",true,false);
+            memcpy(smtpServer, p->value().c_str(), p->value().length());
+        } else { // invalid request
+            req->send(400, "text/plain", "invalid request: missing start_time parameter");
+        }
+
+        // Check SMTP Port Parameter:
+        if (req->hasParam("smtpPort", true)) {
+            AsyncWebParameter* p = req->getParam("smtpPort",true,false);
+            int smtpPort = p->value().toInt();
+        } else { // invalid request
+            req->send(400, "text/plain", "invalid request: missing stop_time parameter");
+        }
+
+        // Check Address Parameter:
+        if (req->hasParam("address", true)) {
+            AsyncWebParameter* p = req->getParam("address",true,false);
+            memcpy(address, p->value().c_str(), p->value().length());
+        } else { // invalid request
+            req->send(400, "text/plain", "invalid request: missing index parameter");
+        }
+
+        // Check Password Parameter:
+        if (req->hasParam("password", true)) {
+            AsyncWebParameter* p = req->getParam("password",true,false);
+            memcpy(password, p->value().c_str(), p->value().length());
+        } else { // invalid request
+            req->send(400, "text/plain", "invalid request: missing index parameter");
+        }
+
+        Gateway::init(SMTP_SERVER,SMTP_SERVER_PORT,EMAIL_SENDER_ACCOUNT,password);
+        DataTime::savePassword(password);
+
+        // Log Update:
+        DataTime::logInfoMsg("Updated account info.");
+
+        // Send Response After Success:
+        req->send(SPIFFS, "/account.html", String(), false, processor);
+    }
+
     //Update Page:
     void GET_update(AsyncWebServerRequest *req) {
         req->send(SPIFFS, "/update.html", String(), false, processor);
@@ -295,6 +356,8 @@ namespace MyServer {
         server.on("/interval", HTTP_POST, MyHandler::POST_interval);
         server.on("/log", HTTP_GET, MyHandler::GET_log);
         server.on("/log", HTTP_POST, MyHandler::POST_log);
+        server.on("/account", HTTP_GET, MyHandler::GET_account);
+        server.on("/account", HTTP_POST, MyHandler::POST_account);
         server.on("/update", HTTP_GET, MyHandler::GET_update);
         server.on("/update", HTTP_POST, MyHandler::POST_update, MyHandler::upload);
         server.serveStatic("/", SPIFFS, "/");
