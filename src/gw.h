@@ -9,7 +9,7 @@
 
 //Mail Client:
 #define EMAIL_SENDER_ACCOUNT    "iot.baumgasse@gmail.com"
-#define EMAIL_SENDER_PASSWORD   "quxlbvyrsratckof" //"psgqopguszwhzqai" //"1ot_baumgasse"
+#define EMAIL_SENDER_PASSWORD   "waatopbgxrwsqdnt"
 #define SMTP_SERVER            "smtp.gmail.com"
 #define SMTP_SERVER_PORT        587 //465 //587
 #define EMAIL_RECIPIENT        "oliver.w@live.at"
@@ -37,7 +37,7 @@ namespace EMail {}
 
 namespace OpenMeteoAPI {}
 
-int init();
+int init(const char* smtpServer, int smtpPort, const char* address, const char* password);
 int addInfoText(const char* text);
 int addData(const char* fileName);
 int sendData();

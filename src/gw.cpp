@@ -33,11 +33,11 @@ namespace EMail {
      * detail of debug messages)
      * @return SUCCESS
      */
-    int init() {
-        session.server.host_name = SMTP_SERVER;
-        session.server.port = SMTP_SERVER_PORT;
-        session.login.email = EMAIL_SENDER_ACCOUNT;
-        session.login.password = EMAIL_SENDER_PASSWORD;
+    int init(const char* smtpServer, int smtpPort, const char* address, const char* password) {
+        session.server.host_name = smtpServer;
+        session.server.port = smtpPort;
+        session.login.email = address;
+        session.login.password = password;
         session.login.user_domain = ""; //F("gmail.com");
 
         session.time.ntp_server = NTP_SERVER;
@@ -281,8 +281,8 @@ namespace OpenMeteoAPI {
  * Initializes the Gateway module by setting up the e-mail module.
  * @return SUCCESS
  */
-int init() {
-    if(EMail::init()) {
+int init(const char* smtpServer, int smtpPort, const char* address, const char* password) {
+    if(EMail::init(smtpServer,smtpPort,address,password)) {
         Serial.printf("[ERROR] Failed to initialize EMail module!\r\n");
         return FAILURE;
     }
