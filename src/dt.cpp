@@ -324,8 +324,9 @@ namespace Log {
 // PREFERENCES
 //===============================================================================================
 namespace Pref {
-    Preferences preferences; // format[20]: "/data_YYYY-MM-DD.txt"
-    char fileNameBuffer[FILE_NAME_LENGTH];
+    Preferences preferences;
+    char fileNameBuffer[FILE_NAME_LENGTH]; // format[20]: "/data_YYYY-MM-DD.txt"
+    char passwordBuffer[STRING_LENGTH];
 
     /**
      * Initalizes the preferences and mounts the flash memory
@@ -545,6 +546,16 @@ namespace Pref {
     }
 
     /**
+     * Takes the threshold level and stores it into flash memory
+     * @param level threshold level to store
+     */
+    void setThreshold(int level) {
+        preferences.begin("brunnen", false);
+        preferences.putInt("threshold", level);
+        preferences.end();
+    }
+
+    /**
      * Loads the threshold level from flash memory
      * @return threshold level from memory
      */
@@ -556,14 +567,28 @@ namespace Pref {
     }
 
     /**
-     * Takes the threshold level and stores it into flash memory
-     * @param level threshold level to store
+     * Takes a (e-mail) password and stores it into flash memory
+     * @param pw password string to store
      */
-    void setThreshold(int level) {
+    void setPassword(const char* pw) {
         preferences.begin("brunnen", false);
-        preferences.putInt("threshold", level);
+        preferences.putBytes("password", pw, strlen(pw));
         preferences.end();
     }
+
+    /**
+     * Loads the (e-mail) password from flash memory
+     * @return password string from memory
+     */
+    const char* getPassword() {
+        preferences.begin("brunnen", false);
+        size_t pwLength = preferences.getBytes("password",passwordBuffer,STRING_LENGTH);
+        preferences.end();
+
+        return passwordBuffer;
+    }
+
+    
 }
 
 //===============================================================================================
@@ -781,6 +806,14 @@ void saveRainThresholdLevel(unsigned char level) {
 
 unsigned char loadRainThresholdLevel() {
     return Pref::getThreshold();
+}
+
+void savePassword(const char* pw) {
+    Pref::setPassword(pw);
+}
+
+const char* loadPassword() {
+    return Pref::getPassword();
 }
 
 }

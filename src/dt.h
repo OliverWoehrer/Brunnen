@@ -24,6 +24,7 @@
 //Preferences:
 #define FILE_NAME_LENGTH 21
 #define MAX_INTERVALLS 8
+#define STRING_LENGTH 40
 
 namespace DataTime {
 
@@ -66,6 +67,8 @@ const char* loadJob(unsigned char jobNumber);
 void deleteJob(unsigned char jobNumber);
 void saveRainThresholdLevel(unsigned char level);
 unsigned char loadRainThresholdLevel();
+void savePassword(const char* pw);
+const char* loadPassword();
 
 }
 
