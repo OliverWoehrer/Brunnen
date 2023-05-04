@@ -310,7 +310,6 @@ namespace Button {
 namespace Relais {
     op_mode_t operatingMode = SCHEDULED;
     op_mode_t cachedOperatingMode = SCHEDULED;
-    bool operating = true;
     int operatingLevel = 0;
     interval_t intervals[MAX_INTERVALLS];
 
@@ -325,55 +324,40 @@ namespace Relais {
     /**
      * Turns the relais output pin on
      */
-    void turnOn() {
+    void switchOn() {
         digitalWrite(RELAIS, HIGH);
     }
 
     /**
-     * Turns the relais output pin off
+     * Switches the relais output pin off
      */
-    void turnOff() {
+    void switchOff() {
         digitalWrite(RELAIS, LOW);
     }
 
     /**
-     * Sets the operating mode of the relais to the given param, the previous operating
-     * mode gets cached and can be reset by calling resetOpMode.
-     * @param mode operating mode to be set
+     * Returns the current state of the relais
+     * @return 1 if the relais is switched on, 0 otherwise
+    */
+    int get() {
+        return digitalRead(RELAIS);
+    }
+
+    /**
+     * Pauses the (scheduled) operation of the relais by setting operating mode to PAUSED
      */
-    void setOpMode(op_mode_t mode) {
-        if (mode != operatingMode) { // only set mode if it is new
+    void pauseOperation() {
+        if (operatingMode != PAUSED) { // only set mode if it is not paused already
             cachedOperatingMode = operatingMode;
-            operatingMode = mode;
+            operatingMode = PAUSED;
         } // else: do nothing
     }
 
     /**
-     * Resets the operating mode of the relais to the cached mode
-     */
-    void resetOpMode() {
-        operatingMode = cachedOperatingMode;
-    }
-
-    /**
-     * Pauses the (scheduled) operation of the relias, manual mode still works
-     */
-    void pauseOperation() {
-        operating = false;
-    }
-
-    /**
-     * Resumes the (scheduled) operation of the relias, manual mode still works
+     * Resumes the (scheduled) operation of the relias by setting operating mode to previous mode
      */
     void resumeOperation() {
-        operating = true;
-    }
-
-    /**
-     * Tells if the relais is on (scheduled) operation or paused
-     */
-    bool isOperating() {
-        return operating;
+        operatingMode = cachedOperatingMode;
     }
 
     /**
@@ -700,20 +684,32 @@ void resetButtonFlags() {
 }
 
 /**
- * Toggles the state of the waterpump and sets operating mode according to the new state.
+ * Switch pump according to given value
+ * @param value 0 to switch pump off, otherwise pump is switched on
+*/
+void switchPump(char value) {
+    if (value) {
+        Relais::switchOn();
+        Leds::turnOn(Leds::YELLOW);
+    } else {
+        Relais::switchOff();
+        Leds::turnOff(Leds::YELLOW);
+    }
+}
+
+/**
+ * Toggles the state of the waterpump.
  * If the pump is now switched on the operating mode is set to manual otherwise the operating mode gets
  * reset to the cached mode.
  */
-void manuallyToggleWaterPump() {
-    pump_op_mode_t currentMode = Relais::getOpMode();
-    if (currentMode != Relais::MANUAL) {
-        Relais::setOpMode(Relais::MANUAL);
-        Relais::turnOn();
-        Leds::turnOn(Leds::YELLOW);
-    } else {
-        Relais::resetOpMode();
-        Relais::turnOff();
+void togglePump() {
+    int currentState = Relais::get();
+    if (currentState) { // relais currently switched on
+        Relais::switchOff();
         Leds::turnOff(Leds::YELLOW);
+    } else {
+        Relais::switchOn();
+        Leds::turnOn(Leds::YELLOW);
     }
 }
 
@@ -766,39 +762,27 @@ pump_intervall_t getPumpInterval(unsigned int i) {
 }
 
 /**
- * Checks if the water pump should be switched/toggled and does so in case the operational mode
- * is set to SCHEDULED or AUTOMATIC. If the pump is operating on schedul the given timeinfo checked if
- * it is inside an interval (switch ON) or outside (switch OFF). If the pump is operating automatically
- * the water level is checked to see if their is enough water.
+ * Checks if the water pump is scheduled to be switched on. In case the operational mode is set to
+ * PAUSED the pump is in general not scheduled to be switched on. In case the operational mode is set
+ * to SCHEDULED, the given timeinfo is checked to be inside an interval (switch ON) or outside
+ * (switch OFF). If the operational mode is set to or AUTOMATIC, the water level is checked additionally
+ * to see if their is enough water.
  * @param timeinfo time to check for intervals
- * @return true, when the given time is inside an interval
+ * @return true, when the pump is scheduled to run
  */
-void managePumpIntervals(tm timeinfo) {
+int getScheduledPumpState(tm timeinfo) {
     switch (Relais::getOpMode()) {
-    case Relais::MANUAL:
-        // do not toggel relais
+    case Relais::PAUSED:
+        return 0;
         break;
     case Relais::SCHEDULED:
-        if (Relais::isOperating() && Relais::checkIntervals(timeinfo)) {
-            Relais::turnOn();
-            Leds::turnOn(Leds::YELLOW);
-        } else {
-            Relais::turnOff();
-            Leds::turnOff(Leds::YELLOW);
-        }   
+        return Relais::checkIntervals(timeinfo); 
         break;
     case Relais::AUTOMATIC:
-        if (Relais::isOperating() && Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel()) {
-            Relais::turnOn();
-            Leds::turnOn(Leds::YELLOW);
-        } else {
-            Relais::turnOff();
-            Leds::turnOff(Leds::YELLOW);
-        }
+        return Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel();
         break;
     default:
-        Relais::turnOff();
-        Leds::turnOff(Leds::YELLOW);
+        return 0;
         break;
     }
 }

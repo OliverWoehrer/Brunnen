@@ -55,6 +55,7 @@ namespace Button {
 namespace Relais {
     typedef enum {
         MANUAL,     // relais switched on manually
+        PAUSED,     // pump operation paused
         SCHEDULED,  // turn on relais during scheduled intervals
         AUTOMATIC   // turn on relais during scheduled intervals only if there is enough water
     } op_mode_t;
@@ -83,14 +84,16 @@ bool hasNominalSensorValues();
 button_indicator_t getButtonIndicator();
 void resetButtonFlags();
 
-void manuallyToggleWaterPump();
+void switchPump(char value);
+void togglePump();
 void pauseScheduledPumpOperation();
 void resumeScheduledPumpOperation();
 int getPumpOperatingLevel();
 void setPumpOperatingLevel(int level);
 void setPumpInterval(Relais::interval_t interval, unsigned int i);
 pump_intervall_t getPumpInterval(unsigned int i);
-void managePumpIntervals(tm timeinfo);
+int getScheduledPumpState(tm timeinfo);
+
 
 int createCurrentDataFile();
 char* loadActiveDataFileName();
