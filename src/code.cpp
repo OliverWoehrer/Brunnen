@@ -70,7 +70,7 @@ void buttonHandlerTask(void* parameter) {
         if (btnIndicator.longPressed) {
             Hardware::resetButtonFlags();
             DataTime::logInfoMsg("toggle relais and operating mode");
-            Hardware::manuallyToggleWaterPump();
+            Hardware::togglePump();
         }
     }
 
@@ -89,9 +89,9 @@ void buttonHandlerTask(void* parameter) {
  */
 void requestWeatherDataTask(void* parameter) {
     // Log Task Message:
-    char debugTxt[50];
+    /*char debugTxt[50];
     sprintf(debugTxt,"Created requestWeatherDataTask on Core %d",xPortGetCoreID());
-    DataTime::logDebugMsg(debugTxt);
+    DataTime::logDebugMsg(debugTxt);*/
     
     // Build String for Request URL:
     struct tm timeinfo = DataTime::loadTimeinfo();
@@ -145,9 +145,9 @@ void requestWeatherDataTask(void* parameter) {
  */
 void sendMailTask(void* parameter) {
     // Log Task Message:
-    char debugTxt[50];
+    /*char debugTxt[50];
     sprintf(debugTxt,"Created sendMailTask on Core %d",xPortGetCoreID());
-    DataTime::logDebugMsg(debugTxt);
+    DataTime::logDebugMsg(debugTxt);*/
 
     //Build Text to Send:
     bool isNominal = Hardware::hasNominalSensorValues();
@@ -259,29 +259,24 @@ void heapWatcherTask(void* parameter) {
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
         struct tm timeinfo = DataTime::loadTimeinfo();
 
+        if (timeinfo.tm_hour == 0) { // check heap size once a day
+            size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
+            char heapInfoTxt[60];
+            sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
+            DataTime::logDebugMsg(heapInfoTxt);
+        }
+
         if (timeinfo.tm_hour == 0) { // request weather data once at/after midnight
             // Wait to Get Notified for Free Heap:
             ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
             
-            // Check Heap Size:
-            size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
-            char heapInfoTxt[60];
-            sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
-            DataTime::logDebugMsg(heapInfoTxt);
-
             // Create Task for Requesting Weather:
             xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
         }
 
-        if ((timeinfo.tm_hour & 0x1) == 0) { /** TODO: change to send only once per day */
+        if (timeinfo.tm_hour == 0) { // send mail once at/after midnight
             // Wait to Get Notified for Free Heap:
             ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
-
-            // Check Heap Size:
-            size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
-            char heapInfoTxt[60];
-            sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
-            DataTime::logDebugMsg(heapInfoTxt);
             
             // Create Task for Sending Mail:
             xTaskCreate(sendMailTask,"sendMailTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
@@ -302,13 +297,19 @@ void serviceTask(void* parameter) {
     const TickType_t xFrequency = SERVICE_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
     Serial.printf("Created serviceTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    int scheduledState = 0; // scheduled state of the pump, can differ from actual state
     
     // Periodic Loop:
     while (1) {
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
+        
         // Check Scheduled Pump Intervals:
         struct tm timeinfo = DataTime::loadTimeinfo();
-        Hardware::managePumpIntervals(timeinfo);
+        int newScheduledState = Hardware::getScheduledPumpState(timeinfo);
+        if (scheduledState != newScheduledState) { // check if scheduled pump state changed
+            scheduledState = newScheduledState;
+            Hardware::switchPump(newScheduledState); // update pump on change
+        }
     }
 }
 
@@ -351,7 +352,7 @@ void setup() {
         Serial.printf("Failed to initialize DataTime module!\r\n");
         Hardware::setErrorLed(HIGH);
         return;
-    } 
+    }
     
     // Create Button Handler Task:
     xTaskCreate(buttonHandlerTask, "buttonHandlerTask",DEFAULT_STACK_SIZE,NULL,1,&buttonHandlerHandle);
@@ -388,7 +389,8 @@ void setup() {
     Hardware::setPumpOperatingLevel(rainThreshold);
 
     // Initialize e-mail client:
-    if (Gateway::init()) { // error connecting to SD card
+    const char* mailPassword = DataTime::loadPassword();
+    if (Gateway::init(SMTP_SERVER,SMTP_SERVER_PORT,EMAIL_SENDER_ACCOUNT,mailPassword)) { // error connecting to SD card
         Serial.printf("Failed to setup gateway.\r\n");
         Hardware::setErrorLed(HIGH);
         return;
