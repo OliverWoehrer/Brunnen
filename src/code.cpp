@@ -219,7 +219,6 @@ void sendMailTask(void* parameter) {
     if (Hardware::setActiveDataFile(fileName)) {
         DataTime::logErrorMsg("Failed to initialize file system (SD-Card)");
         Hardware::setErrorLed(HIGH);
-        return;
     }
 
     // Exit This Task:
