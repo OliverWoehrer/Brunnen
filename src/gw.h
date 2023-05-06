@@ -9,10 +9,9 @@
 
 //Mail Client:
 #define EMAIL_SENDER_ACCOUNT    "iot.baumgasse@gmail.com"
-#define EMAIL_SENDER_PASSWORD   "waatopbgxrwsqdnt"
 #define SMTP_SERVER            "smtp.gmail.com"
 #define SMTP_SERVER_PORT        587 //465 //587
-#define EMAIL_RECIPIENT        "oliver.w@live.at"
+#define EMAIL_RECIPIENT        "oliver.woehrer@gmail.com"
 #define EMAIL_SUBJECT          "ESP32 Mail with Attachment"
 #define MAIL_TEXT_LENGTH 1024
 #define ERROR_TEXT_LENGTH 512
