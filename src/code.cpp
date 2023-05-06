@@ -219,7 +219,6 @@ void sendMailTask(void* parameter) {
     if (Hardware::setActiveDataFile(fileName)) {
         DataTime::logErrorMsg("Failed to initialize file system (SD-Card)");
         Hardware::setErrorLed(HIGH);
-        return;
     }
 
     // Exit This Task:
@@ -411,6 +410,17 @@ void setup() {
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(heapWatcherTask,"heapWatcherTask",DEFAULT_STACK_SIZE,NULL,1,&heapWatcherHandle);
     xTaskNotify(heapWatcherHandle,1,eSetValueWithOverwrite); // notfiy heap watcher task by setting notification value to 1
+
+
+
+
+    // Create Task for Sending Mail:
+    xTaskCreate(sendMailTask,"sendMailTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL);
+
+
+
+
+
 
     // Finish Setup:
     DataTime::logInfoMsg("Device setup.");
