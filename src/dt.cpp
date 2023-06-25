@@ -73,13 +73,13 @@ namespace Wlan {
         while(retries > 0) {
             retries--;
                 
-            Serial.printf("trying to login at %s network\r\n",WIFI_SSID_HOME);
-            if (login(WIFI_SSID_HOME, WIFI_PASSWORD_HOME) == SUCCESS) {
+            Serial.printf("trying to login at %s network\r\n",WIFI_SSID_FIELD);
+            if (login(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD) == SUCCESS) {
                 return SUCCESS;
             }
 
-            Serial.printf("trying to login at %s network\r\n",WIFI_SSID_FIELD);
-            if (login(WIFI_SSID_FIELD, WIFI_PASSWORD_FIELD) == SUCCESS) {
+            Serial.printf("trying to login at %s network\r\n",WIFI_SSID_HOME);
+            if (login(WIFI_SSID_HOME, WIFI_PASSWORD_HOME) == SUCCESS) {
                 return SUCCESS;
             }
 
