@@ -212,7 +212,7 @@ namespace MyHandler {
         if (req->hasParam("thu", true)) wday = wday | 0b00010000;
         if (req->hasParam("fri", true)) wday = wday | 0b00100000;
         if (req->hasParam("sat", true)) wday = wday | 0b01000000;
-        if (wday == 0) req->send(400, "text/plain", "invalid request: missing weekday parameter");
+        // if (wday == 0) req->send(400, "text/plain", "invalid request: missing weekday parameter");
 
         // Initialize interval:
         Hardware::pump_intervall_t interval = {.start = start, .stop = stop, .wday = wday};
