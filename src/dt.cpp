@@ -48,7 +48,7 @@ namespace Wlan {
         unsigned long now = millis();
         while (WiFi.status() != WL_CONNECTED) {
             delay(500);
-            if (millis() > now+10000) { // wait for max. 100 sec for WiFi to connect
+            if (millis() > now+5000) { // wait for max. 100 sec for WiFi to connect
                 Serial.printf("login attempt timed out\r\n");
                 break;
             }
