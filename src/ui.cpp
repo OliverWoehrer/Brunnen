@@ -261,7 +261,7 @@ namespace MyHandler {
             AsyncWebParameter* p = req->getParam("smtpServer",true,false);
             memcpy(smtpServer, p->value().c_str(), p->value().length());
         } else { // invalid request
-            req->send(400, "text/plain", "invalid request: missing start_time parameter");
+            req->send(400, "text/plain", "invalid request: missing stmp server");
         }
 
         // Check SMTP Port Parameter:
@@ -269,7 +269,7 @@ namespace MyHandler {
             AsyncWebParameter* p = req->getParam("smtpPort",true,false);
             int smtpPort = p->value().toInt();
         } else { // invalid request
-            req->send(400, "text/plain", "invalid request: missing stop_time parameter");
+            req->send(400, "text/plain", "invalid request: missing stmp port");
         }
 
         // Check Address Parameter:
@@ -277,7 +277,7 @@ namespace MyHandler {
             AsyncWebParameter* p = req->getParam("address",true,false);
             memcpy(address, p->value().c_str(), p->value().length());
         } else { // invalid request
-            req->send(400, "text/plain", "invalid request: missing index parameter");
+            req->send(400, "text/plain", "invalid request: missing address");
         }
 
         // Check Password Parameter:
@@ -285,7 +285,7 @@ namespace MyHandler {
             AsyncWebParameter* p = req->getParam("password",true,false);
             memcpy(password, p->value().c_str(), p->value().length());
         } else { // invalid request
-            req->send(400, "text/plain", "invalid request: missing index parameter");
+            req->send(400, "text/plain", "invalid request: missing password");
         }
 
         Gateway::init(SMTP_SERVER,SMTP_SERVER_PORT,EMAIL_SENDER_ACCOUNT,password);
@@ -310,10 +310,44 @@ namespace MyHandler {
         ESP.restart();
     }
 
-    void upload(AsyncWebServerRequest *req, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+    void uploadFirmware(AsyncWebServerRequest *req, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
         if (!index) { // upload not started yet
             Serial.printf("UploadStart: %s\n", filename.c_str());
-            if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
+            int cmd = U_FLASH; // alternative: U_FLASH
+            if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) { //start with max available size
+                Update.printError(Serial);
+            }
+        }
+        if (Update.write(data, len) != len) {
+            Update.printError(Serial);
+        }
+        if (final) { // upload finished
+            Serial.printf("Update Success: %u\r\n", index+len);
+            if (Update.end(true)) { //true to set the size to the current progress
+                Serial.printf("Update Success: %u\nRebooting...\n", index+len);
+            } else {
+                Update.printError(Serial);
+            }
+        }
+    }
+
+    //Files Image Page:
+    void GET_fileimage(AsyncWebServerRequest *req) {
+        req->send(SPIFFS, "/update.html", String(), false, processor);
+    }
+
+    void POST_fileimage(AsyncWebServerRequest *req) {
+        req->send(SPIFFS, "/update.html", String(), false, processor);
+        delay(3000);
+        DataTime::logInfoMsg("Device updated.");
+        ESP.restart();
+    }
+
+    void uploadFileimage(AsyncWebServerRequest *req, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
+        if (!index) { // upload not started yet
+            Serial.printf("UploadStart: %s\n", filename.c_str());
+            int cmd = U_SPIFFS; // alternative: U_FLASH
+            if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) { //start with max available size
                 Update.printError(Serial);
             }
         }
@@ -359,7 +393,9 @@ namespace MyServer {
         server.on("/account", HTTP_GET, MyHandler::GET_account);
         server.on("/account", HTTP_POST, MyHandler::POST_account);
         server.on("/update", HTTP_GET, MyHandler::GET_update);
-        server.on("/update", HTTP_POST, MyHandler::POST_update, MyHandler::upload);
+        server.on("/update", HTTP_POST, MyHandler::POST_update, MyHandler::uploadFirmware);
+        server.on("/fileimage", HTTP_GET, MyHandler::GET_fileimage);
+        server.on("/fileimage", HTTP_POST, MyHandler::POST_fileimage, MyHandler::uploadFileimage);
         server.serveStatic("/", SPIFFS, "/");
         // server.onFileUpload(MyHandler::upload);
         server.onNotFound(MyHandler::notFound);

@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Brunnen IoT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAIXBaABUvawCW480ANpZ7ACzHnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgAAAAAAAAAiAAAAAAAAACIAAAAAAAAAIgAAAAAAAAAiAAAAAAAAACIAAAAAAAAAIgAAAAAAAAAREQAAAAAAERURAAAAAAERQREQAAABAUERMREAAAARETEVUQAAABEUEVEVEAAAARQRMTEAAAAAEVEVEAAAAAABE1EAAAD8/wAA/P8AAPz/AAD8/wAA/P8AAPz/AAD8/wAA/D8AAPA/AADgHwAAoA8AAMAPAADABwAA4A8AAPAfAAD4PwAA">
     <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>
 </head>
@@ -14,8 +15,13 @@
         Update Status: %STATUS%
     </p>
     <div id="prg"></div>
-    <form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>
+    <form method='POST' action='/update' enctype='multipart/form-data'>
         upload firware .bin file<br>
+        <input type='file' name='update'><br>
+        <input type='submit' value='Update'>
+    </form>
+    <form method='POST' action='/fileimage' enctype='multipart/form-data'>
+        upload file image .bin file<br>
         <input type='file' name='update'><br>
         <input type='submit' value='Update'>
     </form>
@@ -35,7 +41,7 @@
             httpRequest.onreadystatechange = cbFunction;
             httpRequest.open('GET', '/live?progress=true');
             httpRequest.send();
-        }, 500);
+        }, 1000);
     </script>
 </body>
 
