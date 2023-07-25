@@ -27,7 +27,10 @@
 
     <script type="text/javascript">
         //Declare Global Variables:
-        var COMPRESS = 60;
+        const POINTS = 2000;
+        const FLOW_SCALING = 0.002577; // 388 pulses per litre
+        const PRESSURE_SCALING = 0.002513; // 398 increments per bar
+        const LEVEL_SCALING = 0.00157356; // 635 increments per meter
 
         //Declare Canvas Variables:
         var myChart;
@@ -118,8 +121,8 @@
 
                 //Set Compression Level in Relation to Total Data Length:
                 var totalDateIntervall = array[array.length-1]["timestamp"] - array[0]["timestamp"];
-                COMPRESS = Math.ceil(totalDateIntervall/(smallestGap*2000));
-                console.log("Compress "+COMPRESS+" values together.");
+                var compress = Math.ceil(totalDateIntervall/(smallestGap*POINTS));
+                console.log("Compress "+compress+" values together.");
 
                 //Convert Data into Seperate Sets:
                 var objTimestring = null;
@@ -168,11 +171,11 @@
                         avgLength++;
 
                         // Check for Average Intervall Length:
-                        if (avgLength == COMPRESS) {
+                        if (avgLength == compress) {
                             timestampSet.push(objTimestring);
-                            flowSet.push(sumFlow/avgLength);
-                            pressureSet.push(sumPressure/avgLength);
-                            levelSet.push(sumLevel/avgLength);
+                            flowSet.push((sumFlow/avgLength) * FLOW_SCALING);
+                            pressureSet.push((sumPressure/avgLength)  * PRESSURE_SCALING);
+                            levelSet.push((sumLevel/avgLength) * LEVEL_SCALING);
                             objTimestring = null;
                             sumFlow = 0;
                             sumPressure = 0;
@@ -184,11 +187,11 @@
                         dateGap -= smallestGap;
                     }
                     
-                    if (avgLength >= COMPRESS || i == array.length-1) {
+                    if (avgLength >= compress || i == array.length-1) {
                         timestampSet.push(objTimestring);
-                        flowSet.push(sumFlow/avgLength);
-                        pressureSet.push(sumPressure/avgLength);
-                        levelSet.push(sumLevel/avgLength);
+                        flowSet.push((sumFlow/avgLength) * FLOW_SCALING);
+                        pressureSet.push((sumPressure/avgLength) * PRESSURE_SCALING);
+                        levelSet.push((sumLevel/avgLength) * LEVEL_SCALING);
                         objTimestring = null;
                         sumFlow = 0;
                         sumPressure = 0;
@@ -201,17 +204,17 @@
                 //Add Sets to Canvas Config Object:
                 config.data.labels = timestampSet;
                 config.data.datasets.push({
-                    label: 'Flow',
+                    label: 'Flow [L]',
                     data: flowSet,
                     borderColor: 'rgb(68, 114, 196)',
                 });
                 config.data.datasets.push({
-                    label: 'Pressure',
+                    label: 'Pressure [Bar]',
                     data: pressureSet,
                     borderColor: 'rgb(237, 125, 49)'
                 });
                 config.data.datasets.push({
-                    label: 'Level',
+                    label: 'Level [m]',
                     data: levelSet,
                     borderColor: 'rgb(165, 165, 165)'
                 });
