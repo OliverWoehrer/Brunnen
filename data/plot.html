@@ -82,18 +82,21 @@
             let progress = 0;
             filesPromises.forEach(function(promise) {
                 promise.then(function(raw) { // awaits the promise (file to be read)
-                    var lines = raw.split('\n');
+                    var lines = raw.split('\r\n');
                     for (var i = 1; i < lines.length-1; i++) {
                         var split = lines[i].split(',');
-                        if (split[0] == "") console.log(split);
-                        const newData = {
-                            timestamp: parseStringToDate(split[0]),
-                            timeString: parseStringToLabel(split[0]),
-                            flow: parseInt(split[1]),
-                            pressure: parseInt(split[2]),
-                            level: parseInt(split[3])
+                        try {
+                            dataArray.push({
+                                timestamp: parseStringToDate(split[0]),
+                                timeString: parseStringToLabel(split[0]),
+                                flow: parseInt(split[1]),
+                                pressure: parseInt(split[2]),
+                                level: parseInt(split[3])
+                            });
+                        } catch(e) {
+                            console.log("Error: Failed to parse line "+i+" ('"+lines[i]+"')! "+e);
+                            continue; // skip faulty line
                         }
-                        dataArray.push(newData);
                     }
 
                     //Set UI:
@@ -106,7 +109,7 @@
             Promise.all(filesPromises).then((fileContents) => { // awaits all promises (all file contents to be extracted)
                 //Sort Array by Date:
                 const array = dataArray.sort(
-                    (objA, objB) => Number(objA.timestamp) - Number(objB.timestamp),
+                    (objA, objB) => objA.timestamp - objB.timestamp
                 );
 
                 //Find Smallest Gap Between Dates in Seconds:
@@ -150,20 +153,12 @@
                     
                     //Interpolate:
                     while (dateGap > (10*smallestGap)) { // loop while there is a gap between dates and interpolate data
-                        /* Linear Interpolation:
-                        const flowGradient = (array[i]["flow"]-currentFlow) / dateGap;
-                        const pressureGradient = (array[i]["pressure"]-currentPressure) / dateGap;
-                        const levelGradient = (array[i]["level"]-currentLevel) / dateGap;
-                        currentFlow += flowGradient*smallestGap;
-                        currentPressure += pressureGradient*smallestGap;
-                        currentLevel += levelGradient*smallestGap;*/
-
-                        /* Exponential Interpolation: */
+                        // Exponential Interpolation:
                         currentFlow = currentFlow - (currentFlow-array[i]["flow"])*(1-Math.exp(-(3*smallestGap)/dateGap));
                         currentPressure = currentPressure - (currentPressure-array[i]["pressure"])*(1-Math.exp(-(3*smallestGap)/dateGap));
                         currentLevel = currentLevel - (currentLevel-array[i]["level"])*(1-Math.exp(-(3*smallestGap)/dateGap));
 
-                        //Accumulate Interpolated Value to Sum for Average:
+                        // Accumulate Interpolated Value to Sum for Average:
                         if (!objTimestring) objTimestring = "GAP"; // save only first timestamp of interpolated values for average
                         sumFlow += currentFlow;
                         sumPressure += currentPressure;
@@ -244,10 +239,15 @@
          * Parses the given string into a date object
          */
         function parseStringToDate(dateString) {
+            // Split String, Format "DD-MM-YYYY HH:MM:SS":
             const dateTimeSplit = dateString.split(" ");
+            if (dateTimeSplit[0].length != 10 || dateTimeSplit[1].length != 8) throw new Error("Invalid string length! "+dateString);
             const dateSplit = dateTimeSplit[0].split("-");
-            const timeSplit = dateTimeSplit[1].split(":");
+            if (dateSplit[0].length != 2 || dateSplit[1].length != 2 || dateSplit[2].length != 4) throw new Error("Invalid string length! "+dateTimeSplit[0]);
+            const timeSplit = dateTimeSplit[1].split(":");            
+            if (timeSplit[0].length != 2 || timeSplit[1].length != 2 || timeSplit[2].length != 2) throw new Error("Invalid string length! "+dateTimeSplit[1]);
             
+            // Parse Numbers:
             const day = parseInt(dateSplit[0]);
             const month = parseInt(dateSplit[1])-1;
             const year = parseInt(dateSplit[2]);
