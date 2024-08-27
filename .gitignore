@@ -1,7 +1,14 @@
+# IDE Folders
 .pio
 .vscode
+
+# Temporary Builds Folders:
 build
 include
 reset
+
+# Results:
 results
+
+# Others:
 Rechnung_AG5822.pdf
