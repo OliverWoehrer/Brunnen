@@ -99,35 +99,37 @@ void requestWeatherDataTask(void* parameter) {
     sprintf(currentDate, "%04d-%02d-%02d",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
 
     // Send Request to OpenMeteoAPI:
-    bool isConnected = DataTime::isWlanConnected();
-    DataTime::connectWlan(); // (re-)connect to wifi
     DataTime::logInfoMsg("Requesting weather data from OpenMeteo API.");
-    int ret = Gateway::requestWeatherData(currentDate, currentDate);
-    if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
+    bool isConnected = DataTime::isWlanConnected();
+    int ret = DataTime::connectWlan(); // (re-)connect to wifi
+    if (ret == SUCCESS) {
+        ret = Gateway::requestWeatherData(currentDate, currentDate);
+        if (ret == SUCCESS) { // got data successfully
+            int rain = Gateway::getWeatherData("precipitation");
+            char weatherTxt[30];
+            sprintf(weatherTxt,"Rain today is %d mm.",rain);
+            DataTime::logInfoMsg(weatherTxt);
 
-    // Check Result of Request:
-    if (ret == SUCCESS) { // got data successfully
-        int rain = Gateway::getWeatherData("precipitation");
-        char weatherTxt[30];
-        sprintf(weatherTxt,"Rain today is %d mm.",rain);
-        DataTime::logInfoMsg(weatherTxt);
+            if (rain >= Hardware::getPumpOperatingLevel()) {
+                DataTime::logInfoMsg("Too much rain, pause pump operation.");
+                Hardware::pauseScheduledPumpOperation();
+            } else {
+                DataTime::logInfoMsg("Too little rain, resume pump operation.");
+                Hardware::resumeScheduledPumpOperation();
+            }
+        } else { // failed to request data
+            // Write Error Message to Log:
+            const char* errorMsg = Gateway::getWeatherResponse(); // response is error on fail
+            DataTime::logErrorMsg("Failed to request weather data from OpenMeteo API.");
+            DataTime::logInfoMsg(errorMsg);
 
-        if (rain >= Hardware::getPumpOperatingLevel()) {
-            DataTime::logInfoMsg("Too much rain, pause pump operation.");
-            Hardware::pauseScheduledPumpOperation();
-        } else {
-            DataTime::logInfoMsg("Too little rain, resume pump operation.");
+            // Unknown Weather Report; Resume Scheduled Operation Just in Case:
             Hardware::resumeScheduledPumpOperation();
         }
-    } else { // failed to request data
-        // Write Error Message to Log:
-        const char* errorMsg = Gateway::getWeatherResponse(); // response is error on fail
-        DataTime::logErrorMsg("Failed to request weather data from OpenMeteo API.");
-        DataTime::logInfoMsg(errorMsg);
-
-        // Unknown Weather Report; Resume Scheduled Operation Just in Case:
-        Hardware::resumeScheduledPumpOperation();
+    } else {
+        DataTime::logErrorMsg("Cannot request weather data without network connection.");
     }
+    if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
 
     // Exit This Task:
     xTaskNotify(heapWatcherHandle,1,eSetValueWithOverwrite); // notfiy heap watcher task by setting notification value to 1
@@ -186,32 +188,34 @@ void sendMailTask(void* parameter) {
     DataTime::checkLogFile(1000000); // check free space for log file
 
     // Send Data:
-    bool isConnected = DataTime::isWlanConnected();
-    DataTime::connectWlan(); // (re-)connect to wifi
     DataTime::logInfoMsg("Sending Mail.");
-    int ret = Gateway::sendData();
+    bool isConnected = DataTime::isWlanConnected();
+    int ret = DataTime::connectWlan(); // (re-)connect to wifi
+    if (ret == SUCCESS) {
+        ret = Gateway::sendData();
+        if (ret == SUCCESS) { // delete old file after successful send
+            Hardware::deleteActiveDataFile();
+            for (unsigned int i=0; i < jobLength; i++) {
+                const char* jobName = DataTime::loadJob(i);
+                Hardware::setActiveDataFile(jobName);
+                Hardware::deleteActiveDataFile();
+                DataTime::deleteJob(i);
+            }
+            DataTime::saveJobLength(0);
+        } else { // error occured while sending mail
+            const char* errorMsg = Gateway::getErrorMsg();
+            DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
+            DataTime::logInfoMsg(errorMsg);
+            Gateway::clearData();
+            const char* fName = Hardware::loadActiveDataFileName();
+            DataTime::saveJob(jobLength, fName);
+            DataTime::saveJobLength(jobLength+1);
+        }
+    } else {
+        DataTime::logErrorMsg("Cannot send mail without network connection.");
+    }
     if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
     
-    // Check Result of Send Mail:
-    if (ret == SUCCESS) { // delete old file after successful send
-        Hardware::deleteActiveDataFile();
-        for (unsigned int i=0; i < jobLength; i++) {
-            const char* jobName = DataTime::loadJob(i);
-            Hardware::setActiveDataFile(jobName);
-            Hardware::deleteActiveDataFile();
-            DataTime::deleteJob(i);
-        }
-        DataTime::saveJobLength(0);
-    } else { // error occured while sending mail
-        const char* errorMsg = Gateway::getErrorMsg();
-        DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
-        DataTime::logInfoMsg(errorMsg);
-        Gateway::clearData();
-        const char* fName = Hardware::loadActiveDataFileName();
-        DataTime::saveJob(jobLength, fName);
-        DataTime::saveJobLength(jobLength+1);
-    }
-
     //Set up new data file:
     struct tm timeinfo = DataTime::loadTimeinfo();
     char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
@@ -252,6 +256,7 @@ void heapWatcherTask(void* parameter) {
     const TickType_t xFrequency = TRANSMISSION_PERIODE / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
     Serial.printf("Created heapWatcherTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    size_t lastFreeHeapSize = -1;
     
     // Periodic Loop:
     while (1) {
@@ -260,9 +265,12 @@ void heapWatcherTask(void* parameter) {
 
         if (timeinfo.tm_hour == 0) { // check heap size once a day
             size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
-            char heapInfoTxt[60];
-            sprintf(heapInfoTxt,"Largest region currently free in heap at %d bytes.",freeHeapSize);
-            DataTime::logDebugMsg(heapInfoTxt);
+            if(freeHeapSize < lastFreeHeapSize) {
+                char heapInfoTxt[60];
+                sprintf(heapInfoTxt,"Largest region currently free in heap at %u bytes.",freeHeapSize);
+                DataTime::logDebugMsg(heapInfoTxt);
+                lastFreeHeapSize = freeHeapSize;
+            }
         }
 
         if (timeinfo.tm_hour == 0) { // request weather data once at/after midnight
