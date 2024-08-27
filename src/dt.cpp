@@ -646,7 +646,6 @@ int connectWlan() {
             Log::msg(Log::ERROR,Time::toString(),"Failed to connect WiFi after multple retries.");
             return FAILURE;
         }
-        Log::msg(Log::INFO,Time::toString(),"Connected to WiFi.");
     }
     return SUCCESS;
 }
@@ -657,7 +656,6 @@ int connectWlan() {
  */
 int disconnectWlan() {
     Wlan::disconnect();
-    Log::msg(Log::INFO,Time::toString(),"Disconnected from WiFi.");
     return SUCCESS;
 }
 
