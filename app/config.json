@@ -1,0 +1,13 @@
+{
+    "port": 9000,
+    "users": [
+        {
+            "username": "admin",
+            "password": "admin"
+        },
+        {
+            "username": "oliver",
+            "password": "secure"
+        }
+    ]
+}
