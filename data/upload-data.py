@@ -73,7 +73,7 @@ for file_path in file_paths:
         else:
             unix_timestamp = datetime.timestamp(time)
             line = "water flow=%d,pressure=%d,level=%d %u\n" % (flow,pressure,level,unix_timestamp)
-            if len(data) + len(line) > PAYLOAD_LIMIT+6: # upload if accumulated data would be larger then PAYLOAD_LIMIT
+            if len(data) + len(line) > PAYLOAD_LIMIT: # upload if accumulated data would be larger then PAYLOAD_LIMIT
                 if args.upload:
                     uploadData(data)
                 if args.export:
