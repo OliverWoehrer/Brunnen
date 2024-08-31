@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% set page_title = "Dashboard" %}
+
+{% set dashboard_selector = "selected" %}
+
+{% block content %}
+<div class="app">
+    <header class="w3-container">
+        <h1>Dashboard</h1>
+    </header>
+    <main class="w3-container">
+        {% block main %} {% endblock %}
+    </main>
+    <footer class="w3-container">
+        Template: /dashboard/base.html
+    </footer>
+</div>
+{% endblock %}

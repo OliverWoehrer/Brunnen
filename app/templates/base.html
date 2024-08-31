@@ -1,0 +1,43 @@
+<!doctype html>
+<head>
+    <title>{{ page_title }}</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static',filename='favicon.ico') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@1" />
+    <link rel="stylesheet" href="{{ url_for('static',filename='w3.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='colors.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='app.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+    {% block style %} {% endblock %}
+</head>
+<body>
+    <div class="layout color-background">
+        <!-- Navigation Bar -->
+        <nav class="w3-card w3-white">
+            <a href="{{ url_for('index') }}" class="w3-bar-item w3-button">
+                <img srcset="{{url_for('static',filename='logo.png')}}" class="w3-padding-small w3-image logo-item">
+            </a>
+            <a href="{{ url_for('dashboard') }}"class="w3-bar-item w3-button {{ dashboard_selector }}">
+                <span class="material-symbols-outlined">dashboard</span><br>
+                Dashboard
+            </a>
+            <a href="{{ url_for('settings') }}"class="w3-bar-item w3-button {{ settings_selector }}">
+                <span class="material-symbols-outlined">settings</span><br>
+                Settings
+            </a>
+            <a href="{{ url_for('error') }}"class="w3-bar-item w3-button {{ profile_selector }}">
+                <span class="material-symbols-outlined">person</span><br>
+                Profile
+            </a>
+        </nav>
+        <!-- Main Content -->
+        <main>
+            {% block content %} {% endblock %}
+        </main>
+    </div>
+    <!-- <script type="text/javascript" src="{{ url_for('static',filename='script.js') }}"></script> -->
+    <!-- <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script> -->
+    {% block script %} {% endblock %}
+</body>

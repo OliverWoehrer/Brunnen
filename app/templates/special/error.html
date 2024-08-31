@@ -1,0 +1,13 @@
+{% extends "special/base.html" %}
+
+{% set page_title = "Error" %}
+
+{% block main %}
+<div class="w3-large w3-center">
+    <h1>Error 404</h1>
+    <p>
+        Page not found
+    </p>
+    <a class="w3-button w3-round-xlarge color-primary" href="{{ url_for('index') }}">Back to Home</a>
+</div>
+{% endblock %}

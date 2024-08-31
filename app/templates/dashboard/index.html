@@ -1,0 +1,187 @@
+{% extends "dashboard/base.html" %}
+
+{% block style %}
+<style>
+.board {
+    height: 99%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-content: stretch;
+}
+
+.logs {
+    flex-grow: 1;
+}
+
+.scrollable { /* use for "main" to make content scrollable */
+    height: 1px;
+    overflow: auto;
+}
+th {
+    background: white;
+    position: sticky;
+    top: 0; /* Don't forget this, required for the stickiness */
+    box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.4);
+    background: #F1F1F1;
+}
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="board">
+    <div class="w3-margin w3-card w3-white w3-round-xlarge w3-padding">
+        <div class="app">
+            <header>
+                <h2 class="w3-left">Live</h2>
+                <a class="w3-right w3-button w3-margin w3-round-xlarge color-primary w3-large" href="{{ url_for('live') }}">More Details <b>&rarr;</b></a>
+            </header>
+            <main class="">
+                <p>
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+                </p>
+            </main>
+        </div>
+
+    </div>
+    <div class="w3-margin w3-card w3-white w3-round-xlarge w3-padding logs">
+        <div class="app">
+            <header>
+                <h2 class="w3-left">Logs</h2>
+                <a class="w3-right w3-button w3-margin w3-round-xlarge color-primary w3-large" href="{{ url_for('logs') }}">View All <b>&rarr;</b></a>
+            </header>
+            <main class="scrollable w3-round-xlarge">
+                <table class="w3-table w3-striped w3-round-xlarge">
+                    <tr class="w3-card">
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Points</th>
+                    </tr>
+                    <tr>
+                        <td>Jill</td>
+                        <td>Smith</td>
+                        <td>50</td>
+                    </tr>
+                    <tr>
+                        <td>Eve</td>
+                        <td>Jackson</td>
+                        <td>94</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                    <tr>
+                        <td>Jill</td>
+                        <td>Smith</td>
+                        <td>50</td>
+                    </tr>
+                    <tr>
+                        <td>Eve</td>
+                        <td>Jackson</td>
+                        <td>94</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                    <tr>
+                        <td>Jill</td>
+                        <td>Smith</td>
+                        <td>50</td>
+                    </tr>
+                    <tr>
+                        <td>Eve</td>
+                        <td>Jackson</td>
+                        <td>94</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                    <tr>
+                        <td>Jill</td>
+                        <td>Smith</td>
+                        <td>50</td>
+                    </tr>
+                    <tr>
+                        <td>Eve</td>
+                        <td>Jackson</td>
+                        <td>94</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                    <tr>
+                        <td>Jill</td>
+                        <td>Smith</td>
+                        <td>50</td>
+                    </tr>
+                    <tr>
+                        <td>Eve</td>
+                        <td>Jackson</td>
+                        <td>94</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                    <tr>
+                        <td>Jill</td>
+                        <td>Smith</td>
+                        <td>50</td>
+                    </tr>
+                    <tr>
+                        <td>Eve</td>
+                        <td>Jackson</td>
+                        <td>94</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                    <tr>
+                        <td>Jill</td>
+                        <td>Smith</td>
+                        <td>50</td>
+                    </tr>
+                    <tr>
+                        <td>Eve</td>
+                        <td>Jackson</td>
+                        <td>94</td>
+                    </tr>
+                    <tr>
+                        <td>Adam</td>
+                        <td>Johnson</td>
+                        <td>67</td>
+                    </tr>
+                </table>
+            </main>
+        </div>
+        
+    </div>
+    <div class="w3-margin w3-card w3-white w3-round-xlarge w3-padding" style="width: 100%;">
+        <h2>Feed</h2>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block script %}
+<script>
+    // TODO
+</script>
+{% endblock %}

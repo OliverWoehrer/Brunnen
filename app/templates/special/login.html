@@ -1,0 +1,18 @@
+{% extends "special/base.html" %}
+
+{% set page_title = "Login" %}
+
+{% block main %}
+<form class="w3-card w3-white w3-round-xlarge w3-padding w3-large w3-center">
+    <h1>Login</h1>
+    <div class="w3-margin-bottom">
+        <input class="w3-input w3-border w3-round-xlarge" type="text" placeholder="Username">
+    </div>
+    <div class="w3-margin-bottom">
+        <input class="w3-input w3-border w3-round-xlarge" type="password" placeholder="Password">
+    </div>
+    <div class="w3-margin-bottom">
+        <input type="submit" value="Login" class="w3-block w3-button w3-round-xlarge color-primary">
+    </div>
+</form>
+{% endblock %}
