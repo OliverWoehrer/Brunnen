@@ -9,29 +9,24 @@ To start this application, run "python app.py"
 """
 
 from flask import Flask, request
-from flask import render_template, redirect, send_file
-from modules import configHandler
+import config
 
 
 
-# Initalize RET-App:
-app = Flask(__name__, static_folder="static", template_folder="templates")
-
-
-"""
-Static Web Pages:
-"""
-@app.route("/", methods=["GET"])
-def getIndex():
-    return "Hello, World!"
-    # liveString = "mein live string."
-    # return render_template("index.html", liveString = liveString)
 
 
 """
 Start the RET-Application:
 """
 if __name__ == "__main__":
+    # Initalize RET-App:
+    app = Flask(__name__, template_folder="templates", static_folder="static")
+
+    # Register Blueprints (Routes):
+    from routes import routes # responsible for web interface
+    from routes.dashboard.dashboard import dashboard
+    app.register_blueprint(dashboard)
+
     # Start App at Desired Port:
-    port = configHandler.readPort()
+    port = config.readPort()
     app.run(host="localhost", port=port, debug=True)
