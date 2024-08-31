@@ -1,13 +1,9 @@
 {
-    "port": 9000,
+    "port": 5000,
     "users": [
         {
             "username": "admin",
             "password": "admin"
-        },
-        {
-            "username": "oliver",
-            "password": "secure"
         }
     ]
 }

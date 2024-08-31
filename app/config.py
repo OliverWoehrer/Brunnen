@@ -1,6 +1,5 @@
 """
 This module implements functions to read and write configuration data from "config.json".
-TODO: write doc
 """
 import json
 
