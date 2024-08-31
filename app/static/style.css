@@ -1,0 +1,23 @@
+/***************************************/
+/* Overwrite Default Styles: */
+/***************************************/
+html,
+body {
+    font-family: "Ubuntu";
+    overflow: hidden;
+    height: 100vh;
+}
+
+h1 {
+    font-weight: bolder;
+    color:#8BC34A!important;
+}
+
+
+
+/***************************************/
+/* Individual Styles: */
+/***************************************/
+.logo-item {
+    max-width: 50px;
+}

@@ -1,0 +1,22 @@
+/***************************************/
+/* Individual Colors: */
+/***************************************/
+.color-primary {
+    color:#000000!important;
+    background-color:#8BC34A!important;
+}
+
+.color-secondary {
+    color:#FFFFFF!important;
+    background-color:#000000!important;
+}
+
+.color-accent {
+    color:#000000!important;
+    background-color:#D1E7B7!important;
+}
+
+.color-background {
+    color:#000!important;
+    background-color:#F1F1F1!important
+}
