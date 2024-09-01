@@ -1,0 +1,25 @@
+{% macro white_card() %}
+    {% if caller is defined %}
+    {% set content=caller() %}
+    {% endif %}
+    <div class="w3-card w3-white w3-round-xlarge w3-padding">
+        {{ content }}
+    </div>
+{% endmacro %}
+
+
+
+{% macro panel(additional_classes, additional_stylings) %}
+    {% if caller is defined %}
+    {% set content=caller() %}
+    {% endif %}
+    <div class="w3-margin w3-card w3-white w3-round-xlarge w3-padding {{ additional_classes }}" style="{{ additional_stylings }}">
+        {{ content }}
+    </div>
+{% endmacro %}
+
+
+
+
+
+

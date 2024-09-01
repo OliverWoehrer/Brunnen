@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% set dashboard_selector = "selected" %}
+
+{% block content %}
+<div class="app">
+    <header class="w3-padding color-primary">
+        <div class="w3-display-container">
+            <a class="w3-display-left w3-button" href="{{ backpath }}" style="font-size: 2rem;"><span class="material-symbols-outlined">arrow_back_ios</span></a>
+            <h1 class="w3-center heading"> {{ heading }}</h1>
+        </div>
+    </header>
+    <main class="w3-container">
+        {% block main %} {% endblock %}
+    </main>
+    <footer class="w3-container">
+        Template: /subpages/base.html
+    </footer>
+</div>
+{% endblock %}

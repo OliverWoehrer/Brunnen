@@ -6,32 +6,20 @@ from __main__ import app # app is initalized in main
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("special/login.html")
+    return render_template("special_pages/login.html")
 
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
-    return render_template("dashboard/index.html", liveString="Test")
-
-@app.route("/dashboard/logs", methods=["GET"])
-def logs():
-    return render_template("special/error.html")
-
-@app.route("/dashboard/live", methods=["GET"])
-def live():
-    return render_template("special/error.html")
-
-@app.route("/dashboard/feed", methods=["GET"])
-def feed():
-    return render_template("special/error.html")
-
-
-
-
+    return render_template("dashboard.html")
 
 @app.route("/settings", methods=["GET"])
 def settings():
     return render_template("settings.html")
 
+@app.route("/profile", methods=["GET"])
+def profile():
+    return render_template("profile.html")
+
 @app.route("/error", methods=["GET"])
 def error():
-    return render_template("special/error.html")
+    return render_template("special_pages/error.html")
