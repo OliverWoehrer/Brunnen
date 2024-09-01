@@ -9,15 +9,16 @@ body {
 }
 
 h1 {
-    font-weight: bolder;
-    color:#8BC34A!important;
+    font-weight: bold;
 }
-
-
 
 /***************************************/
 /* Individual Styles: */
 /***************************************/
 .logo-item {
     max-width: 50px;
+}
+
+.primary_heading {
+    color:#8BC34A!important;
 }
