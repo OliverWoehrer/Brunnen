@@ -8,12 +8,36 @@ DEFAULT_FILE = "./defaults/config.json"
 
 def readPort() -> str:
     config = _loadConfig()
-    return config["port"]
+    if "port" not in config:
+        raise ValueError("No port in config")
+    return config.get("port")
 
-def writePort(port: str):
+def readInfluxHost() -> str:
     config = _loadConfig()
-    config["port"] = port
-    _storeConfig(config)
+    if "influx" not in config:
+        raise ValueError("No influx in config")
+    influx = config.get("influx")
+    if "host" not in influx:
+        raise ValueError("No host in influx")
+    return influx.get("host")
+
+def readInfluxPort() -> int:
+    config = _loadConfig()
+    if "influx" not in config:
+        raise ValueError("No influx in config")
+    influx = config.get("influx")
+    if "port" not in influx:
+        raise ValueError("No port in influx")
+    return influx.get("port")
+
+def readInfluxOrganization() -> str:
+    config = _loadConfig()
+    if "influx" not in config:
+        raise ValueError("No influx in config")
+    influx = config.get("influx")
+    if "organization" not in influx:
+        raise ValueError("No organization in influx")
+    return influx.get("organization")
 
 
 

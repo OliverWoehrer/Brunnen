@@ -1,9 +1,8 @@
 {
     "port": 5000,
-    "users": [
-        {
-            "username": "admin",
-            "password": "admin"
-        }
-    ]
+    "influx": {
+        "host": "http://localhost",
+        "port": 8086,
+        "organization": "Private"
+    }
 }
