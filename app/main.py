@@ -8,8 +8,10 @@ and is powered by the python library "Flask". It supports a web interface for us
 To start this application, run "python app.py"
 """
 
+import os
+import config, data
 from flask import Flask, request
-import config
+
 
 
 
@@ -19,11 +21,20 @@ import config
 Start the RET-Application:
 """
 if __name__ == "__main__":
-    # Initalize RET-App:
-    app = Flask(__name__, template_folder="templates", static_folder="static")
+    # Initalize Database Client:
+    token = os.environ.get("INFLUXDB_TOKEN")
+    org = config.readInfluxOrganization()
+    influx_host = config.readInfluxHost()
+    influx_port = config.readInfluxPort()
+    url = influx_host+":"+str(influx_port)
+    database = data.DataClient(url=url, token=token, organization=org)
+    
+    tables = database.queryNewestMeasurements()
+    print("debug")
 
-    # Register Blueprints (Routes):
-    from routes import routes # responsible for web interface
+    # Initalize Flask App:
+    app = Flask(__name__, template_folder="templates", static_folder="static")
+    from routes import routes
     from routes.dashboard.dashboard import dashboard
     app.register_blueprint(dashboard)
 
