@@ -13,7 +13,7 @@ html, body {
     display: flex;
     flex-direction: column;
     height: 100%;
-    /* align-items: stretch; */
+    /* align-items: center; <-- items are centered and not full width */
 }
   
 .app > header {
@@ -32,7 +32,6 @@ html, body {
     flex-grow: 1;
     flex-shrink: 1;
     flex-basis: auto;
-    width: 100%;
 }
 
 .app > main .scrollable { /* use for "main" to make content scrollable */
