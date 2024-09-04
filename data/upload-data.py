@@ -15,7 +15,7 @@ def uploadData(payload):
     query_params = {
         "bucket": "Brunnen",
         "org": "Private",
-        "precision": "s"
+        "precision": "ns"
     }
     headers = {
         "Accept": "application/json",
@@ -71,7 +71,7 @@ for file_path in file_paths:
         except Exception as e: # skip bad rows
             print("skipping row:",file_path,">>>",e)
         else:
-            unix_timestamp = datetime.timestamp(time)
+            unix_timestamp = datetime.timestamp(time) * 1E9 # convert to nanoseconds
             line = "water flow=%d,pressure=%d,level=%d %u\n" % (flow,pressure,level,unix_timestamp)
             if len(data) + len(line) > PAYLOAD_LIMIT: # upload if accumulated data would be larger then PAYLOAD_LIMIT
                 if args.upload:
