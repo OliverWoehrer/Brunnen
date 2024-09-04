@@ -11,4 +11,3 @@ printenv INFLUXDB_TOKEN
 # Start InfluxDB Server:
 echo "Starting InfluxDB server..."
 influxd --http-bind-address ":$PORT" --log-level "error"
-
