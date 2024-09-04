@@ -2,16 +2,16 @@
 {% import "macros/cards.html" as cards %}
 {% import "macros/buttons.html" as buttons %}
 
-{% set page_title = "Settings" %}
-{% set settings_selector = "selected" %}
+{% set page_title = "Update" %}
+{% set update_selector = "selected" %}
 
 {% block content %}
 <div class="app">
     <header class="w3-container">
-        <h1 class="primary_heading">Settings</h1>
+        <h1 class="primary_heading">Update</h1>
     </header>
     <main class="w3-container">
-        {{ buttons.primary_link("Intervals", url_for("settings.intervals")) }}
+        <img srcset="{{url_for('static',filename='logo.png')}}" class="w3-padding-small w3-image logo-item">
     </main>
 </div>
 {% endblock %}

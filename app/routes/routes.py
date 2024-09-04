@@ -6,7 +6,7 @@ from __main__ import app # app is initalized in main
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("special_pages/login.html")
+    return render_template("index.html")
 
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
@@ -16,9 +16,13 @@ def dashboard():
 def settings():
     return render_template("settings.html")
 
+@app.route("/update", methods=["GET"])
+def update():
+    return render_template("update.html")
+
 @app.route("/profile", methods=["GET"])
 def profile():
-    return render_template("profile.html")
+    return render_template("special_pages/login.html")
 
 @app.route("/error", methods=["GET"])
 def error():

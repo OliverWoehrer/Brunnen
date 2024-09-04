@@ -1,17 +1,22 @@
-{% extends "base.html" %}
+{% extends "sub_pages/base.html" %}
 {% import "macros/cards.html" as cards %}
 {% import "macros/buttons.html" as buttons %}
 
-{% set page_title = "Settings" %}
 {% set settings_selector = "selected" %}
+{% set page_title = "Intervals" %}
+{% set backpath = url_for("settings") %}
+{% set heading = "Intervals" %}
 
-{% block content %}
+{% block main %}
 <div class="app">
     <header class="w3-container">
-        <h1 class="primary_heading">Settings</h1>
+        Header
     </header>
     <main class="w3-container">
-        {{ buttons.primary_link("Intervals", url_for("settings.intervals")) }}
+        Main
     </main>
+    <footer class="w3-container">
+        Footer
+    </footer>
 </div>
 {% endblock %}
