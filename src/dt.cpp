@@ -213,16 +213,16 @@ namespace Log {
             sprintf(buffer, "%s [INFO] %s\r\n",timeString,msg);
             break;
         case WARNING:
-            sprintf(buffer, "%s  > %s\r\n",timeString,msg);
+            sprintf(buffer, "%s [WARNING] %s\r\n",timeString,msg);
             break;
         case ERROR:
             sprintf(buffer, "%s [ERROR] %s\r\n",timeString,msg);
             break;
         case DEBUG:
-            sprintf(buffer, "%s ## %s\r\n",timeString,msg);
+            sprintf(buffer, "%s [DEBUG] %s\r\n",timeString,msg);
             break;
         default:
-            sprintf(buffer, "%s %s\r\n",timeString,msg);
+            sprintf(buffer, "%s [] %s\r\n",timeString,msg);
             break;
         }
         Serial.printf("%s",buffer);
