@@ -10,6 +10,7 @@ To start this application, run "python app.py"
 
 import os
 import config, data
+from datetime import datetime, timedelta
 from flask import Flask, request
 
 
@@ -29,7 +30,10 @@ if __name__ == "__main__":
     url = influx_host+":"+str(influx_port)
     database = data.DataClient(url=url, token=token, organization=org)
     
-    tables = database.queryNewestMeasurements()
+    newest = database.queryLatestMeasurement()
+    oldest = newest - timedelta(days=3)
+    window = timedelta(seconds=300) # 5 minutes
+    measurements = database.queryMeasurements(start_time=oldest, stop_time=newest, window_size=window)
     print("debug")
 
     # Initalize Flask App:
@@ -37,6 +41,9 @@ if __name__ == "__main__":
     from routes import routes
     from routes.dashboard.dashboard import dashboard
     app.register_blueprint(dashboard)
+    from routes.settings.settings import settings
+    app.register_blueprint(settings)
+
 
     # Start App at Desired Port:
     port = config.readPort()
