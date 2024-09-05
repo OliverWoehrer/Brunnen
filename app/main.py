@@ -9,8 +9,10 @@ To start this application, run "python app.py"
 """
 
 import os
-import config, data
+from data import data_client as database
+import config
 from datetime import datetime, timedelta
+import pandas as pd
 from flask import Flask, request
 
 
@@ -28,13 +30,7 @@ if __name__ == "__main__":
     influx_host = config.readInfluxHost()
     influx_port = config.readInfluxPort()
     url = influx_host+":"+str(influx_port)
-    database = data.DataClient(url=url, token=token, organization=org)
-    
-    newest = database.queryLatestMeasurement()
-    oldest = newest - timedelta(days=3)
-    window = timedelta(seconds=300) # 5 minutes
-    measurements = database.queryMeasurements(start_time=oldest, stop_time=newest, window_size=window)
-    print("debug")
+    database.init(url=url, token=token, organization=org)
 
     # Initalize Flask App:
     app = Flask(__name__, template_folder="templates", static_folder="static")
