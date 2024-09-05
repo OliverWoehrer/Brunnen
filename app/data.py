@@ -36,7 +36,7 @@ class DataClient():
         """
         This function takes the given data and inserts it into the measurements. The index column
         of the dataframe needs to be timestamps (datetime)
-        
+
         :param data: dataframe holding the data to insert
 
         :return: Error message on failure, None on success
@@ -110,9 +110,15 @@ class DataClient():
             return (e.message, None)
         else:
             values = tables.to_values(columns=["_time", "_field", "_value"])
-            df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
-            df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
-            return ("success",df.index[0])
+            if values:
+                df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
+                df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
+                timestamp = df.index[0]
+                timestamp = timestamp.to_pydatetime()
+                timestamp = timestamp.replace(tzinfo = None)
+                return ("success",timestamp)
+            else:
+                return ("Did not find measurements", None)
 
     def deleteMeasurements(self, start_time: datetime, stop_time: datetime) -> str:
         """
@@ -129,7 +135,7 @@ class DataClient():
         try:
             self._delete_api.delete(start, stop, predicate, bucket=MEASUREMENT_BUCKET)
         except InfluxDBError as e:
-            return (e.message, None)
+            return e.message
         else:
             return None
 
