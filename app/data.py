@@ -3,91 +3,134 @@ This module implements functions to insert and query data from an (influx) datab
 API interface provided via the python library.
 """
 import influxdb_client
-from influxdb_client import InfluxDBClient, Point, WritePrecision
+from influxdb_client import InfluxDBClient
+from influxdb_client.client.exceptions import InfluxDBError
 from influxdb_client.client.write_api import SYNCHRONOUS
 from datetime import datetime, timedelta
 import pandas as pd
 
 MEASUREMENT_BUCKET = "Brunnen"
-MEASUREMENT = "water"
+MEASUREMENT = "test"
 
 class DataClient():
-    def __init__(self, url: str, token: str, organization: str):
+    def __init__(self):
+        pass
+
+    def init(self, url: str, token: str, organization: str):
         """
         This function initializes the data client and checks the connection to the database server.
 
-        Parameters:
-            url: url of InfluxDB server with API
-            token: influx access token (keep secret)
-            organization: organization of the database
+        :param url: url of InfluxDB server with API
+        :param token: influx access token (keep secret)
+        :param organization: organization of the database
         """
 
-        self.client = influxdb_client.InfluxDBClient(url=url, token=token, org=organization)
-        self.write_api = self.client.write_api(write_options=SYNCHRONOUS)
-        self.query_api = self.client.query_api()
-        if not self.client.ping():
+        self._client = influxdb_client.InfluxDBClient(url=url, token=token, org=organization)
+        self._write_api = self._client.write_api(write_options=SYNCHRONOUS)
+        self._query_api = self._client.query_api()
+        self._delete_api = self._client.delete_api()
+        if not self._client.ping():
             raise RuntimeError("Failed to initialize database client.")
 
-    def insertMeasurements(self, data: pd.DataFrame) -> bool:
+    def insertMeasurements(self, data: pd.DataFrame) -> str:
         """
-        This function takes the given data and inserts it into the measurements.
+        This function takes the given data and inserts it into the measurements. The index column
+        of the dataframe needs to be timestamps (datetime)
         
-        Returns:
-            True if successful, false otherwise
+        :param data: dataframe holding the data to insert
+
+        :return: Error message on failure, None on success
         """
-        return False
+        try:
+            self._write_api.write(bucket=MEASUREMENT_BUCKET, record=data, data_frame_measurement_name=MEASUREMENT)
+        except InfluxDBError as e:
+            return e.message
+        else:
+            return None
 
-    def queryLatestMeasurement(self) -> datetime:
-        """
-        This function querys the latest data available in water meaurements and returns its
-        timestamp.
-        
-        Returns:
-            datetime: holds the time of latest data
-        """
-
-        query = """
-            from(bucket: "{bucket}")
-            |> range(start: 1970-01-01T00:00:00Z)
-            |> filter(fn: (r) => r._measurement == "water")
-            |> last()
-            |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
-        """.format(bucket=MEASUREMENT_BUCKET)
-
-        tables = self.query_api.query(query)
-        values = tables.to_values(columns=["_time", "_field", "_value"])
-        df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
-        df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
-        return df.index[0]
-
-    def queryMeasurements(self, start_time: datetime, stop_time: datetime, window_size: timedelta = timedelta(minutes=5)) -> pd.DataFrame:
+    def queryMeasurements(self, start_time: datetime, stop_time: datetime, window_size: timedelta = None) -> pd.DataFrame:
         """
         This function querys the measurement data between the start and stop time. To reduce data
         size, it aggregates multiple values inside a windows of given size. This means it takes the
         average over a periode (.i.e. duration) of window_size.
 
-        Parameters:
-            start_time: earliest time of measurement to include
-            stop_time: latest time of measurement to include
-            window_size: duration on how much time to average over
+        :param start_time: earliest time of measurement to include
+        :param stop_time: latest time of measurement to include
+        :param window_size: duration on how much time to average over
         
-        Returns:
-            pandas.DataFrame: holds the time of latest data
+        :return Tuple: (error_message: str, timestamp: datetime)
+            error_message: "success" on success, errror message from database otherwise
+            timestamp: holds the time of latest data on success, None otherwise
         """
-        start = int(datetime.timestamp(start_time))
-        stop = int(datetime.timestamp(stop_time))
-        formatted_size = "{days}d{seconds}s".format(days=window_size.days, seconds=window_size.seconds)
+        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if window_size is None:
+            aggregate_string = ""
+        else:
+            aggregate_string = "|> aggregateWindow(every: {days}d{seconds}s, fn: mean, createEmpty: false)".format(days=window_size.days, seconds=window_size.seconds)
         
         query = """
             from(bucket: "{bucket}")
             |> range(start: {start}, stop: {stop})
             |> filter(fn: (r) => r._measurement == "{meas}")
-            |> aggregateWindow(every: {duration}, fn: mean, createEmpty: false)
+            {agg}
             |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
-        """.format(bucket=MEASUREMENT_BUCKET, start=start, stop=stop, meas=MEASUREMENT, duration=formatted_size)
+        """.format(bucket=MEASUREMENT_BUCKET, start=start, stop=stop, meas=MEASUREMENT, agg=aggregate_string)
 
-        tables = self.query_api.query(query)
-        values = tables.to_values(columns=["_time", "_field", "_value"])
-        df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
-        df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
-        return df
+        try:
+            tables = self._query_api.query(query)
+        except InfluxDBError as e:
+            return (e.message, None)
+        else:
+            values = tables.to_values(columns=["_time", "_field", "_value"])
+            df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
+            df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
+            return ("success", df)
+
+    def queryLatestMeasurement(self) -> (str,datetime):
+        """
+        This function querys the latest data available in water meaurements and returns its
+        timestamp.
+        
+        :return Tuple: (error_message: str, timestamp: datetime)
+            error_message: "success" on success, errror message from database otherwise
+            timestamp: holds the time of latest data on success, None otherwise
+        """
+
+        query = """
+            from(bucket: "{bucket}")
+            |> range(start: 1970-01-01T00:00:00Z)
+            |> filter(fn: (r) => r._measurement == "{meas}")
+            |> last()
+            |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
+        """.format(bucket=MEASUREMENT_BUCKET, meas=MEASUREMENT)
+        try:
+            tables = self._query_api.query(query)
+        except InfluxDBError as e:
+            return (e.message, None)
+        else:
+            values = tables.to_values(columns=["_time", "_field", "_value"])
+            df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
+            df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
+            return ("success",df.index[0])
+
+    def deleteMeasurements(self, start_time: datetime, stop_time: datetime) -> str:
+        """
+        This function deletes all the measurement data between the start and stop time.
+
+        :param start_time: earliest time of measurement to delete
+        :param stop_time: latest time of measurement to delete
+        
+        :return: error message on failure, None on success
+        """
+        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ") # format: YYYY-MM-DDTHH:MM:SSZ
+        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        predicate = '_measurement="%s"' % MEASUREMENT
+        try:
+            self._delete_api.delete(start, stop, predicate, bucket=MEASUREMENT_BUCKET)
+        except InfluxDBError as e:
+            return (e.message, None)
+        else:
+            return None
+
+data_client = DataClient()
