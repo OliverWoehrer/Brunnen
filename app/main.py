@@ -29,13 +29,17 @@ if __name__ == "__main__":
     url = influx_host+":"+str(influx_port)
     database.setup(url=url, token=token, organization=org)
 
-    # Initalize Flask App:
+    # Import Router Modules:
     from routes.app import app
     from routes.dashboard.dashboard import dashboard
-    app.register_blueprint(dashboard)
     from routes.settings.settings import settings
+    from routes.api.api import api
+
+    # Initalize Flask App:
+    # app.secret_key = "t0ps3cr3t"
+    app.register_blueprint(dashboard)
     app.register_blueprint(settings)
-    app.secret_key = "t0ps3cr3t"
+    app.register_blueprint(api)
 
     # Start App at Desired Port:
     port = config.readPort()
