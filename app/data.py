@@ -76,7 +76,7 @@ class InfluxDataClient():
         :param stop_time: latest time of measurement to include
         :param window_size: duration on how much time to average over
         
-        :return Tuple: (error_message: str, df: pd.DataFrame)
+        :return: Tuple(error_message: str, df: pd.DataFrame)
             error_message: "success" on success, errror message from database otherwise
             df: dataframe with the queried data on success, None otherwise
         """
@@ -112,7 +112,7 @@ class InfluxDataClient():
         This function querys the latest data available in water meaurements and returns its
         timestamp.
         
-        :return Tuple: (error_message: str, timestamp: datetime)
+        :return: Tuple(error_message: str, timestamp: datetime)
             error_message: "success" on success, errror message from database otherwise
             timestamp: holds the time of latest data on success, None otherwise
         """
@@ -195,7 +195,7 @@ class InfluxDataClient():
         :param start_time: earliest time of logs to include
         :param stop_time: latest time of logs to include
         
-        :return Tuple: (error_message: str, df: pd.DataFrame)
+        :return: Tuple(error_message: str, df: pd.DataFrame)
             error_message: "success" on success, errror message from database otherwise
             df: dataframe with the queried data on success, None otherwise
         """
@@ -283,7 +283,7 @@ class InfluxDataClient():
         :param start_time: earliest time of settings to include
         :param stop_time: latest time of settings to include
         
-        :return Tuple: (error_message: str, df: pd.DataFrame)
+        :return: Tuple(error_message: str, df: pd.DataFrame)
             error_message: "success" on success, errror message from database otherwise
             df: dataframe with the queried data on success, None otherwise
         """
