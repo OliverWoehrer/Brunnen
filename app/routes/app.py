@@ -1,12 +1,13 @@
 """
-This module implements the functions to handle routes of main app (web interface).
+This module implements the functions to handle main routes of app (web interface).
 """
 from flask import Flask, render_template, redirect, url_for
-from __main__ import app # app is initalized in main
+
+app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("index.html")
+    return redirect(url_for("dashboard"))
 
 @app.route("/dashboard", methods=["GET"])
 def dashboard():

@@ -20,9 +20,6 @@ from flask import Flask, request
 
 
 
-"""
-Start the RET-Application:
-"""
 if __name__ == "__main__":
     # Initalize Database Client:
     token = os.environ.get("INFLUXDB_TOKEN")
@@ -30,16 +27,14 @@ if __name__ == "__main__":
     influx_host = config.readInfluxHost()
     influx_port = config.readInfluxPort()
     url = influx_host+":"+str(influx_port)
-    database.init(url=url, token=token, organization=org)
+    database.setup(url=url, token=token, organization=org)
 
     # Initalize Flask App:
-    app = Flask(__name__, template_folder="templates", static_folder="static")
-    from routes import routes
+    from routes.app import app
     from routes.dashboard.dashboard import dashboard
     app.register_blueprint(dashboard)
     from routes.settings.settings import settings
     app.register_blueprint(settings)
-
 
     # Start App at Desired Port:
     port = config.readPort()
