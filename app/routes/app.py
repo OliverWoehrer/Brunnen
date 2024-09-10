@@ -31,4 +31,5 @@ def error(e):
     if isinstance(e, HTTPException): # handle call HTTP errors
         return render_template("special_pages/error.html", code=e.code, message=e.description), e.code
     else: # return unknown errors
+        # TODO: dont pass message for deployment!
         return render_template("special_pages/error.html", code=500, message=str(e)), 500
