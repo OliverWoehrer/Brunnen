@@ -35,6 +35,7 @@ if __name__ == "__main__":
     app.register_blueprint(dashboard)
     from routes.settings.settings import settings
     app.register_blueprint(settings)
+    app.secret_key = "t0ps3cr3t"
 
     # Start App at Desired Port:
     port = config.readPort()

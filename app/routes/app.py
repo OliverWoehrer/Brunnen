@@ -26,6 +26,10 @@ def update():
 def profile():
     return render_template("special_pages/login.html")
 
-@app.route("/error", methods=["GET"])
-def error():
-    return render_template("special_pages/error.html")
+@app.errorhandler(Exception)
+def error(e):
+    if isinstance(e, HTTPException): # handle call HTTP errors
+        flash(e.description)
+        return render_template("special_pages/error.html", code=e.code)
+    else:
+        return "Unknown Error"

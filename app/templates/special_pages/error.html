@@ -2,12 +2,32 @@
 
 {% set page_title = "Error" %}
 
+{% block style %}
+<style>
+.error-layout {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+}
+</style>
+{% endblock %}
+
 {% block main %}
-<div class="w3-large w3-center">
-    <h1>Error 404</h1>
-    <p>
-        Page not found
-    </p>
-    <a class="w3-button w3-round-xlarge color-primary" href="{{ url_for('index') }}">Back to Home</a>
+<div class="w3-large error-layout">
+    <img srcset="{{url_for('static',filename='logo-broken.png')}}" class="w3-padding w3-image" style="max-height: 30vh;">
+    <div class="w3-padding" style="display: inline-block; max-width: 600px;">
+        <h1>Error {{ code }}</h1>
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <p>
+            {{ messages[0] }}
+        </p>
+        {% endif %}
+        {% endwith %}
+        <a class="w3-button w3-round-xlarge color-primary" href="{{ url_for('index') }}">Back to Home</a>
+    </div>
 </div>
 {% endblock %}
