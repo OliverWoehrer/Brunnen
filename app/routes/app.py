@@ -31,5 +31,5 @@ def error(e):
     if isinstance(e, HTTPException): # handle call HTTP errors
         flash(e.description)
         return render_template("special_pages/error.html", code=e.code)
-    else:
-        return "Unknown Error"
+    else: # return unknown errors
+        return e
