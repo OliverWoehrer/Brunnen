@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 MEASUREMENT_BUCKET = "Brunnen"
-MEASUREMENT = "test"
+MEASUREMENT = "water"
 LOGS = "logs"
 SETTINGS = "settings"
 
@@ -100,6 +100,8 @@ class InfluxDataClient():
         except InfluxDBError as e:
             return (e.message, None)
         else:
+            if not tables:
+                return ("Did not find measurements", pd.DataFrame())
             values = tables.to_values(columns=["_time", "_field", "_value"])
             df = pd.DataFrame(values, columns=["Timestamp", "Field", "Value"])
             df = df.pivot_table(index="Timestamp", columns="Field", values="Value")
@@ -129,15 +131,14 @@ class InfluxDataClient():
         except InfluxDBError as e:
             return (e.message, None)
         else:
+            if not tables:
+                return ("Did not find measurements", pd.DataFrame())
             values = tables.to_values(columns=["_time", "_field", "_value"])
-            if values:
-                df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
-                df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
-                df.index = df.index.to_pydatetime() # convert to datetime format
-                df.index = df.index.tz_convert(None) # remove time zone info
-                return ("success", df.index[0].to_pydatetime())
-            else:
-                return ("Did not find measurements", None)
+            df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
+            df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
+            df.index = df.index.to_pydatetime() # convert to datetime format
+            df.index = df.index.tz_convert(None) # remove time zone info
+            return ("success", df.index[0].to_pydatetime())
 
     def deleteMeasurements(self, start_time: datetime, stop_time: datetime) -> str:
         """
@@ -212,6 +213,8 @@ class InfluxDataClient():
         except InfluxDBError as e:
             return (e.message, None)
         else:
+            if not tables:
+                return ("Did not find logs", pd.DataFrame())
             values = tables.to_values(columns=["_time", "_value", "level"])
             df = pd.DataFrame(values, columns=["Timestamp", "message", "level"])
             df = df.set_index("Timestamp")
@@ -275,31 +278,37 @@ class InfluxDataClient():
         else:
             return None
 
-    def querySettings(self, start_time: datetime, stop_time: datetime) -> (str,pd.DataFrame):
+    def querySettings(self, stop_time: datetime = None) -> (str,pd.DataFrame):
         """
         This function querys the settings between the start and stop time. This can be slow, when
         quering long time periods.
 
-        :param start_time: earliest time of settings to include
-        :param stop_time: latest time of settings to include
+        :param stop_time: time from which to return the latest settings at that point
         
         :return: Tuple(error_message: str, df: pd.DataFrame)
             error_message: "success" on success, errror message from database otherwise
             df: dataframe with the queried data on success, None otherwise
         """
-        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        if stop_time is None:
+            stop_string = ""
+        else:
+            stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+            stop_string = ", stop {stop}".format(stop=stop)
+        
         query = """
             from(bucket: "{bucket}")
-            |> range(start: {start}, stop: {stop})
+            |> range(start: 0{stop_string})
             |> filter(fn: (r) => r._measurement == "{meas}")
-        """.format(bucket=MEASUREMENT_BUCKET, start=start, stop=stop, meas=SETTINGS)
+            |> last()
+        """.format(bucket=MEASUREMENT_BUCKET, stop_string=stop_string, meas=SETTINGS)
 
         try:
             tables = self._query_api.query(query)
         except InfluxDBError as e:
             return (e.message, None)
         else:
+            if not tables:
+                return ("Did not find settings", pd.DataFrame())
             values = tables.to_values(columns=["_time", "_field", "_value"])
             df = pd.DataFrame(values, columns=["Timestamp", "Field", "Value"])
             df = df.pivot_table(index="Timestamp", columns="Field", values="Value", aggfunc=lambda v: ','.join(v))
