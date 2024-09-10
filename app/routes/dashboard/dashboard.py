@@ -1,5 +1,5 @@
 """
-This module implements the functions to handle routes of main app (web interface).
+This module implements the functions to handle routes of /dashboard.
 """
 from flask import Blueprint, render_template, redirect, url_for
 

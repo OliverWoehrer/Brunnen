@@ -1,5 +1,5 @@
 """
-This module implements the functions to handle routes of settings (web interface).
+This module implements the functions to handle routes of /settings.
 """
 from flask import Blueprint, render_template, redirect, url_for
 

@@ -1,5 +1,5 @@
 """
-This module implements the functions to handle main routes of app (web interface).
+This module implements the functions to handle main routes of "/".
 """
 from flask import Flask, render_template, redirect, url_for, flash
 from werkzeug.exceptions import HTTPException
