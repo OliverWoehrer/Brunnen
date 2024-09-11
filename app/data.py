@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 MEASUREMENT_BUCKET = "Brunnen"
-MEASUREMENT = "water"
+DATA = "water"
 LOGS = "logs"
 SETTINGS = "settings"
 
@@ -60,7 +60,7 @@ class InfluxDataClient():
             return "Dataframe is missing 'level' field"
         try:
             rec = data[["flow", "pressure", "level"]] # only use defined field columns
-            self._write_api.write(bucket=MEASUREMENT_BUCKET, record=rec, data_frame_measurement_name=MEASUREMENT)
+            self._write_api.write(bucket=MEASUREMENT_BUCKET, record=rec, data_frame_measurement_name=DATA)
         except InfluxDBError as e:
             return e.message
         else:
@@ -93,7 +93,7 @@ class InfluxDataClient():
             |> filter(fn: (r) => r._measurement == "{meas}")
             {agg}
             |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
-        """.format(bucket=MEASUREMENT_BUCKET, start=start, stop=stop, meas=MEASUREMENT, agg=aggregate_string)
+        """.format(bucket=MEASUREMENT_BUCKET, start=start, stop=stop, meas=DATA, agg=aggregate_string)
 
         try:
             tables = self._query_api.query(query)
@@ -125,7 +125,7 @@ class InfluxDataClient():
             |> filter(fn: (r) => r._measurement == "{meas}")
             |> last()
             |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
-        """.format(bucket=MEASUREMENT_BUCKET, meas=MEASUREMENT)
+        """.format(bucket=MEASUREMENT_BUCKET, meas=DATA)
         try:
             tables = self._query_api.query(query)
         except InfluxDBError as e:
@@ -151,7 +151,7 @@ class InfluxDataClient():
         """
         start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ") # format: YYYY-MM-DDTHH:MM:SSZ
         stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        predicate = '_measurement="%s"' % MEASUREMENT
+        predicate = '_measurement="%s"' % DATA
         try:
             self._delete_api.delete(start, stop, predicate, bucket=MEASUREMENT_BUCKET)
         except InfluxDBError as e:
