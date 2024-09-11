@@ -36,28 +36,28 @@ class TestDataClient(unittest.TestCase):
         ]
         self.settingsDF = pd.DataFrame(self.settings, index=self.timestamps) #columns=["message", "level"]
 
-    def test_insertMeasurements(self):
-        self.assertIsNone(db.insertMeasurements(self.df))
-        self.assertIsNotNone(db.insertMeasurements(pd.DataFrame()))
+    def test_insertData(self):
+        self.assertIsNone(db.insertData(self.df))
+        self.assertIsNotNone(db.insertData(pd.DataFrame()))
 
-    def test_queryLatestMeasurement(self):
-        self.assertEqual(db.queryLatestMeasurement(), ("success",self.timestamps[-1]))
+    def test_queryLatestData(self):
+        self.assertEqual(db.queryLatestData(), ("success",self.timestamps[-1]))
     
-    def test_queryMeasurements(self):
-        (msg,df) = db.queryMeasurements(start_time=self.timestamps[0], stop_time=self.timestamps[-1])
+    def test_queryData(self):
+        (msg,df) = db.queryData(start_time=self.timestamps[0], stop_time=self.timestamps[-1])
         self.assertEqual(msg,"success")
 
-    def test_deleteMeasurements(self):
-        db.insertMeasurements(self.df)
-        self.assertIsNone(db.deleteMeasurements(start_time=self.timestamps[-2], stop_time=self.timestamps[-1]))
-        self.assertEqual(db.queryLatestMeasurement(), ("success",self.timestamps[-3]))
+    def test_deleteData(self):
+        db.insertData(self.df)
+        self.assertIsNone(db.deleteData(start_time=self.timestamps[-2], stop_time=self.timestamps[-1]))
+        self.assertEqual(db.queryLatestData(), ("success",self.timestamps[-3]))
 
     def test_insertLogs(self):
         self.assertIsNone(db.insertLogs(self.logsDF))
         self.assertIsNotNone(db.insertLogs(pd.DataFrame()))
 
     def test_queryLogs(self):
-        (msg,df) = db.queryMeasurements(start_time=self.timestamps[0], stop_time=self.timestamps[-1])
+        (msg,df) = db.queryData(start_time=self.timestamps[0], stop_time=self.timestamps[-1])
         self.assertEqual(msg,"success")
 
     def test_deleteLogs(self):

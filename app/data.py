@@ -34,7 +34,7 @@ class InfluxDataClient():
         if not self._client.ping():
             raise RuntimeError("Failed to initialize database client.")
 
-    def insertMeasurements(self, data: pd.DataFrame) -> str:
+    def insertData(self, data: pd.DataFrame) -> str:
         """
         This function takes the given data and inserts it into the measurements. The index column
         of the dataframe needs to be timestamps (data.index must be pd.DatetimeIndex). The fields
@@ -66,7 +66,7 @@ class InfluxDataClient():
         else:
             return None
 
-    def queryMeasurements(self, start_time: datetime, stop_time: datetime, window_size: timedelta = None) -> (str,pd.DataFrame):
+    def queryData(self, start_time: datetime, stop_time: datetime, window_size: timedelta = None) -> (str,pd.DataFrame):
         """
         This function querys the measurement data between the start and stop time. To reduce data
         size, it aggregates multiple values inside a windows of given size. This means it takes the
@@ -109,7 +109,7 @@ class InfluxDataClient():
             df.index = df.index.tz_convert(None) # remove time zone info
             return ("success", df)
 
-    def queryLatestMeasurement(self) -> (str,datetime):
+    def queryLatestData(self) -> (str,datetime):
         """
         This function querys the latest data available in water meaurements and returns its
         timestamp.
@@ -140,7 +140,7 @@ class InfluxDataClient():
             df.index = df.index.tz_convert(None) # remove time zone info
             return ("success", df.index[0].to_pydatetime())
 
-    def deleteMeasurements(self, start_time: datetime, stop_time: datetime) -> str:
+    def deleteData(self, start_time: datetime, stop_time: datetime) -> str:
         """
         This function deletes all the measurement data between the start and stop time.
 
@@ -247,10 +247,10 @@ class InfluxDataClient():
         of the dataframe needs to be timestamps (datetime). Allowed columns are: intervals,
         rain_threshold, update_periods, version.
         Example dataframe:
-                               rain_threshold        version    etc.
+                               rain_threshold       software    etc.
         2024-09-05 00:05:23  {"threshold":50}            NaN    ...
-        2024-09-05 00:05:24  {"threshold":40}            NaN    ...
-        2024-09-05 00:05:25  {"threshold":30}  {"version":1}    ...
+        2024-09-05 00:05:24  {"threshold":40}  {"version":1}    ...
+        2024-09-05 00:05:25  {"threshold":30}            NaN    ...
         2024-09-05 00:05:26               NaN  {"version":2}    ...
 
         :param settings: dataframe holding the settings
@@ -260,16 +260,18 @@ class InfluxDataClient():
         columns = []
         if not isinstance(settings.index, pd.DatetimeIndex):
             return "Dataframe index column not a datetime type"
+        if "exchange_periods" in settings:
+            columns.append("exchange_periods")
         if "intervals" in settings:
             columns.append("intervals")
+        if "pump" in settings:
+            columns.append("pump")
         if "rain_threshold" in settings:
             columns.append("rain_threshold")
-        if "update_periods" in settings:
-            columns.append("update_periods")
-        if "version" in settings:
-            columns.append("version")
+        if "software" in settings:
+            columns.append("software")
         if not columns:
-            return "Dataframe missing at least on setting as column, e.g. rain_threshold"
+            return "Dataframe missing at least on setting as column"
         try:
             rec = settings[columns] # only use defined and available field columns
             self._write_api.write(bucket=MEASUREMENT_BUCKET, record=rec, data_frame_measurement_name=SETTINGS)
