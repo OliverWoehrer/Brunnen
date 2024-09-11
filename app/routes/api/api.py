@@ -46,26 +46,29 @@ def brunnen():
         raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
 
     if request.method == "GET":
-        # TODO: change response to match other methods
         # Read Data Data:
-        total_period = stop - start
-        aggregation_period = timedelta(seconds = total_period.total_seconds() // 100)
-        (msg,df) = db.queryData(start_time=start, stop_time=stop, window_size=aggregation_period)
-        if df is None:
-            raise BadGateway(("Problem while reading data: "+msg))
-        if df.empty:
-            return {}
+        # total_period = stop - start
+        # aggregation_period = timedelta(seconds = total_period.total_seconds() // 100)
+        # (msg,df) = db.queryData(start_time=start, stop_time=stop, window_size=aggregation_period)
+        # if df is None:
+        #     raise BadGateway(("Problem while reading data: "+msg))
+        # if df.empty:
+        #     return {}
         
         # Return JSON Response:
+        (msg,df) = db.querySettings()
+        if df is None:
+            raise BadGateway(("Problem while reading settings for response: "+str(msg)))
         payload = {}
+        payload["settings"] = {}
         data_string = df.to_json(orient="split")
         data_json = json.loads(data_string)
-        payload["index"] = data_json["index"]
-        for column in df.columns:
-            column_string = df[column].to_json(orient="split")
-            column_json = json.loads(column_string)
-            payload[column] = column_json["data"]
-        return payload
+        for setting in df.columns:
+            idx = df[setting].last_valid_index()
+            last = df[setting][idx]
+            payload["settings"][setting] = last
+
+        return payload, 200
 
     if request.method == "POST":
         # Parse Request Body:
@@ -143,15 +146,26 @@ def brunnen():
         return payload, 200
 
     if request.method == "DELETE":
-        # Drop Data:
-        msg = db.deleteData(start_time=start, stop_time=stop)
-        if msg:
-            raise BadGateway(("Problem while deleting data: "+str(msg)))
+        # Parse Request Body:
+        body = request.data.decode("utf-8")
+        payload = json.loads(body)
+        if "select" not in payload:
+            raise BadRequest("Missing selected keys. Dont know what to delete")
+
+        if "data" in payload["select"]: # drop data
+            msg = db.deleteData(start_time=start, stop_time=stop)
+            if msg:
+                raise BadGateway(("Problem while deleting data: "+str(msg)))
         
-        # Drop Logs:
-        msg = db.deleteLogs(start_time=start, stop_time=stop)
-        if msg:
-            raise BadGateway(("Problem while deleting logs: "+str(msg)))
+        if "logs" in payload["select"]: # drop logs:
+            msg = db.deleteLogs(start_time=start, stop_time=stop)
+            if msg:
+                raise BadGateway(("Problem while deleting logs: "+str(msg)))
+        
+        if "settings" in payload["select"]:
+            msg = db.deleteSettings(start_time=start, stop_time=stop)
+            if msg:
+                raise BadGateway(("Problem while deleting settings: "+str(msg)))
 
         # Return JSON Response:
         (msg,df) = db.querySettings()
@@ -166,7 +180,7 @@ def brunnen():
             last = df[setting][idx]
             payload["settings"][setting] = last
 
-        return "ok", 200
+        return payload, 200
 
     else:
         raise MethodNotAllowed(valid_methods=["GET","POST","DELETE"])
