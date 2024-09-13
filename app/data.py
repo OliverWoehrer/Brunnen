@@ -106,7 +106,6 @@ class InfluxDataClient():
             df = pd.DataFrame(values, columns=["Timestamp", "Field", "Value"])
             df = df.pivot_table(index="Timestamp", columns="Field", values="Value")
             df.index = df.index.to_pydatetime() # convert to datetime format
-            df.index = df.index.tz_convert(None) # remove time zone info
             return ("success", df)
 
     def queryLatestData(self) -> (str,datetime):
@@ -137,7 +136,6 @@ class InfluxDataClient():
             df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
             df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
             df.index = df.index.to_pydatetime() # convert to datetime format
-            df.index = df.index.tz_convert(None) # remove time zone info
             return ("success", df.index[0].to_pydatetime())
 
     def deleteData(self, start_time: datetime, stop_time: datetime) -> str:
@@ -219,7 +217,6 @@ class InfluxDataClient():
             df = pd.DataFrame(values, columns=["Timestamp", "message", "level"])
             df = df.set_index("Timestamp")
             df.index = df.index.to_pydatetime() # convert to datetime format
-            df.index = df.index.tz_convert(None) # remove time zone info
             return ("success", df)
 
     def deleteLogs(self, start_time: datetime, stop_time: datetime) -> str:
@@ -244,14 +241,13 @@ class InfluxDataClient():
     def insertSettings(self, settings: pd.DataFrame) -> str:
         """
         This function takes the given settings and inserts them into the settings. The index column
-        of the dataframe needs to be timestamps (datetime). Allowed columns are: intervals,
-        rain_threshold, update_periods, version.
+        of the dataframe needs to be timestamps (datetime).
         Example dataframe:
-                               rain_threshold       software    etc.
-        2024-09-05 00:05:23  {"threshold":50}            NaN    ...
-        2024-09-05 00:05:24  {"threshold":40}  {"version":1}    ...
-        2024-09-05 00:05:25  {"threshold":30}            NaN    ...
-        2024-09-05 00:05:26               NaN  {"version":2}    ...
+                                             threshold       software    etc.
+        2024-09-05 00:05:23  {"rain":50, "marker":200}            NaN    ...
+        2024-09-05 00:05:24  {"rain":40, "marker":200}  {"version":1}    ...
+        2024-09-05 00:05:25  {"rain":30, "marker":200}            NaN    ...
+        2024-09-05 00:05:26                        NaN  {"version":2}    ...
 
         :param settings: dataframe holding the settings
 
@@ -266,8 +262,8 @@ class InfluxDataClient():
             columns.append("intervals")
         if "pump" in settings:
             columns.append("pump")
-        if "rain_threshold" in settings:
-            columns.append("rain_threshold")
+        if "thresholds" in settings:
+            columns.append("thresholds")
         if "software" in settings:
             columns.append("software")
         if not columns:
@@ -315,7 +311,6 @@ class InfluxDataClient():
             df = pd.DataFrame(values, columns=["Timestamp", "Field", "Value"])
             df = df.pivot_table(index="Timestamp", columns="Field", values="Value", aggfunc=lambda v: ','.join(v))
             df.index = df.index.to_pydatetime() # convert to datetime format
-            df.index = df.index.tz_convert(None) # remove time zone info
             return ("success", df)
 
     def deleteSettings(self, start_time: datetime, stop_time: datetime) -> str:
