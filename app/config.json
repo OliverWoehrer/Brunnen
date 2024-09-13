@@ -4,5 +4,28 @@
         "host": "http://localhost",
         "port": 8086,
         "organization": "Private"
+    },
+    "brunnen": {
+        "settings": {
+            "exchange_periods": {
+                "long": 3600,
+                "medium": 60,
+                "short": 5,
+                "mode": "medium"
+            },
+            "intervals": {
+                "intervals": []
+            },
+            "pump": {
+                "state": false
+            },
+            "software": {
+                "version": 3
+            },
+            "threshold": {
+                "rain": 50,
+                "marker": 200
+            }
+        }
     }
 }

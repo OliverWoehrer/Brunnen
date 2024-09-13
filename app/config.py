@@ -39,7 +39,19 @@ def readInfluxOrganization() -> str:
         raise ValueError("No organization in influx")
     return influx.get("organization")
 
-
+def readBrunnenSettings(setting: str = None) -> dict:
+    config = _loadConfig()
+    if "brunnen" not in config:
+        raise ValueError("No brunnen in config")
+    brunnen = config.get("brunnen")
+    if "settings" not in brunnen:
+        raise ValueError("No default settings in brunnen")
+    settings = brunnen.get("settings")
+    if setting is None:
+        return settings
+    if setting not in settings:
+        raise ValueError("No setting named"+setting)
+    return settings.get(setting)
 
 
 
