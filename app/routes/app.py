@@ -6,14 +6,7 @@ from werkzeug.exceptions import HTTPException
 from datetime import datetime, timezone
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
-last_request_time = datetime.now(timezone.utc).replace(microsecond=0)
 request_count = 0
-
-@app.before_request
-def log_last_request():
-    global last_request_time, request_count
-    last_request_time = datetime.now(timezone.utc).replace(microsecond=0)
-    request_count = request_count + 1
 
 @app.route("/", methods=["GET"])
 def index():
@@ -43,8 +36,13 @@ def error(e):
         # TODO: dont pass message for deployment!
         return render_template("special_pages/error.html", code=500, message=str(e)), 500
 
+@app.after_request
+def log_request(response):
+    global request_count
+    request_count = request_count + 1
+    return response
+
 @app.context_processor
 def inject_request_counter():
     global request_count
-    timestamp = last_request_time.strftime("%H:%M:%S")
-    return dict(last_req=timestamp)
+    return dict(debug=request_count)
