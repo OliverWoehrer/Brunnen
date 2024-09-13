@@ -72,13 +72,14 @@ This bucket holds all data of the pump device. The following measurements are re
 	"state": Boolean
 }
 
-[Rain Threshold]
-{
-	"rain_threshold": Integer(millimeter)
-}
-
 [Software]
 {
     "version": Integer(<number>)
+}
+
+[Thresholds]
+{
+	"rain": Integer(millimeter)
+	"marker": Integer(centimeter)
 }
 ~~~
