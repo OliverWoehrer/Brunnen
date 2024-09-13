@@ -16,23 +16,26 @@
 <body>
     <div class="layout color-background">
         <!-- Navigation Bar -->
-        <nav class="w3-card w3-white">
-            <a href="{{ url_for('dashboard') }}"class="w3-bar-item w3-button {{ dashboard_selector }}">
+        <nav class="w3-card w3-white w3-border">
+            <a href="{{ url_for('dashboard') }}" class="w3-button {{ dashboard_selector }}">
                 <span class="material-symbols-outlined">dashboard</span><br>
                 Dashboard
             </a>
-            <a href="{{ url_for('settings') }}"class="w3-bar-item w3-button {{ settings_selector }}">
+            <a href="{{ url_for('settings') }}" class="w3-button {{ settings_selector }}">
                 <span class="material-symbols-outlined">settings</span><br>
                 Settings
             </a>
-            <a href="{{ url_for('update') }}" class="w3-bar-item w3-button {{ update_selector }}"> 
+            <a href="{{ url_for('update') }}" class="w3-button {{ update_selector }}"> 
                 <span class="material-symbols-outlined">upgrade</span><br>
                 Update
             </a>
-            <a href="{{ url_for('profile') }}"class="w3-bar-item w3-button {{ profile_selector }}">
+            <a href="{{ url_for('profile') }}" class="w3-button {{ profile_selector }}">
                 <span class="material-symbols-outlined">person</span><br>
                 Profile
             </a>
+            <span class="w3-center">
+                {{ last_req }}
+            </span>
         </nav>
         <!-- Main Content -->
         <main>

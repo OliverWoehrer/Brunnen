@@ -21,6 +21,13 @@
     border-left: 6px solid white!important;
     border-bottom: none;
 }
+.layout > nav > a:hover {
+    color: #000000!important;
+    background-color:#D1E7B7!important;
+}
+.layout > nav > span:last-child {
+    margin-top: auto;
+}
 .layout > nav > .selected {
     background-color:#D1E7B7!important;
     border-left-color: #8BC34A!important;
@@ -45,6 +52,9 @@
         vertical-align: middle;
         border-bottom: 6px solid white!important;
         border-left: none!important;
+    }
+    .layout > nav > span:last-child {
+        display: none;
     }
     .layout > nav > .selected {
         border-bottom-color: #8BC34A!important;
