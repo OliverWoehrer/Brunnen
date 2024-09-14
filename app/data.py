@@ -6,7 +6,8 @@ import influxdb_client
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.exceptions import InfluxDBError
 from influxdb_client.client.write_api import SYNCHRONOUS
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import json
 import pandas as pd
 
 MEASUREMENT_BUCKET = "Brunnen"
@@ -238,80 +239,79 @@ class InfluxDataClient():
         else:
             return None
 
-    def insertSettings(self, settings: pd.DataFrame) -> str:
+    def insertSettings(self, settings: dict) -> str:
         """
-        This function takes the given settings and inserts them into the settings. The index column
-        of the dataframe needs to be timestamps (datetime).
-        Example dataframe:
-                                             threshold       software    etc.
-        2024-09-05 00:05:23  {"rain":50, "marker":200}            NaN    ...
-        2024-09-05 00:05:24  {"rain":40, "marker":200}  {"version":1}    ...
-        2024-09-05 00:05:25  {"rain":30, "marker":200}            NaN    ...
-        2024-09-05 00:05:26                        NaN  {"version":2}    ...
+        This function takes the given settings and inserts them into the database. The timestamps
+        of the values will be the current time.
+        Example json:
+        {
+            "pump": {
+                "state": false
+            },
+            "software": {
+                "version": 4
+            }
+        }
 
-        :param settings: dataframe holding the settings
+        :param settings: json holding the settings
 
         :return: Error message on failure, None on success
         """
-        columns = []
-        if not isinstance(settings.index, pd.DatetimeIndex):
-            return "Dataframe index column not a datetime type"
-        if "exchange_periods" in settings:
-            columns.append("exchange_periods")
-        if "intervals" in settings:
-            columns.append("intervals")
-        if "pump" in settings:
-            columns.append("pump")
-        if "thresholds" in settings:
-            columns.append("thresholds")
-        if "software" in settings:
-            columns.append("software")
-        if not columns:
-            return "Dataframe missing at least on setting as column"
+        data = {}
+        cols = []
+        SUPPORTED_SETTINGS = ["exchange_periods","intervals","pump","thresholds","software"]
+        for key in settings:
+            if key in SUPPORTED_SETTINGS: # check if each setting is known
+                data[key] = json.dumps(settings[key])
+                cols.append(key)
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+        df = pd.DataFrame(data, index=[timestamp], columns=cols)
+
         try:
-            rec = settings[columns] # only use defined and available field columns
-            self._write_api.write(bucket=MEASUREMENT_BUCKET, record=rec, data_frame_measurement_name=SETTINGS)
+            self._write_api.write(bucket=MEASUREMENT_BUCKET, record=df, data_frame_measurement_name=SETTINGS)
         except InfluxDBError as e:
             return e.message
         else:
             return None
 
-    def querySettings(self, stop_time: datetime = None) -> (str,pd.DataFrame):
+    def querySettings(self, start_time: datetime = None) -> (str,dict):
         """
-        This function querys the settings between the start and stop time. This can be slow, when
-        quering long time periods.
+        This function querys the settings updated since start_time. If no start time is given,
+        all settings (not only updated ones) are returned. Settings (all or only updated) get
+        returned in their latest state, without a timestamp. If no settings were updated since
+        start_time an empty json (json = {}) is returned.
 
-        :param stop_time: time from which to return the latest settings at that point
+        :param start_time: updated since this point in time or None to return all settings 
         
-        :return: Tuple(error_message: str, df: pd.DataFrame)
+        :return: Tuple(error_message: str, settings: json)
             error_message: "success" on success, errror message from database otherwise
-            df: dataframe with the queried data on success, None otherwise
+            settings: json with the queried settings on success, None otherwise
         """
-        if stop_time is None:
-            stop_string = ""
+        if start_time is None:
+            filter_string = "|> last()"
+            start_time = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc)
         else:
-            stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-            stop_string = ", stop {stop}".format(stop=stop)
-        
+            filter_string = ""
         query = """
             from(bucket: "{bucket}")
-            |> range(start: 0{stop_string})
+            |> range(start: {start})
             |> filter(fn: (r) => r._measurement == "{meas}")
-            |> last()
-        """.format(bucket=MEASUREMENT_BUCKET, stop_string=stop_string, meas=SETTINGS)
+            {filter}
+        """.format(bucket=MEASUREMENT_BUCKET, start=start_time.strftime("%Y-%m-%dT%H:%M:%SZ"), meas=SETTINGS, filter=filter_string)
 
         try:
             tables = self._query_api.query(query)
         except InfluxDBError as e:
-            return (e.message, None)
-        else:
-            if not tables:
-                return ("Did not find settings", pd.DataFrame())
-            values = tables.to_values(columns=["_time", "_field", "_value"])
-            df = pd.DataFrame(values, columns=["Timestamp", "Field", "Value"])
-            df = df.pivot_table(index="Timestamp", columns="Field", values="Value", aggfunc=lambda v: ','.join(v))
-            df.index = df.index.to_pydatetime() # convert to datetime format
-            return ("success", df)
+            return (e.message, None)    
+        if not tables:
+            return ("Did not find settings", {})
+        
+        values = tables.to_values(columns=["_time", "_field", "_value"]) # value[0] = time, value[1] = field, value[2] = value
+        settings = {}
+        for value in values:
+            if value[0] >= start_time:
+                settings[value[1]] = json.loads(value[2])
+        return ("success", settings)
 
     def deleteSettings(self, start_time: datetime, stop_time: datetime) -> str:
         """

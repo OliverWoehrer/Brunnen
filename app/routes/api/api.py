@@ -19,7 +19,7 @@ def brunnen():
     global last_exchange
     # Check Access Token:
     # TODO: check if secret token is present
-    # (msg,df) = db.querySettings() # read latest settings
+    # (msg,df) = db.queryDevices() # read devices settings
     # if df is None:
     #     raise BadGateway(("Problem while reading settings: "+msg))
     # idx = df["devices"].last_valid_index()
@@ -51,14 +51,6 @@ def brunnen():
         raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
 
     if request.method == "GET":
-        # Read Data Data:
-        # total_period = stop - start
-        # aggregation_period = timedelta(seconds = total_period.total_seconds() // 100)
-        # (msg,df) = db.queryData(start_time=start, stop_time=stop, window_size=aggregation_period)
-        # if df is None:
-        #     raise BadGateway(("Problem while reading data: "+msg))
-        # if df.empty:
-        #     return {}
         pass
 
     if request.method == "POST":
@@ -104,20 +96,14 @@ def brunnen():
                 raise BadGateway(("Problem while inserting logs: "+str(msg)))
         
         if "settings" in payload:
-            settings = payload["settings"]
-            # Initalize Dataframe:
-            timestamp = datetime.now(timezone.utc).replace(microsecond=0)
-            data = {}
-            cols = []
-            WRITEABLE_SETTINGS = ["pump"]
-            for row in settings: # check each setting if writeable
-                if row in WRITEABLE_SETTINGS:
-                    data[row] = json.dumps(settings[row])
-                    cols.append(row)
-            df = pd.DataFrame(data, index=[timestamp], columns=cols)
-
+            settings = {}
+            WRITEABLE_SETTINGS = ["pump"] # list settings writeable by this endpoint
+            for key in payload["settings"]: # check each setting if writeable
+                if key in WRITEABLE_SETTINGS:
+                    settings[key] = payload["settings"][key]
+            
             # Write Settings:
-            msg = db.insertSettings(settings=df)
+            msg = db.insertSettings(settings=settings)
             if msg:
                 raise BadGateway(("Problem while inserting settings: "+str(msg)))
 
@@ -144,17 +130,11 @@ def brunnen():
                 raise BadGateway(("Problem while deleting settings: "+str(msg)))
 
     # Get Settings JSON:
-    (msg,df) = db.querySettings()
-    if df is None:
-        raise BadGateway(("Problem while reading settings for response: "+str(msg)))
-    if df.empty: # no settings found, use default config
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+str(msg)))
+    if not settings: # no settings found, use default config
         settings = config.readBrunnenSettings(None)
-    else: # build json from dataframe
-        settings = {}
-        for column in df.columns:
-            idx = df[column].last_valid_index()
-            last = df[column][idx]
-            settings[column] = json.loads(last)
 
     # Update Exchange Period (Ready State):
     exchange_periods = settings.get("exchange_periods", config.readBrunnenSettings("exchange_periods"))
@@ -173,23 +153,15 @@ def brunnen():
     
     # Write Settings:
     if old_exchange_mode != exchange_periods["mode"]:
-        data = { "exchange_periods": json.dumps(exchange_periods) }
-        timestamp = datetime.now(timezone.utc).replace(microsecond=0)
-        df = pd.DataFrame(data, index=[timestamp], columns=["exchange_periods"])
-        msg = db.insertSettings(settings=df)
+        data = { "exchange_periods": exchange_periods }
+        msg = db.insertSettings(settings=data)
         if msg:
             raise BadGateway(("Problem while inserting settings: "+str(msg)))
 
     # Return Updated Settings as JSON Response:
-    (msg,df) = db.querySettings()
-    if df is None:
+    (msg,settings) = db.querySettings(start_time=last_exchange)
+    if settings is None:
         raise BadGateway(("Problem while reading settings for response: "+str(msg)))
-    settings = {}
-    for column in df.columns:
-        idx = df[column].last_valid_index()
-        if idx >= last_exchange: # add only updated settings (since last exchange)
-            last = df[column][idx]
-            settings[column] = last
     last_exchange = datetime.now(timezone.utc).replace(microsecond=0)
-    payload = { "settings": settings }
+    payload = {} if not settings else { "settings": settings }
     return payload, 200
