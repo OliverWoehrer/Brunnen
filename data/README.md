@@ -50,16 +50,14 @@ This bucket holds all data of the pump device. The following measurements are re
 | Field | `software` | `String(JSON)` | Read |
 
 ~~~
-[Exchange Periods]
-{
+"exchange_periods": {
     "long": Integer(<seconds>),
     "medium": Integer(<seconds>),
     "short": Integer(<seconds>),
     "mode": String(<"long"|"medium"|"short">)
 }
 
-[Intervals]
-{
+"intervals": {
 	"intervals": [
         { "start":String(<HH:MM:SS>), "stop":String(<HH:MM:SS>), "wdays":Integer(<mask>) },
     	{ "start":String(<HH:MM:SS>), "stop":String(<HH:MM:SS>), "wdays":Integer(<mask>) },
@@ -67,18 +65,15 @@ This bucket holds all data of the pump device. The following measurements are re
 	]
 }
 
-[Pump]
-{
+"pump": {
 	"state": Boolean
 }
 
-[Software]
-{
+"software": {
     "version": Integer(<number>)
 }
 
-[Thresholds]
-{
+"thresholds": {
 	"rain": Integer(millimeter)
 	"marker": Integer(centimeter)
 }
