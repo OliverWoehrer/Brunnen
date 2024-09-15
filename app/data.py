@@ -14,6 +14,8 @@ MEASUREMENT_BUCKET = "Brunnen"
 DATA = "water"
 LOGS = "logs"
 SETTINGS = "settings"
+CREDENTIALS_BUCKET = "Credentials"
+USERS = "users"
 
 class InfluxDataClient():
     def __init__(self):
@@ -27,13 +29,24 @@ class InfluxDataClient():
         :param token: influx access token (keep secret)
         :param organization: organization of the database
         """
-
+        # Initalitze Influx Client:
         self._client = influxdb_client.InfluxDBClient(url=url, token=token, org=organization)
+        if not self._client.ping():
+            raise RuntimeError("Failed to initialize database client. Could not reach database server.")
+        
+        # Initalize API Objects:
+        self._buckets_api = self._client.buckets_api()
         self._write_api = self._client.write_api(write_options=SYNCHRONOUS)
         self._query_api = self._client.query_api()
         self._delete_api = self._client.delete_api()
-        if not self._client.ping():
-            raise RuntimeError("Failed to initialize database client.")
+        
+        # Check For Required Database Buckets:
+        bucket = self._buckets_api.find_bucket_by_name(MEASUREMENT_BUCKET)
+        if not bucket:
+            self._buckets_api.create_bucket(bucket_name=MEASUREMENT_BUCKET, org=organization)
+        bucket = self._buckets_api.find_bucket_by_name(CREDENTIALS_BUCKET)
+        if not bucket:
+            self._buckets_api.create_bucket(bucket_name=CREDENTIALS_BUCKET, org=organization)
 
     def insertData(self, data: pd.DataFrame) -> str:
         """
@@ -276,10 +289,11 @@ class InfluxDataClient():
 
     def querySettings(self, start_time: datetime = None) -> (str,dict):
         """
-        This function querys the settings updated since start_time. If no start time is given,
-        all settings (not only updated ones) are returned. Settings (all or only updated) get
-        returned in their latest state, without a timestamp. If no settings were updated since
-        start_time an empty json (json = {}) is returned.
+        This function querys the settings updated since start_time. Updates with the same time as
+        start_time are not included. If no settings were updated since start_time an empty json
+        (json = {}) is returned. If no start time is given, all settings (not only updated ones)
+        are returned. Settings (all or only updated) get returned in their latest state, without a
+        timestamp. 
 
         :param start_time: updated since this point in time or None to return all settings 
         
@@ -332,6 +346,102 @@ class InfluxDataClient():
         else:
             return None
 
+    def insertUser(self, user: dict) -> str:
+        """
+        This function takes the given user and inserts it into the database. Make sure to the token
+        is hashed(!). Do not store credentials in clear text. The timestamps of the database entry
+        will be the current time.
+        Example json:
+        {
+            "username": username,
+            "group": group,
+            "token": hashed_token
+        }
 
+        :param user: json holding the user data
+
+        :return: Error message on failure, None on success
+        """
+        data = {}
+        cols = []
+        SUPPORTED_GROUPS = ["user","admin"]
+        if user.get("group", "") not in SUPPORTED_GROUPS:
+            return "Unknown user group"
+        SUPPORTED_FIELDS = ["username","group","token"]
+        for key in user:
+            if key in SUPPORTED_FIELDS: # check if each field is known
+                data[key] = user[key]
+                cols.append(key)
+        if len(cols) is not len(SUPPORTED_FIELDS):
+            return "Missing fields in given user."
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+        df = pd.DataFrame(data, index=[timestamp], columns=cols)
+
+        try:
+            self._write_api.write(bucket=CREDENTIALS_BUCKET, record=df, data_frame_measurement_name=USERS, data_frame_tag_columns=["username"])
+        except InfluxDBError as e:
+            return e.message
+        else:
+            return None
+
+    def queryUser(self, username: str) -> dict:
+        """
+        This function querys the the given username in the database. If no user is found, an empty
+        json (json = {}) is returned.
+
+        :param username: username to look up 
+        
+        :return: Tuple(error_message: str, user: dict)
+            error_message: "success" on success, errror message from database otherwise
+            settings: json with the queried user on success, None otherwise
+        """
+        query = """
+            from(bucket: "{bucket}")
+            |> range(start: 0)
+            |> filter(fn: (r) => r._measurement == "users")
+            |> filter(fn: (r) => r.username == "{uname}")
+            |> last()
+        """.format(bucket=CREDENTIALS_BUCKET, uname=username)
+
+        try:
+            tables = self._query_api.query(query)
+        except InfluxDBError as e:
+            return (e.message, None)    
+        if not tables:
+            return ("No user found", {})
+        
+        values = tables.to_values(columns=["_time", "_field", "_value"]) # value[0] = time, value[1] = field, value[2] = value        
+        if len(values) != 2:
+            return (("Expected to find one user. Found"+len(values)+"instead."), None)
+        user = { "username": username }
+        for value in values:
+            if value[1] == "group":
+                user["group"] = value[2]
+            if value[1] == "token":
+                user["token"] = value[2]
+
+        SUPPORTED_FIELDS = ["username","group","token"]
+        for key in user: # check if all supported fields are in user
+            if key not in SUPPORTED_FIELDS: # check if each user is known
+                return (("Unsupported field in user entry. Only "+str(SUPPORTED_FIELDS)+" are allowed."), None)
+        return ("success", user)
+
+    def deleteUser(self, username: str) -> str:
+        """
+        This function deletes the entry of the given user in the database.
+
+        :param username: username to delete
+        
+        :return: None on success, error message on failure
+        """
+        start = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stop = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        predicate = 'username="%s"' % username
+        try:
+            self._delete_api.delete(start, stop, predicate, bucket=CREDENTIALS_BUCKET)
+        except InfluxDBError as e:
+            return e.message
+        else:
+            return None
 
 data_client = InfluxDataClient()
