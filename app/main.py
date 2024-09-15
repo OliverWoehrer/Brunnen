@@ -31,15 +31,13 @@ if __name__ == "__main__":
 
     # Import Router Modules:
     from routes.app import app
-    from routes.dashboard.dashboard import dashboard
-    from routes.settings.settings import settings
     from routes.api.api import api
+    from routes.web.web import web
 
     # Initalize Flask App:
-    # app.secret_key = "t0ps3cr3t"
-    app.register_blueprint(dashboard)
-    app.register_blueprint(settings)
+    app.secret_key = "t0ps3cr3t"
     app.register_blueprint(api)
+    app.register_blueprint(web)
 
     # Start App at Desired Port:
     port = config.readPort()

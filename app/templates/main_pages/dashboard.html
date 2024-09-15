@@ -21,16 +21,21 @@
     flex-grow: 1;
 }
 
-.scrollable { /* use for "main" to make content scrollable */
-    height: 1px;
-    overflow: auto;
-}
 th {
     background: white;
     position: sticky;
     top: 0; /* Don't forget this, required for the stickiness */
     box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.4);
     background: #F1F1F1;
+}
+.scrollable { /* use for "main" to make content scrollable */
+    height: 1px;
+    overflow: auto;
+}
+@media (max-width: 992px) {
+    .scrollable {
+        min-height: 300px;
+    }
 }
 </style>
 {% endblock %}
@@ -42,7 +47,7 @@ th {
         <header>
             <h2 class="w3-left">Live</h2>
             <div class="w3-right">
-                {{ buttons.primary_link("More Details", url_for("dashboard.live")) }}
+                {{ buttons.primary_link("More Details", url_for("web.dashboard.live")) }}
             </div>
         </header>
         <main>
@@ -57,7 +62,7 @@ th {
         <header>
             <h2 class="w3-left">Logs</h2>
             <div class="w3-right">
-                {{ buttons.primary_link("See All", url_for("dashboard.logs")) }}
+                {{ buttons.primary_link("See All", url_for("web.dashboard.logs")) }}
             </div>
         </header>
         <main class="scrollable w3-round-xlarge">
