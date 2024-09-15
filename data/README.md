@@ -9,9 +9,10 @@ This bucket holds the user credentials of the application and access tokens for 
 #### Users (`users`)
 | Category | Name | Type | Example |
 | :--- | :--- | :--- | :--- |
-| Field | `password` | `String(hashed)` | `"d34jsd3fdj93df4kdf3"` |
-| Field | `groups` | `String` | `"user,admin,maintainer"` |
+| Field | `token` | `String(hashed)` | `"d34jsd3fdj93df4kdf3"` |
+| Field | `group` | `String` | `user`,`admin` |
 | Tag | `username` | `String(no white spaces!)` | `"john_doe"` |
+
 
 #### Devices (`devices`)
 | Category | Name | Type | Example |

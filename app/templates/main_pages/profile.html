@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "main_pages/base.html" %}
 
 {% set page_title = "Profile" %}
 {% set profile_selector = "selected" %}
-{% set heading = "Profile" %}
+{% set heading = session["username"] %}
 
 {% block main %}
 Profile

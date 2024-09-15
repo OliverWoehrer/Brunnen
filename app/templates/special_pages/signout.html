@@ -1,12 +1,12 @@
 {% extends "special_pages/base.html" %}
 {% import "macros/cards.html" as cards %}
 
-{% set page_title = "Login" %}
+{% set page_title = "Delete User" %}
 
 {% block main %}
     {% call cards.panel(additional_stylings="max-width: 600px;") %}
     <div class="w3-large w3-center">
-        <h1>Login</h1>
+        <h1>Delete User</h1>
         {% with messages = get_flashed_messages() %}
         {% if messages %}
         <div class="w3-padding-32">
@@ -17,21 +17,12 @@
         </div>
         {% endif %}
         {% endwith %}
-        <form method="POST" action="/login">
+        <form method="POST" action="/signout">
             <div class="w3-margin-bottom">
                 <input class="w3-input w3-border w3-round-xlarge" type="text" name="username" placeholder="Username">
             </div>
             <div class="w3-margin-bottom">
-                <input class="w3-input w3-border w3-round-xlarge" type="password" name="password" placeholder="Password">
-            </div>
-            <div class="w3-margin-bottom">
-                <div class="w3-left-align">
-                    <input class="w3-check" type="checkbox" name="remember" disabled> Remember me
-                </div>
-            </div>
-            <div class="w3-margin-bottom">
-                <input type="hidden" name="next" value="{{ next_url }}">
-                <input type="submit" value="Login" class="w3-block w3-button w3-round-xlarge color-primary w3-hover-black">
+                <input type="submit" value="Delete User" class="w3-block w3-button w3-round-xlarge color-primary w3-hover-black">
             </div>
         </form>
     </div>
