@@ -323,7 +323,7 @@ class InfluxDataClient():
         values = tables.to_values(columns=["_time", "_field", "_value"]) # value[0] = time, value[1] = field, value[2] = value
         settings = {}
         for value in values:
-            if value[0] >= start_time:
+            if value[0] > start_time:
                 settings[value[1]] = json.loads(value[2])
         return ("success", settings)
 
