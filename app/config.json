@@ -7,7 +7,7 @@
     },
     "brunnen": {
         "settings": {
-            "exchange_periods": {
+            "sync": {
                 "long": 3600,
                 "medium": 60,
                 "short": 5,

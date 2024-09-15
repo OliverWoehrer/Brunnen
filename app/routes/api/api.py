@@ -10,13 +10,13 @@ from data import data_client as db
 import config
 
 api = Blueprint("api", __name__, url_prefix="/api")
-last_exchange = datetime.now(timezone.utc).replace(microsecond=0)
+last_sync = datetime.now(timezone.utc).replace(microsecond=0)
 last_visit = datetime.now(timezone.utc).replace(microsecond=0)
 updated_brunnen_settings = []
 
 @api.route("/brunnen", methods=["GET", "POST", "DELETE"])
 def brunnen():
-    global last_exchange
+    global last_sync
     # Check Access Token:
     # TODO: check if secret token is present
     # (msg,df) = db.queryDevices() # read devices settings
@@ -136,32 +136,32 @@ def brunnen():
     if not settings: # no settings found, use default config
         settings = config.readBrunnenSettings(None)
 
-    # Update Exchange Period (Ready State):
-    exchange_periods = settings.get("exchange_periods", config.readBrunnenSettings("exchange_periods"))
-    old_exchange_mode = exchange_periods["mode"]
-    delta = (last_exchange - last_visit).total_seconds()
-    if delta <= 0: # recent visit since last exchange; change to "hot" state (=short exchange period)
-        exchange_periods["mode"] = "short"
-    elif delta > exchange_periods["medium"] and exchange_periods["mode"] == "short": # no recent visit; change to "warm" state (=medium exchange period)
-        exchange_periods["mode"] = "medium"
-    elif delta > exchange_periods["long"]: # visit long ago; change to "cold" state (=long exchange period) at night
+    # Update Synchronisation Period (Ready State):
+    sync = settings.get("sync", config.readBrunnenSettings("sync"))
+    old_sync_mode = sync["mode"]
+    delta = (last_sync - last_visit).total_seconds()
+    if delta <= 0: # recent visit since last sync; change to "hot" state (=short sync period)
+        sync["mode"] = "short"
+    elif delta > sync["medium"] and sync["mode"] == "short": # no recent visit; change to "warm" state (=medium sync period)
+        sync["mode"] = "medium"
+    elif delta > sync["long"]: # visit long ago; change to "cold" state (=long sync period) at night
         current_hour = datetime.now(timezone.utc).hour
-        if abs(current_hour - 13) > 6 and exchange_periods["mode"] == "medium": # check if night time (19:00 - 07:00 UTC)
-            exchange_periods["mode"] = "long"
-        elif exchange_periods["mode"] == "long": # day time (07:00 - 19:00 UTC)
-            exchange_periods["mode"] = "medium"
+        if abs(current_hour - 13) > 6 and sync["mode"] == "medium": # check if night time (19:00 - 07:00 UTC)
+            sync["mode"] = "long"
+        elif sync["mode"] == "long": # day time (07:00 - 19:00 UTC)
+            sync["mode"] = "medium"
     
     # Write Settings:
-    if old_exchange_mode != exchange_periods["mode"]:
-        data = { "exchange_periods": exchange_periods }
+    if old_sync_mode != sync["mode"]:
+        data = { "sync": sync }
         msg = db.insertSettings(settings=data)
         if msg:
             raise BadGateway(("Problem while inserting settings: "+str(msg)))
 
     # Return Updated Settings as JSON Response:
-    (msg,settings) = db.querySettings(start_time=last_exchange)
+    (msg,settings) = db.querySettings(start_time=last_sync)
     if settings is None:
         raise BadGateway(("Problem while reading settings for response: "+str(msg)))
-    last_exchange = datetime.now(timezone.utc).replace(microsecond=0)
+    last_sync = datetime.now(timezone.utc).replace(microsecond=0)
     payload = {} if not settings else { "settings": settings }
     return payload, 200

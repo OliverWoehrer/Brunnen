@@ -259,7 +259,7 @@ class InfluxDataClient():
         """
         data = {}
         cols = []
-        SUPPORTED_SETTINGS = ["exchange_periods","intervals","pump","thresholds","software"]
+        SUPPORTED_SETTINGS = ["sync","intervals","pump","thresholds","software"]
         for key in settings:
             if key in SUPPORTED_SETTINGS: # check if each setting is known
                 data[key] = json.dumps(settings[key])

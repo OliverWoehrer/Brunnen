@@ -43,14 +43,14 @@ This bucket holds all data of the pump device. The following measurements are re
 #### Settings (`settings`)
 | Category | Name | Type | Usage |
 | :--- | :--- | :--- | :--- | 
-| Field | `exchange_periods` | `String(JSON)` | Read |
+| Field | `synch` | `String(JSON)` | Read |
 | Field | `intervals` | `String(JSON)` | Read |
 | Field | `pump` | `String(JSON)` | Read & Write |
 | Field | `rain_threshold` | `String(JSON)` | Read |
 | Field | `software` | `String(JSON)` | Read |
 
 ~~~
-"exchange_periods": {
+"sync": {
     "long": Integer(<seconds>),
     "medium": Integer(<seconds>),
     "short": Integer(<seconds>),
