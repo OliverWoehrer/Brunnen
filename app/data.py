@@ -16,6 +16,7 @@ LOGS = "logs"
 SETTINGS = "settings"
 CREDENTIALS_BUCKET = "Credentials"
 USERS = "users"
+DEVICES = "devices"
 
 class InfluxDataClient():
     def __init__(self):
@@ -393,15 +394,15 @@ class InfluxDataClient():
         
         :return: Tuple(error_message: str, user: dict)
             error_message: "success" on success, errror message from database otherwise
-            settings: json with the queried user on success, None otherwise
+            user: json with the queried user on success, None otherwise
         """
         query = """
             from(bucket: "{bucket}")
             |> range(start: 0)
-            |> filter(fn: (r) => r._measurement == "users")
+            |> filter(fn: (r) => r._measurement == "{users}")
             |> filter(fn: (r) => r.username == "{uname}")
             |> last()
-        """.format(bucket=CREDENTIALS_BUCKET, uname=username)
+        """.format(bucket=CREDENTIALS_BUCKET, users=USERS, uname=username)
 
         try:
             tables = self._query_api.query(query)
@@ -437,6 +438,97 @@ class InfluxDataClient():
         start = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         stop = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         predicate = 'username="%s"' % username
+        try:
+            self._delete_api.delete(start, stop, predicate, bucket=CREDENTIALS_BUCKET)
+        except InfluxDBError as e:
+            return e.message
+        else:
+            return None
+
+    def insertDevice(self, device: dict) -> str:
+        """
+        This function takes the given device and inserts it into the database. The token is an
+        eight byte long key (only letters and numbers). The timestamps of the database entry will
+        be the current time.
+        device = {
+            "id": name,
+            "token": token
+        }
+
+        :param device: json holding the device data
+
+        :return: Error message on failure, None on success
+        """
+        data = {}
+        cols = []
+        SUPPORTED_FIELDS = ["id","token"]
+        for key in user:
+            if key in SUPPORTED_FIELDS: # check if each key is supported
+                data[key] = user[key]
+                cols.append(key)
+        if len(cols) is not len(SUPPORTED_FIELDS):
+            return "Missing fields in given device."
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+        df = pd.DataFrame(data, index=[timestamp], columns=cols)
+
+        try:
+            self._write_api.write(bucket=CREDENTIALS_BUCKET, record=df, data_frame_measurement_name=DEVICES, data_frame_tag_columns=["id"])
+        except InfluxDBError as e:
+            return e.message
+        else:
+            return None
+
+    def queryDevice(self, device_id: str) -> dict:
+        """
+        This function querys the the given device id in the database. If no device is found, an empty
+        json (json = {}) is returned.
+
+        :param device_id: device name to look up 
+        
+        :return: Tuple(error_message: str, device: dict)
+            error_message: "success" on success, errror message from database otherwise
+            device: json with the queried device on success, None otherwise
+        """
+        query = """
+            from(bucket: "{bucket}")
+            |> range(start: 0)
+            |> filter(fn: (r) => r._measurement == "{dev}")
+            |> filter(fn: (r) => r.id == "{device_id}")
+            |> last()
+        """.format(bucket=CREDENTIALS_BUCKET, dev=DEVICES, uname=username)
+
+        try:
+            tables = self._query_api.query(query)
+        except InfluxDBError as e:
+            return (e.message, None)    
+        if not tables:
+            return ("No device found", {})
+        
+        values = tables.to_values(columns=["_time", "_field", "_value"]) # value[0] = time, value[1] = field, value[2] = value        
+        if len(values) != 1:
+            return (("Expected to find one device. Found"+len(values)+"instead."), None)
+        device = { "id": device_id }
+        for value in values:
+            if value[1] == "token":
+                device["token"] = value[2]
+
+        SUPPORTED_FIELDS = ["id","token"]
+        for key in device:
+            if key not in SUPPORTED_FIELDS: # check if each key is supported
+                return (("Unsupported field in user entry. Only "+str(SUPPORTED_FIELDS)+" are allowed."), None)
+        return ("success", device)
+
+    def deleteDevice(self, device_id: str) -> str:
+        """
+        This function deletes the entry of the given device in the database.
+
+        :param device_id: device name to delete
+        
+        :return: None on success, error message on failure
+        """
+        start = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        stop = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        predicate = 'id="%s"' % device_id
         try:
             self._delete_api.delete(start, stop, predicate, bucket=CREDENTIALS_BUCKET)
         except InfluxDBError as e:
