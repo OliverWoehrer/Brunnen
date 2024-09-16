@@ -16,7 +16,24 @@
     background-color:#D1E7B7!important;
 }
 
+.color-neutral {
+    color:#000!important;
+    background-color:#FFFFFF!important
+}
+
 .color-background {
     color:#000!important;
     background-color:#F1F1F1!important
+}
+
+@media (prefers-color-scheme: dark) {
+    .color-neutral {
+        color:#FFFFFF!important;
+        background-color:#4C4C4C!important
+    }
+
+    .color-background {
+        color:#FFFFFF!important;
+        background-color:#353535!important
+    }
 }
