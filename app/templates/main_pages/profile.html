@@ -1,15 +1,96 @@
 {% extends "main_pages/base.html" %}
+{% import "macros/cards.html" as cards %}
+{% import "macros/buttons.html" as buttons %}
 
 {% set page_title = "Profile" %}
 {% set profile_selector = "selected" %}
-{% set heading = session["username"] %}
+{% set heading = "Profile" %}
+
+{% block style %}
+<style>
+.board {
+    height: 99%;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+}
+.panel {
+    width: 50%;
+}
+@media (max-width: 992px) {
+    .panel {
+        width: 100%;
+    }
+}
+</style>
+{% endblock %}
 
 {% block main %}
-Profile
+<div class="board">
+    {% call cards.green(classes="", stylings="max-width: 600px;") %}
+    <div class="app">
+        <header class="w3-row">
+                <div class="w3-col l3 m3 s3">
+                    <img srcset="{{url_for('static',filename='portrait.png')}}" class="w3-image w3-circle w3-padding" style="width: 100%;">
+                </div>
+                <div class="w3-col l9 m9 s9">
+                    <span class="w3-xxlarge" style="font-weight: bold;">{{ session["username"] }}</span><br>
+                    <span class="w3-large">{{ session["group"] }}</span>
+                </div>
+        </header>
+        <main>
+        </main>
+        <footer style="margin-bottom: 8px;">
+            {{ buttons.button_secondary("Logout", url_for("logout")) }}
+        </footer>
+    </div>
+    {% endcall %}
+
+    {% if session["group"] == "admin" %}
+    {% call cards.white(classes="panel", stylings="max-width: 600px;") %}
+    <div class="app">
+        <header>
+            <h2 class="w3-left">User Management</h2>
+        </header>
+        <main>
+            <div class="linkspace w3-row w3-bar">
+                <div class="link w3-col" style="width: auto;">
+                    <button class="w3-bar-item w3-button" onclick="openTab(event, 'list_user')">List</button>
+                </div>
+                <div class="link w3-col" style="width: auto;">
+                    <button class="w3-bar-item w3-button" onclick="openTab(event, 'create_user')">Create</button>
+                </div>
+                <div class="link w3-col" style="width: auto;">
+                    <button class="w3-bar-item w3-button" onclick="openTab(event, 'delete_user')">Delete</button>
+                </div>
+                <div class="link" style="overflow: hidden;">
+                    <div class="w3-bar-item">&nbsp;</div>
+                </div>
+            </div>
+            <div class="tabspace">
+                <div id="list_user" class="tab">
+                    List all users
+                </div>
+                <div id="create_user" class="tab">
+                    Create new user
+                </div>
+                <div id="delete_user" class="tab">
+                    Delete user
+                </div>
+            </div>
+        </main>
+    </div>
+    {% endcall %}
+    {% endif %}
+</div>
 {% endblock %}
 
 {% block script %}
+<script src="{{ url_for('static',filename='tabs.js') }}"></script>
 <script>
-    // TODO
+    initTabs();
 </script>
 {% endblock %}
