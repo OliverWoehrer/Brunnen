@@ -1,9 +1,15 @@
-{% macro primary_link(text, url) %}
-    <a class="w3-button w3-margin w3-round-xlarge color-primary w3-large w3-hover-black" href="{{ url }}">
+{% macro link_primary(text, url) %}
+    <a class="w3-button w3-round-large color-primary w3-large w3-hover-black" style="margin-top: 8px;" href="{{ url }}">
         <span class="w3-cell-middle">{{text}}</span>
         <span class="w3-cell-middle material-symbols-outlined" >arrow_forward_ios</span>
     </a>
 {% endmacro %}
 
+{% macro button_secondary(text, url) %}
+    <a class="w3-button w3-round-large color-secondary w3-large" style="margin-top: 8px;" href="{{ url }}">
+        <span class="w3-cell-middle">{{text}}</span>
+        <span class="w3-cell-middle material-symbols-outlined" >arrow_forward_ios</span>
+    </a>
+{% endmacro %}
 
 

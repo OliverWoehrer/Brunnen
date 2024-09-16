@@ -1,24 +1,24 @@
-{% macro white_card() %}
+{% macro white(classes, stylings) %}
     {% if caller is defined %}
     {% set content=caller() %}
     {% endif %}
-    <div class="w3-card w3-white w3-round-xlarge w3-padding">
-        {{ content }}
+    <div class="w3-padding {{ classes }}" style="{{ stylings }}">
+        <div class="w3-card color-neutral w3-round-xlarge w3-padding" style="height: 100%;">
+            {{ content }}
+        </div>
     </div>
 {% endmacro %}
 
-
-
-{% macro panel(additional_classes, additional_stylings) %}
+{% macro green(classes, stylings) %}
     {% if caller is defined %}
     {% set content=caller() %}
     {% endif %}
-    <div class="w3-margin w3-card w3-white w3-round-xlarge w3-padding {{ additional_classes }}" style="{{ additional_stylings }}">
-        {{ content }}
+    <div class="w3-padding {{ classes }}" style="{{ stylings }}">
+        <div class="w3-card color-accent w3-round-xlarge w3-padding" style="height: 100%;">
+            {{ content }}
+        </div>
     </div>
 {% endmacro %}
-
-
 
 
 
