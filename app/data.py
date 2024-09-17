@@ -95,33 +95,41 @@ class InfluxDataClient():
             error_message: "success" on success, errror message from database otherwise
             df: dataframe with the queried data on success, None otherwise
         """
+        # Read From Database:
         start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         if window_size is None:
             aggregate_string = ""
         else:
             aggregate_string = "|> aggregateWindow(every: {days}d{seconds}s, fn: mean, createEmpty: false)".format(days=window_size.days, seconds=window_size.seconds)
-        
         query = """
             from(bucket: "{bucket}")
             |> range(start: {start}, stop: {stop})
             |> filter(fn: (r) => r._measurement == "{meas}")
             {agg}
             |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
+            |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
         """.format(bucket=MEASUREMENT_BUCKET, start=start, stop=stop, meas=DATA, agg=aggregate_string)
-
         try:
-            tables = self._query_api.query(query)
+            df = self._query_api.query_data_frame(query)
         except InfluxDBError as e:
             return (e.message, None)
-        else:
-            if not tables:
-                return ("Did not find measurements", pd.DataFrame())
-            values = tables.to_values(columns=["_time", "_field", "_value"])
-            df = pd.DataFrame(values, columns=["Timestamp", "Field", "Value"])
-            df = df.pivot_table(index="Timestamp", columns="Field", values="Value")
-            df.index = df.index.to_pydatetime() # convert to datetime format
-            return ("success", df)
+        if df.empty:
+            return ("Did not find data", {})
+
+        # Check Required Fields:
+        REQUIERED_FIELDS = ["_time","flow","level","pressure"]
+        for key in REQUIERED_FIELDS:
+            if not key in df.columns:
+                return (("Missing requiered field in database entry. Fields "+str(REQUIERED_FIELDS)+" are requiered."), None)
+        
+        # Sort and Rename Labels:
+        df = df.sort_values(by=["_time"])
+        df = df[REQUIERED_FIELDS]
+        df.columns = ["Time", "Flow", "Level", "Pressure"] # rename columns
+        json_string = df.to_json(orient="split")
+        json_data = json.loads(json_string)
+        return ("success", json_data)
 
     def queryLatestData(self) -> (str,datetime):
         """
@@ -201,7 +209,7 @@ class InfluxDataClient():
         else:
             return None
 
-    def queryLogs(self, start_time: datetime, stop_time: datetime) -> (str,pd.DataFrame):
+    def queryLogs(self, start_time: datetime, stop_time: datetime) -> (str,dict):
         """
         This function querys the logs between the start and stop time. This can be slow, when
         quering long time periods.
@@ -209,30 +217,39 @@ class InfluxDataClient():
         :param start_time: earliest time of logs to include
         :param stop_time: latest time of logs to include
         
-        :return: Tuple(error_message: str, df: pd.DataFrame)
+        :return: Tuple(error_message: str, logs: dict)
             error_message: "success" on success, errror message from database otherwise
-            df: dataframe with the queried data on success, None otherwise
+            logs: json with the queried data on success, None otherwise
         """
+        # Read From Database:
         start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         query = """
             from(bucket: "{bucket}")
             |> range(start: {start}, stop: {stop})
             |> filter(fn: (r) => r._measurement == "{meas}")
+            |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
         """.format(bucket=MEASUREMENT_BUCKET, start=start, stop=stop, meas=LOGS)
-
         try:
-            tables = self._query_api.query(query)
+            df = self._query_api.query_data_frame(query)
         except InfluxDBError as e:
             return (e.message, None)
-        else:
-            if not tables:
-                return ("Did not find logs", pd.DataFrame())
-            values = tables.to_values(columns=["_time", "_value", "level"])
-            df = pd.DataFrame(values, columns=["Timestamp", "message", "level"])
-            df = df.set_index("Timestamp")
-            df.index = df.index.to_pydatetime() # convert to datetime format
-            return ("success", df)
+        if df.empty:
+            return ("Did not find logs", {})
+
+        # Check Required Fields:
+        REQUIERED_FIELDS = ["_time","level","message"]
+        for key in REQUIERED_FIELDS:
+            if not key in df.columns:
+                return (("Missing requiered field in database entry. Fields "+str(REQUIERED_FIELDS)+" are requiered."), None)
+        
+        # Sort and Rename Labels:
+        df = df.sort_values(by=["_time"])
+        df = df[REQUIERED_FIELDS]
+        df.columns = ["Time", "Level", "Message"] # rename columns
+        json_string = df.to_json(orient="split")
+        json_data = json.loads(json_string)
+        return ("success", json_data)
 
     def deleteLogs(self, start_time: datetime, stop_time: datetime) -> str:
         """
@@ -302,6 +319,7 @@ class InfluxDataClient():
             error_message: "success" on success, errror message from database otherwise
             settings: json with the queried settings on success, None otherwise
         """
+        # Read From Database:
         if start_time is None:
             filter_string = "|> last()"
             start_time = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc)
@@ -312,21 +330,30 @@ class InfluxDataClient():
             |> range(start: {start})
             |> filter(fn: (r) => r._measurement == "{meas}")
             {filter}
+            |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
         """.format(bucket=MEASUREMENT_BUCKET, start=start_time.strftime("%Y-%m-%dT%H:%M:%SZ"), meas=SETTINGS, filter=filter_string)
-
         try:
-            tables = self._query_api.query(query)
+            df = self._query_api.query_data_frame(query)
         except InfluxDBError as e:
             return (e.message, None)    
-        if not tables:
+        if df.empty:
             return ("Did not find settings", {})
         
-        values = tables.to_values(columns=["_time", "_field", "_value"]) # value[0] = time, value[1] = field, value[2] = value
-        settings = {}
-        for value in values:
-            if value[0] > start_time:
-                settings[value[1]] = json.loads(value[2])
-        return ("success", settings)
+        # Check Available Fields:
+        SUPPORTED_FIELDS = ["sync","intervals","pump","software","thresholds"]
+        available_fields = []
+        for key in SUPPORTED_FIELDS:
+            if key in df.columns:
+                available_fields.append(key)
+        
+        # Filter Dataframe:
+        df.set_index("_time")
+        df = df[available_fields] # only use available supported fields
+        df = df.apply(lambda x: x.loc[x.last_valid_index()]) # only get last valid value of each column
+        df = df.apply(lambda x: json.loads(x)) # parse json string to json objects
+        json_string = df.to_json(orient="columns")
+        json_data = json.loads(json_string)
+        return ("success", json_data)
 
     def deleteSettings(self, start_time: datetime, stop_time: datetime) -> str:
         """
@@ -385,12 +412,12 @@ class InfluxDataClient():
         else:
             return None
 
-    def queryUser(self, username: str) -> dict:
+    def queryUser(self, username: str) -> (str,dict):
         """
         This function querys the the given username in the database. If no user is found, an empty
         json (json = {}) is returned.
 
-        :param username: username to look up 
+        :param username: username to look up
         
         :return: Tuple(error_message: str, user: dict)
             error_message: "success" on success, errror message from database otherwise
@@ -426,6 +453,43 @@ class InfluxDataClient():
             if key not in SUPPORTED_FIELDS: # check if each user is known
                 return (("Unsupported field in user entry. Only "+str(SUPPORTED_FIELDS)+" are allowed."), None)
         return ("success", user)
+
+    def queryUsers(self) -> (str,list):
+        """
+        This function querys all users in the database. If no users are found, an empty list
+        ([]) is returned.
+
+        :return: Tuple(error_message: str, users: list)
+            error_message: "success" on success, errror message from database otherwise
+            users: list with the queried users on success, None otherwise
+        """
+        # Read From Database:
+        query = """
+            from(bucket: "{bucket}")
+            |> range(start: 0)
+            |> filter(fn: (r) => r._measurement == "{users}")
+            |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
+        """.format(bucket=CREDENTIALS_BUCKET, users=USERS)
+        try:
+            df = self._query_api.query_data_frame(query)
+        except InfluxDBError as e:
+            return (e.message, None)    
+        if df.empty:
+            return ("No users found", [])
+
+        # Check Required Fields:
+        REQUIERED_FIELDS = ["username","group","_time"]
+        for key in REQUIERED_FIELDS:
+            if not key in df.columns:
+                return (("Missing requiered field in user entry. Fields "+str(REQUIERED_FIELDS)+" are requiered."), None)
+
+        # Rename Colums With Labels:
+        df = df.sort_values(by=["_time"])
+        df = df[REQUIERED_FIELDS]
+        df.columns = ["Username", "Group", "Updated On"] # rename columns
+        json_string = df.to_json(orient="split")
+        json_data = json.loads(json_string)
+        return ("success", json_data)
 
     def deleteUser(self, username: str) -> str:
         """
