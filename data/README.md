@@ -44,7 +44,7 @@ This bucket holds all data of the pump device. The following measurements are re
 #### Settings (`settings`)
 | Category | Name | Type | Usage |
 | :--- | :--- | :--- | :--- | 
-| Field | `synch` | `String(JSON)` | Read |
+| Field | `sync` | `String(JSON)` | Read |
 | Field | `intervals` | `String(JSON)` | Read |
 | Field | `pump` | `String(JSON)` | Read & Write |
 | Field | `rain_threshold` | `String(JSON)` | Read |
