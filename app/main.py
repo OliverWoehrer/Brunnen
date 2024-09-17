@@ -36,6 +36,7 @@ if __name__ == "__main__":
 
     # Initalize Flask App:
     app.secret_key = "t0ps3cr3t"
+    app.permanent_session_lifetime = timedelta(minutes=50)
     app.register_blueprint(api)
     app.register_blueprint(web)
 
