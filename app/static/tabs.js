@@ -40,17 +40,19 @@
 */
 
 function styleSelected(link) {
-    link.style.borderTop = "1px solid";
-    link.style.borderLeft = "1px solid";
-    link.style.borderRight = "1px solid";
-    link.style.borderBottom = "none";
+    link.style.borderTopStyle = "solid";
+    link.style.borderLeftStyle = "solid";
+    link.style.borderRightStyle = "solid";
+    link.style.borderBottomStyle = "none";
+    // link.style.boxShadow = "none";
 }
 
 function styleDefault(link) {
     link.style.borderTop = "none";
     link.style.borderLeft = "none";
     link.style.borderRight = "none";
-    link.style.borderBottom = "1px solid";
+    link.style.borderBottomStyle = "solid";
+    // link.style.boxShadow = "inset 0px -20px 10px -20px";
 }
 
 function openTab(event, tabName) {
