@@ -4,21 +4,28 @@ This module implements the functions to handle routes of "/device"
 from flask import Blueprint, g, request
 from werkzeug.exceptions import BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway
 from datetime import datetime, timedelta, timezone
+import time
 import json
 import pandas as pd
 from data import data_client as db
 import config
 from ..web.web import get_last_visit
 
-device = Blueprint("device", __name__, url_prefix="/device")
+# Global Variables:
 last_sync = datetime.now(timezone.utc).replace(microsecond=0)
+daytime = config.readBrunnenDaytime()
+daytime_start = time.strptime(daytime.get("start","08:00:00"), "%H:%M:%S")
+daytime_stop = time.strptime(daytime.get("stop","20:00:00"), "%H:%M:%S")
+
+# Register Blueprint Hierarchy:
+device = Blueprint("device", __name__, url_prefix="/device")
 
 @device.before_request
 def fill_global_context():
     global last_sync, last_visit
-    g.last_visit = get_last_visit()
     g.last_sync = last_sync
-    g.curr_sync = datetime.now(timezone.utc).replace(microsecond=0)
+    g.last_visit = get_last_visit()
+    g.current_datetime = datetime.now(timezone.utc).replace(microsecond=0)
 
 @device.route("/brunnen", methods=["GET", "POST", "DELETE"])
 def brunnen():
@@ -141,21 +148,26 @@ def brunnen():
     if not settings: # no settings found, use default config
         settings = config.readBrunnenSettings(None)
 
-    # Update Synchronisation Period (Ready State):
+    # [Synchronisation Mode]
+    # "Real-Time Mode": update in short periods, if a recent visit occured ("hot" state)
+    # "Standby Mode": update in medium periods, compromise between latency and bandwidth ("warm" state)
+    # "Sleep Mode": update in long periods, during night time ("cold" state)
+
+    # Update Synchronisation Period:
     sync = settings.get("sync", config.readBrunnenSettings("sync"))
     old_sync_mode = sync["mode"]
-    delta = (g.curr_sync - g.last_visit).total_seconds()
-    if g.last_sync <= g.last_visit: # recent visit since last sync; change to "hot" state (=short sync period)
+    delta = (g.current_datetime - g.last_visit).total_seconds() # seconds since last visit
+    if delta < sync["medium"]: # recent visit, change to real-time mode
         sync["mode"] = "short"
-    elif delta > sync["medium"] and sync["mode"] == "short": # no recent visit; change to "warm" state (=medium sync period)
+    if delta > sync["medium"]: # no recent visit, change to standby mode
         sync["mode"] = "medium"
-    elif delta > sync["long"]: # visit long ago; change to "cold" state (=long sync period) at night
-        current_hour = datetime.now(timezone.utc).hour
-        if abs(current_hour - 13) > 6 and sync["mode"] == "medium": # check if night time (19:00 - 07:00 UTC)
-            sync["mode"] = "long"
-        elif sync["mode"] == "long": # day time (07:00 - 19:00 UTC)
-            sync["mode"] = "medium"
-    if old_sync_mode != sync["mode"]: # write updated settings
+    if delta > sync["long"]: # last visit long time ago
+        current_time = g.current_datetime.timetz()
+        if daytime_start < current_time and current_time < daytime_stop: # check if daytime
+            sync["mode"] = "medium" # keep in standby mode during daytime
+        else:
+            sync["mode"] = "long" # sleep mode during night time
+    if old_sync_mode != sync["mode"]: # check if mode is updated
         data = { "sync": sync }
         msg = db.insertSettings(settings=data)
         if msg:
