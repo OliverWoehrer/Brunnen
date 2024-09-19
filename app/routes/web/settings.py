@@ -3,6 +3,7 @@ This module implements the functions to handle routes of /settings.
 """
 from flask import Blueprint, render_template, redirect, url_for
 
+# Register Blueprint Hierarchy:
 settings = Blueprint("settings", __name__, url_prefix="/settings")
 
 @settings.route("/", methods=["GET"])

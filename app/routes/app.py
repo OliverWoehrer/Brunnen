@@ -7,7 +7,12 @@ from werkzeug.exceptions import HTTPException, BadGateway
 from datetime import timedelta
 from data import data_client as db
 
+# Register Blueprint Hierarchy:
+from .api.api import api
+from .web.web import web
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
+app.register_blueprint(api)
+app.register_blueprint(web)
 
 @app.before_request
 def refresh_session_livetime():

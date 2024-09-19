@@ -3,6 +3,7 @@ This module implements the functions to handle routes of /dashboard.
 """
 from flask import Blueprint, render_template, redirect, url_for
 
+# Register Blueprint Hierarchy:
 dashboard = Blueprint("dashboard", __name__, url_prefix="/dashboard")
 
 @dashboard.route("/", methods=["GET"])

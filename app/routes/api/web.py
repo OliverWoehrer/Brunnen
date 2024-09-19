@@ -11,6 +11,7 @@ import re
 from data import data_client as db
 from ..web.web import set_last_visit
 
+# Register Blueprint Hierarchy:
 web = Blueprint("web", __name__, url_prefix="/web")
 
 # TODO: enable authentication

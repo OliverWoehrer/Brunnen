@@ -3,6 +3,7 @@ This module implements the functions to handle routes of /update.
 """
 from flask import Blueprint, render_template, redirect, url_for
 
+# Register Blueprint Hierarchy:
 update = Blueprint("update", __name__, url_prefix="/update")
 
 @update.route("/", methods=["GET"])
