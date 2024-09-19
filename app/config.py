@@ -40,6 +40,15 @@ def readInfluxOrganization() -> str:
     return influx.get("organization")
 
 def readBrunnenSettings(setting: str = None) -> dict:
+    """
+    Read the default settings for device "brunnen" from config. These settings are read only and
+    should not be used during normal operation but only in case of an error or if the settings have
+    not been initalized yet.
+
+    :param setting: name of the setting to read, if 'None' all settings are returned
+
+    :return: settings from config file as dict
+    """
     config = _loadConfig()
     if "brunnen" not in config:
         raise ValueError("No brunnen in config")
@@ -53,7 +62,14 @@ def readBrunnenSettings(setting: str = None) -> dict:
         raise ValueError("No setting named"+setting)
     return settings.get(setting)
 
-
+def readBrunnenDaytime() -> dict:
+    config = _loadConfig()
+    if "brunnen" not in config:
+        raise ValueError("No brunnen in config")
+    brunnen = config.get("brunnen")
+    if "daytime" not in brunnen:
+        raise ValueError("No daytime in brunnen")
+    return brunnen.get("daytime")
 
 
 """ PRIVATE METHODS """

@@ -6,6 +6,10 @@
         "organization": "Private"
     },
     "brunnen": {
+        "daytime": {
+            "start": "08:00:00",
+            "stop": "20:00:00"
+        },
         "settings": {
             "sync": {
                 "long": 3600,
