@@ -17,16 +17,20 @@
     flex-direction: column;
     align-items: stretch;
 }
+.layout > nav > a {
+    border-radius: 8px;
+    margin: 8px 0px 0px 0px;
+}
 .layout > nav > a:hover {
     color: #000000!important;
-    background-color:#D1E7B7!important;
+    background-color:#8BC34A!important;
 }
 .layout > nav > span:last-child {
     margin-top: auto;
 }
 .layout > nav > .selected {
     color:#000000!important;
-    background-color:#D1E7B7!important;
+    background-color:#8BC34A!important;
 }
 .layout > main {
     flex-grow: 1;
@@ -46,6 +50,7 @@
     .layout > nav > a {
         flex: 1 1 auto;
         vertical-align: middle;
+        margin: 0px 0px 0px 8px;
     }
     .layout > nav > span:last-child {
         display: none;

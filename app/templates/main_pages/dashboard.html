@@ -9,7 +9,7 @@
 {% block style %}
 <style>
 .board {
-    height: 99%;
+    height: 100%;
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
@@ -21,13 +21,6 @@
     flex-grow: 1;
 }
 
-th {
-    background: white;
-    position: sticky;
-    top: 0; /* Don't forget this, required for the stickiness */
-    box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.4);
-    background: #F1F1F1;
-}
 .scrollable { /* use for "main" to make content scrollable */
     height: 1px;
     overflow: auto;
@@ -66,7 +59,7 @@ th {
             </div>
         </header>
         <main class="scrollable w3-round-large" style="margin-bottom: 8px;">
-            <table id="logs_table" class="w3-table w3-striped w3-round-large"> </table>
+            <table id="logs_table" class="w3-table w3-bordered w3-round-large"> </table>
         </main>
     </div>
     {% endcall %}

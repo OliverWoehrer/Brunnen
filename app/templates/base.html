@@ -1,3 +1,5 @@
+{% import "macros/cards.html" as cards %}
+
 <!doctype html>
 <head>
     <title>{{ page_title }}</title>
@@ -16,7 +18,7 @@
 <body>
     <div class="layout color-background">
         <!-- Navigation Bar -->
-        <nav class="w3-card color-neutral">
+        <nav class="w3-card color-neutral w3-padding-small">
             <a href="{{ url_for('web.dashboard.index') }}" class="w3-button {{ dashboard_selector }}">
                 <span class="material-symbols-outlined">dashboard</span><br>
                 Dashboard

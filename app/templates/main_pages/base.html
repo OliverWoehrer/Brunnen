@@ -2,9 +2,9 @@
 
 {% block content %}
 <div class="app">
-    <header class="w3-container">
+    <header class="w3-container" style="filter: drop-shadow(0px 2px 5px rgba(0,0,0,.40));">
         <img srcset="{{url_for('static',filename='logo.png')}}" class="w3-image w3-margin w3-left" style="max-height: 42px;">
-        <h1 style="display: inline-block; color:#8BC34A!important;">{{ heading }}</h1>
+        <h1 style="display: inline-block;">{{ heading }}</h1>
     </header>
     <main>
         {% block main %} {% endblock %}

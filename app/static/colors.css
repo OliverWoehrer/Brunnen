@@ -23,17 +23,29 @@
 
 .color-background {
     color:#000!important;
-    background-color:#F1F1F1!important
+    background-color:#F1F1F1!important;
+    /* background: linear-gradient(to bottom, #8BC34A 20vh, #F1F1F1 20vh)!important; */
+}
+
+th {
+    color:#000!important;
+    background: #F1F1F1;
 }
 
 @media (prefers-color-scheme: dark) {
     .color-neutral {
         color:#FFFFFF!important;
-        background-color:#4C4C4C!important
+        background-color:#4C4C4C!important;
     }
 
     .color-background {
         color:#FFFFFF!important;
-        background-color:#353535!important
+        background-color:#353535!important;
+        /* background: linear-gradient(to bottom, #8BC34A 20vh, #353535 20vh)!important; */
+    }
+
+    th {
+        color:#FFFFFF!important;
+        background: #353535;
     }
 }
