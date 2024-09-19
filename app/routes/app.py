@@ -9,6 +9,11 @@ from data import data_client as db
 
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
 
+@app.before_request
+def refresh_session_livetime():
+    # app.permanent_session_lifetime = timedelta(minutes=10)
+    pass
+
 @app.route("/", methods=["GET"])
 def index():
     username = session.get("username")
