@@ -2,7 +2,7 @@
 This module implements the functions to handle routes of "/device"
 """
 from flask import Blueprint, g, request
-from werkzeug.exceptions import BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway
+from werkzeug.exceptions import BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway, Unauthorized
 from datetime import datetime, timedelta, timezone
 import time
 import json
@@ -27,19 +27,28 @@ def fill_global_context():
     g.last_visit = get_last_visit()
     g.current_datetime = datetime.now(timezone.utc).replace(microsecond=0)
 
-@device.route("/brunnen", methods=["GET", "POST", "DELETE"])
-def brunnen():
-    # Check Access Token:
-    # TODO: check if secret token is present
-    # (msg,df) = db.queryDevices() # read devices settings
-    # if df is None:
-    #     raise BadGateway(("Problem while reading settings: "+msg))
-    # idx = df["devices"].last_valid_index()
-    # latest_devices = df["devices"][idx]
-    # devices_json = json.loads(latest_devices)
-    # if device_id not in devices_json["device_ids"]:
-    #     raise Forbidden(("Unknown device id: "+str(device_id)))
+@device.before_request
+def check_credentials():
+    # Check Authentication Header:
+    if not request.authorization:
+        raise Unauthorized("Received no credentials")
+    if request.authorization.type != "basic":
+        raise BadRequest("Received wrong authentication type")
+    
+    # Parse Credentials:
+    credentials = request.authorization.parameters
+    device_id = credentials.get("username","")
+    device_token = credentials.get("password","")
+    
+    # Look for Device Credentials:
+    (msg,device) = db.queryDevice(device_id=device_id)
+    if device is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    if not device or device_token != device.get("token",""):
+        raise Unauthorized("Wrong credentials.")
 
+@device.route("/brunnen", methods=["GET", "POST", "DELETE"])
+def brunnen():    
     # Parse Start Parameter:
     start_param = request.args.get("start")
     if start_param is None:
