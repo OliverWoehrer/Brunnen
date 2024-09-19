@@ -557,9 +557,9 @@ class InfluxDataClient():
             from(bucket: "{bucket}")
             |> range(start: 0)
             |> filter(fn: (r) => r._measurement == "{dev}")
-            |> filter(fn: (r) => r.id == "{device_id}")
+            |> filter(fn: (r) => r.id == "{id}")
             |> last()
-        """.format(bucket=CREDENTIALS_BUCKET, dev=DEVICES, uname=username)
+        """.format(bucket=CREDENTIALS_BUCKET, dev=DEVICES, id=device_id)
 
         try:
             tables = self._query_api.query(query)
