@@ -127,7 +127,7 @@ class InfluxDataClient():
         df = df.sort_values(by=["_time"])
         df = df[REQUIERED_FIELDS]
         df.columns = ["Time", "Flow", "Level", "Pressure"] # rename columns
-        json_string = df.to_json(orient="split")
+        json_string = df.to_json(orient="columns")
         json_data = json.loads(json_string)
         return ("success", json_data)
 
