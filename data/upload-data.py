@@ -7,7 +7,7 @@ import requests
 HOST = "localhost:8086"
 PATH = "/api/v2/write"
 INFLUX_API_TOKEN = "djWUq7Fj1_1nIDR1va4ORRMvQHinkYg9J4YQX6k9TVVSUGIIJYu3tt8-45-jq2QygLkHWWlr2wGZNIp2w8qjyw=="
-PAYLOAD_LIMIT = 100E+6
+PAYLOAD_LIMIT = 1E+6
 output_index = 0
 
 def uploadData(payload):
@@ -25,9 +25,7 @@ def uploadData(payload):
         "http": "http://localhost:8086",
     }
     res = requests.post(url, params=query_params, headers=headers, data=payload, verify=False, proxies=proxies)
-    if res.ok:
-        print("Uploaded data successfully!")
-    else:
+    if not res.ok:
         print(res.json())
 
 def writeData(payload):
@@ -57,6 +55,7 @@ for dir_item in dir_list:
 # Iterate All Input Files:
 data = ""
 for file_path in file_paths:
+    print(file_path)
     # Read CSV Data:
     file = open(file_path, mode="r")
     csv_reader = csv.DictReader(file, delimiter=',', lineterminator='\r\n')
@@ -77,7 +76,7 @@ for file_path in file_paths:
                 if args.upload:
                     uploadData(data)
                 if args.export:
-                    writeData(args.export, data)
+                    writeData(data)
                 data = line
             else:
                 data = data + line
@@ -87,4 +86,4 @@ if len(data) > 0:
     if args.upload:
         uploadData(data)
     if args.export:
-        writeData(args.export, data)
+        writeData(data)
