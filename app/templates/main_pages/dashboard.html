@@ -35,25 +35,25 @@
 
 {% block main %}
 <div class="board">
-    {% call cards.white() %}
+    {% call cards.white(stylings="min-width: 30vw;") %}
     <div class="app">
         <header>
             <h2 class="w3-left">Live</h2>
+            <img src="{{ url_for('static',filename='loading.gif') }}">
             <div class="w3-right">
                 {{ buttons.link_primary("More Details", url_for("web.dashboard.live")) }}
             </div>
         </header>
         <main>
-            <p>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
-            </p>
+            coming soon...
         </main>
     </div>
     {% endcall %}
-    {% call cards.white(stylings="flex-grow: 1;") %}
+    {% call cards.white(stylings="flex-grow: 1; min-height: 300px;") %}
     <div class="app">
         <header>
             <h2 class="w3-left">Logs</h2>
+            <img id="logs_table_waiting" src="{{ url_for('static',filename='loading.gif') }}" style="display: none;">
             <div class="w3-right">
                 {{ buttons.link_primary("See All", url_for("web.dashboard.logs")) }}
             </div>
@@ -63,19 +63,27 @@
         </main>
     </div>
     {% endcall %}
-    {% call cards.white(stylings="width: 100%") %}
-    <div style="width: 100%;">
-        <h2>Measurements</h2>
+    {% call cards.white(stylings="width: 100%; min-height: 300px;") %}
+    <div class="app">
+        <header>
+            <h2 class="w3-left">Measurements</h2>
+            <img id="myChart_waiting" src="{{ url_for('static',filename='loading.gif') }}">
+        </header>
+        <main>
+            <canvas id="myChart"></canvas>
+        </main>
     </div>
     {% endcall %}
 </div>
 {% endblock %}
 
 {% block script %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="{{ url_for('static',filename='script.js') }}"></script>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
 <script>
-    const DELTA_DAYS = 10
+    const DELTA_DAYS = 2
+    let myChart;
     requestLatestSyncTime();
 
     function requestLatestSyncTime() {
@@ -88,7 +96,7 @@
                 const delta = DELTA_DAYS * 24 * 60 * 60 * 1000; // days in milliseconds
                 stopTime = new Date(lastSync);
                 startTime = new Date (stopTime.getTime() - delta);
-                requestDashboardValues(startTime, stopTime);
+                loadDashboardValues(startTime, stopTime);
             },
             error: function(res) {
                 console.log("Failed to request time of last sync:"+res);
@@ -96,12 +104,12 @@
         });
     }
 
-    function requestDashboardValues(startTime, stopTime) {
-        requestLogs(startTime, stopTime);
-        requestData(startTime, stopTime);
+    function loadDashboardValues(startTime, stopTime) {
+        loadLogs(startTime, stopTime);
+        loadData(startTime, stopTime);
     }
 
-    function requestLogs(startTime, stopTime) {
+    function loadLogs(startTime, stopTime) {
         startString = startTime.toISOString().replace("Z","");
         stopString = stopTime.toISOString().replace("Z","");
         $.ajax({ 
@@ -109,6 +117,10 @@
             type: "get",
             accepts: "application/json",
             data: { start: startString, stop: stopString },
+            beforeSend: function() {
+                waitingAnimation = document.getElementById("logs_table_waiting");
+                waitingAnimation.style.display = "inline-block";
+            },
             success: function(res) {
                 // Parse Reponse:
                 columns = res["columns"];
@@ -117,8 +129,12 @@
                 // Get DOM Element for Table:
                 let logsTable = document.getElementById("logs_table");
 
+                // Hide Waiting Animation:
+                waitingAnimation = document.getElementById("logs_table_waiting");
+                waitingAnimation.style.display = "none";
+                
                 // Insert User as Table Rows:
-                fillTable(logsTable, columns, data)
+                fillTable(logsTable, columns, data);
             },
             error: function(res) {
                 console.log("Failed to request logs:"+res);
@@ -126,7 +142,7 @@
         });
     }
 
-    function requestData(startTime, stopTime) {
+    function loadData(startTime, stopTime) {
         startString = startTime.toISOString().replace("Z","");
         stopString = stopTime.toISOString().replace("Z","");
         $.ajax({ 
@@ -134,16 +150,62 @@
             type: "get",
             accepts: "application/json",
             data: { start: startString, stop: stopString },
+            beforeSend: function() {
+                waitingAnimation = document.getElementById("myChart_waiting");
+                waitingAnimation.style.display = "inline-block";
+            },
             success: function(res) {
+                //Declare Global Variables:
+                const POINTS = 2000;
+                const FLOW_SCALING = 0.002577; // 388 pulses per litre
+                const PRESSURE_SCALING = 0.002513; // 398 increments per bar
+                const LEVEL_SCALING = 0.00157356; // 635 increments per meter
+
                 // Parse Reponse:
-                columns = res["columns"];
-                data = res["data"];
+                columnNames = Object.keys(res);
 
-                // Get DOM Element for Table:
-                let logsTable = document.getElementById("logs_table");
+                // Parse Labels from Response:
+                let labels;
+                if("Time" in res) {
+                    labels = Object.values(res["Time"]);
+                }
 
-                // Insert User as Table Rows:
-                fillTable(logsTable, columns, data)
+                let datasets = new Array();
+                if("Flow" in res) {
+                    values = Object.values(res["Flow"]);
+                    set = {
+                        label: "Flow [L/s]",
+                        data: values,
+                        borderColor: "rgb(68, 114, 196)"
+                    }
+                    datasets.push(set);
+                }
+                if("Pressure" in res) {
+                    values = Object.values(res["Pressure"]);
+                    set = {
+                        label: "Pressure [Bar]",
+                        data: values,
+                        borderColor: "rgb(237, 125, 49)"
+                    }
+                    datasets.push(set);
+                }
+                if("Level" in res) {
+                    values = Object.values(res["Level"]);
+                    set = {
+                        label: "Level [m]",
+                        data: values,
+                        borderColor: "rgb(165, 165, 165)"
+                    }
+                    datasets.push(set);
+                }
+
+                // Hide Waiting Animation:
+                waitingAnimation = document.getElementById("myChart_waiting");
+                waitingAnimation.style.display = "none";
+
+                // Plot Data:
+                let chartCanvas = document.getElementById("myChart");
+                plotData(chartCanvas, myChart, labels, datasets);
             },
             error: function(res) {
                 console.log("Failed to request logs:"+res);
