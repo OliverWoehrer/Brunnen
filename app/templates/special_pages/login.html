@@ -1,5 +1,6 @@
 {% extends "special_pages/base.html" %}
 {% import "macros/cards.html" as cards %}
+{% import "macros/buttons.html" as buttons %}
 
 {% set page_title = "Login" %}
 
@@ -11,8 +12,8 @@
         {% if messages %}
         <div class="w3-padding-32">
             <div class="w3-padding w3-round-xlarge color-accent w3-left-align">
-            <b>Info:</b><br>
-            {{ messages[0] }}
+                <b>Info:</b><br>
+                {{ messages[0] }}
             </div>
         </div>
         {% endif %}
@@ -31,7 +32,7 @@
             </div>
             <div class="w3-margin-bottom">
                 <input type="hidden" name="next" value="{{ next_url }}">
-                <input type="submit" value="Login" class="w3-block w3-button w3-round-xlarge color-primary w3-hover-black">
+                {{ buttons.submit_secondary("Login") }}
             </div>
         </form>
     </div>

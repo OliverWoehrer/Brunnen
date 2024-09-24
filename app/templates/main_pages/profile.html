@@ -31,31 +31,12 @@
         width: 100%;
     }
 }
-
-.link {
-    border-width: 1px!important;
-    border-top-left-radius: 8px;
-    border-top-right-radius: 8px;
-}
-
-.tabspace {
-    border-width: 1px!important;
-    border-bottom-left-radius: 8px;
-    border-bottom-right-radius: 8px;
-}
-
-th {
-    position: sticky;
-    top: 0; /* Don't forget this, required for the stickiness */
-    box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.4);
-    background: #F1F1F1;
-}
 </style>
 {% endblock %}
 
 {% block main %}
 <div class="board">
-    {% call cards.green(classes="panel") %}
+    {% call cards.white(classes="panel") %}
     <div class="app">
         <header class="w3-row">
                 <div class="w3-col l3 m3 s3">
@@ -69,7 +50,7 @@ th {
         <main>
         </main>
         <footer style="margin-bottom: 8px;">
-            {{ buttons.button_secondary("Logout", url_for("logout")) }}
+            {{ buttons.link_secondary("Logout", url_for("logout")) }}
         </footer>
     </div>
     {% endcall %}
@@ -108,7 +89,7 @@ th {
                 </header>
                 <main class="tabspace scrollable" style="min-height: 250px;">
                     <div id="list_user" class="tab" style="min-height: 250px;">
-                        <table class="w3-table w3-striped"></table>
+                        <table class="w3-table w3-bordered w3-round-large"></table>
                     </div>
                     <div id="create_user" class="tab">
                         <form method="POST" action="/api/web/user">
@@ -126,7 +107,7 @@ th {
                             </div>
                             <div class="w3-margin-top">
                                 <input type="hidden" name="action" value="create">
-                                <input type="submit" value="Sign Up" class="w3-block w3-button w3-round-large color-primary w3-hover-black">
+                                {{ buttons.submit_secondary("Sign Up") }}
                             </div>
                         </form>
                     </div>
@@ -137,7 +118,7 @@ th {
                             </div>
                             <div class="w3-margin-top">
                                 <input type="hidden" name="action" value="delete">
-                                <input type="submit" value="Delete User" class="w3-block w3-button w3-round-large color-primary w3-hover-black">
+                                {{ buttons.submit_secondary("Delete User") }}
                             </div>
                         </form>
                     </div>
