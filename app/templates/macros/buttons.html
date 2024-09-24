@@ -1,15 +1,35 @@
 {% macro link_primary(text, url) %}
-    <a class="w3-button w3-round-large color-primary w3-large w3-hover-black" style="margin-top: 8px;" href="{{ url }}">
+    <a class="w3-button w3-round-large color-primary w3-large" href="{{ url }}">
         <span class="w3-cell-middle">{{text}}</span>
         <span class="w3-cell-middle material-symbols-outlined" >arrow_forward_ios</span>
     </a>
 {% endmacro %}
 
-{% macro button_secondary(text, url) %}
-    <a class="w3-button w3-round-large color-secondary w3-large" style="margin-top: 8px;" href="{{ url }}">
+{% macro link_secondary(text, url) %}
+    <a class="w3-button w3-round-large color-secondary w3-large" href="{{ url }}">
         <span class="w3-cell-middle">{{text}}</span>
         <span class="w3-cell-middle material-symbols-outlined" >arrow_forward_ios</span>
     </a>
 {% endmacro %}
 
+{% macro button_primary(text, action_function) %}
+    <button class="w3-button w3-round-large color-primary w3-large" onclick="{{ action_function }}">
+        <span class="w3-cell-middle">{{text}}</span>
+    </button>
+{% endmacro %}
 
+{% macro button_secondary(text, action_function) %}
+    <button class="w3-button w3-round-large color-secondary w3-large" onclick="{{ action_function }}">
+        <span class="w3-cell-middle">{{text}}</span>
+    </button>
+{% endmacro %}
+
+{% macro button_neutral(text, action_function) %}
+    <button class="w3-button w3-round-large color-background w3-large" onclick="{{ action_function }}">
+        <span class="w3-cell-middle">{{text}}</span>
+    </button>
+{% endmacro %}
+
+{% macro submit_secondary(text) %}
+    <input type="submit" value="{{ text }}" class="w3-block w3-button w3-round-large color-secondary">
+{% endmacro %}
