@@ -9,13 +9,9 @@ To start this application, run "python app.py"
 """
 
 import os
-from data import data_client as database
 import config
-from datetime import datetime, timedelta
-import pandas as pd
-from flask import Flask, request
-
-
+from data import data_client as database
+from routes.app import app
 
 
 
@@ -30,8 +26,8 @@ if __name__ == "__main__":
     database.setup(url=url, token=token, organization=org)
 
     # Initalize Flask App:
-    from routes.app import app
-    app.secret_key = "t0ps3cr3t"
+    key = os.environ.get("APP_KEY")
+    app.secret_key = key
 
     # Start App at Desired Port:
     port = config.readPort()
