@@ -1,6 +1,7 @@
 {% extends "special_pages/base.html" %}
+{% import "macros/buttons.html" as buttons %}
 
-{% set page_title = "Error" %}
+{% set page_title = "Error "+code %}
 
 {% block style %}
 <style>
@@ -21,7 +22,7 @@
     <div class="w3-padding" style="display: inline-block; max-width: 600px;">
         <h1>Error {{ code }}</h1>
         <p>{{ message }}</p>
-        <a class="w3-button w3-round-xlarge color-primary" href="/">Back to Home</a>
+        {{ buttons.link_primary("Back to Home", "/") }}
     </div>
 </div>
 {% endblock %}
