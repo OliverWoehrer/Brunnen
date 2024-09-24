@@ -40,25 +40,17 @@
 */
 
 function styleSelected(link) {
-    link.style.borderTopStyle = "solid";
-    link.style.borderLeftStyle = "solid";
-    link.style.borderRightStyle = "solid";
-    link.style.borderBottomStyle = "none";
-    // link.style.boxShadow = "none";
+    link.style.borderBottomStyle = "solid";
 }
 
 function styleDefault(link) {
-    link.style.borderTop = "none";
-    link.style.borderLeft = "none";
-    link.style.borderRight = "none";
-    link.style.borderBottomStyle = "solid";
-    // link.style.boxShadow = "inset 0px -20px 10px -20px";
+    link.style.borderBottomStyle = "none";
 }
 
 function openTab(event, tabName) {
     // Find Other Links:
     currentElement = event.currentTarget
-    isLink = false;
+    isLink = currentElement.classList.contains("link");
     while(!isLink) { // climb up the element hierarchy until element is a link
         currentElement = currentElement.parentElement;
         isLink = currentElement.classList.contains("link");
