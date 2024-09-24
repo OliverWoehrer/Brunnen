@@ -81,7 +81,7 @@ class InfluxDataClient():
         else:
             return None
 
-    def queryData(self, start_time: datetime, stop_time: datetime, window_size: timedelta = None) -> (str,pd.DataFrame):
+    def queryData(self, start_time: datetime, stop_time: datetime, window_size: timedelta = None) -> (str,dict):
         """
         This function querys the measurement data between the start and stop time. To reduce data
         size, it aggregates multiple values inside a windows of given size. This means it takes the
@@ -115,7 +115,7 @@ class InfluxDataClient():
         except InfluxDBError as e:
             return (e.message, None)
         if df.empty:
-            return ("Did not find data", {})
+            return ("No data found", None)
 
         # Check Required Fields:
         REQUIERED_FIELDS = ["_time","flow","level","pressure"]
