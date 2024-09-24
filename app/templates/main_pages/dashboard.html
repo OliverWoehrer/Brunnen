@@ -37,37 +37,42 @@
 <div class="board">
     {% call cards.white(stylings="min-width: 30vw;") %}
     <div class="app">
-        <header>
-            <h2 class="w3-left">Live</h2>
-            <img src="{{ url_for('static',filename='loading.gif') }}">
-            <div class="w3-right">
+        <header class="w3-cell-row" style="padding-top: 8px;">
+            <div class="w3-cell w3-left-align">
+                <h2>Live</h2>
+            </div>
+            <div class="w3-cell w3-cell-top w3-right-align">
                 {{ buttons.link_primary("More Details", url_for("web.dashboard.live")) }}
             </div>
         </header>
-        <main>
-            coming soon...
+        <main class="w3-center">
+            <div class="loader w3-margin"></div>
         </main>
     </div>
     {% endcall %}
     {% call cards.white(stylings="flex-grow: 1; min-height: 300px;") %}
     <div class="app">
-        <header>
-            <h2 class="w3-left">Logs</h2>
-            <img id="logs_table_waiting" src="{{ url_for('static',filename='loading.gif') }}" style="display: none;">
-            <div class="w3-right">
-                {{ buttons.link_primary("See All", url_for("web.dashboard.logs")) }}
+        <header class="w3-cell-row" style="padding-top: 8px;">
+            <div class="w3-cell w3-left-align">
+                <h2>Logs</h2>
+            </div>
+            <div class="w3-cell w3-cell-top w3-right-align">
+                {{ buttons.link_primary("More Details", url_for("web.dashboard.logs")) }}
             </div>
         </header>
         <main class="scrollable w3-round-large" style="margin-bottom: 8px;">
+            <div id="logs_table_waiting" class="loader w3-margin"></div>
             <table id="logs_table" class="w3-table w3-bordered w3-round-large"> </table>
         </main>
     </div>
     {% endcall %}
     {% call cards.white(stylings="width: 100%; min-height: 300px;") %}
     <div class="app">
-        <header>
-            <h2 class="w3-left">Measurements</h2>
-            <img id="myChart_waiting" src="{{ url_for('static',filename='loading.gif') }}">
+        <header class="w3-cell-row">
+            <div class="w3-cell w3-left-align">
+                <h2 class="w3-left">Measurements</h2>
+                <div id="myChart_waiting" class="loader w3-margin"></div>
+            </div>
         </header>
         <main>
             <canvas id="myChart"></canvas>
@@ -84,133 +89,11 @@
 <script>
     const DELTA_DAYS = 2
     let myChart;
-    requestLatestSyncTime();
-
-    function requestLatestSyncTime() {
-        $.ajax({ 
-            url: "/api/web/sync", 
-            type: "get",
-            accepts: "application/json",
-            success: function(res) {
-                const lastSync = res["last_sync"];
-                const delta = DELTA_DAYS * 24 * 60 * 60 * 1000; // days in milliseconds
-                stopTime = new Date(lastSync);
-                startTime = new Date (stopTime.getTime() - delta);
-                loadDashboardValues(startTime, stopTime);
-            },
-            error: function(res) {
-                console.log("Failed to request time of last sync:"+res);
-            }
-        });
-    }
+    loadLatestValues(loadDashboardValues);
 
     function loadDashboardValues(startTime, stopTime) {
         loadLogs(startTime, stopTime);
         loadData(startTime, stopTime);
-    }
-
-    function loadLogs(startTime, stopTime) {
-        startString = startTime.toISOString().replace("Z","");
-        stopString = stopTime.toISOString().replace("Z","");
-        $.ajax({ 
-            url: "/api/web/logs", 
-            type: "get",
-            accepts: "application/json",
-            data: { start: startString, stop: stopString },
-            beforeSend: function() {
-                waitingAnimation = document.getElementById("logs_table_waiting");
-                waitingAnimation.style.display = "inline-block";
-            },
-            success: function(res) {
-                // Parse Reponse:
-                columns = res["columns"];
-                data = res["data"];
-
-                // Get DOM Element for Table:
-                let logsTable = document.getElementById("logs_table");
-
-                // Hide Waiting Animation:
-                waitingAnimation = document.getElementById("logs_table_waiting");
-                waitingAnimation.style.display = "none";
-                
-                // Insert User as Table Rows:
-                fillTable(logsTable, columns, data);
-            },
-            error: function(res) {
-                console.log("Failed to request logs:"+res);
-            }
-        });
-    }
-
-    function loadData(startTime, stopTime) {
-        startString = startTime.toISOString().replace("Z","");
-        stopString = stopTime.toISOString().replace("Z","");
-        $.ajax({ 
-            url: "/api/web/data", 
-            type: "get",
-            accepts: "application/json",
-            data: { start: startString, stop: stopString },
-            beforeSend: function() {
-                waitingAnimation = document.getElementById("myChart_waiting");
-                waitingAnimation.style.display = "inline-block";
-            },
-            success: function(res) {
-                //Declare Global Variables:
-                const POINTS = 2000;
-                const FLOW_SCALING = 0.002577; // 388 pulses per litre
-                const PRESSURE_SCALING = 0.002513; // 398 increments per bar
-                const LEVEL_SCALING = 0.00157356; // 635 increments per meter
-
-                // Parse Reponse:
-                columnNames = Object.keys(res);
-
-                // Parse Labels from Response:
-                let labels;
-                if("Time" in res) {
-                    labels = Object.values(res["Time"]);
-                }
-
-                let datasets = new Array();
-                if("Flow" in res) {
-                    values = Object.values(res["Flow"]);
-                    set = {
-                        label: "Flow [L/s]",
-                        data: values,
-                        borderColor: "rgb(68, 114, 196)"
-                    }
-                    datasets.push(set);
-                }
-                if("Pressure" in res) {
-                    values = Object.values(res["Pressure"]);
-                    set = {
-                        label: "Pressure [Bar]",
-                        data: values,
-                        borderColor: "rgb(237, 125, 49)"
-                    }
-                    datasets.push(set);
-                }
-                if("Level" in res) {
-                    values = Object.values(res["Level"]);
-                    set = {
-                        label: "Level [m]",
-                        data: values,
-                        borderColor: "rgb(165, 165, 165)"
-                    }
-                    datasets.push(set);
-                }
-
-                // Hide Waiting Animation:
-                waitingAnimation = document.getElementById("myChart_waiting");
-                waitingAnimation.style.display = "none";
-
-                // Plot Data:
-                let chartCanvas = document.getElementById("myChart");
-                plotData(chartCanvas, myChart, labels, datasets);
-            },
-            error: function(res) {
-                console.log("Failed to request logs:"+res);
-            }
-        });
     }
 </script>
 {% endblock %}

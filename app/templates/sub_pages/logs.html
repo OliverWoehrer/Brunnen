@@ -1,12 +1,56 @@
 {% extends "sub_pages/base.html" %}
 {% import "macros/cards.html" as cards %}
 {% import "macros/buttons.html" as buttons %}
+{% import "macros/picker.html" as picker %}
 
 
-{% set page_title = "Live" %}
+{% set page_title = "Logs" %}
 {% set backpath = url_for("web.dashboard.index") %}
 {% set heading = "Logs" %}
 
+{% block action %}
+{{ buttons.button_secondary("Select Range", "showElement('id_range_selector'); initTabs();") }}
+{% endblock %}
+
 {% block main %}
-<p>logs</p>
+<div class="w3-auto w3-center" style="height: 100%;">
+    {% call cards.white(stylings="height: 100%;") %}
+        <div class="app">        
+            <header>
+                <button class="filter selected w3-button">Info</button>
+                <button class="filter w3-button">Warning</button>
+                <button class="filter w3-button">Error</button>
+            </header>
+            <main class="scrollable w3-round-large">
+                <div id="logs_table_waiting" class="loader w3-margin"></div>
+                <table id="logs_table" class="w3-table w3-bordered w3-round-large" style="overflow-y: auto;"> </table>
+            </main>
+        </div>
+        <div id="id_range_selector" class="w3-modal">
+            <div class="w3-modal-content w3-transparent">
+                {{ picker.datetime("parseDateTime") }}
+            </div>
+        </div>
+    {% endcall %}
+</div>
+{% endblock %}
+
+{% block script %}
+<script src="{{ url_for('static',filename='tabs.js') }}"></script>
+<script>
+    const DELTA_DAYS = 7
+    loadLatestValues(loadLogs);
+
+    function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
+        hideElement("id_range_selector");
+        startDate = document.getElementById(startDateID).value;
+        startTime = document.getElementById(startTimeID).value;
+        stopDate = document.getElementById(stopDateID).value;
+        stopTime = document.getElementById(stopTimeID).value;
+        startTimestamp = new Date(""+startDate+"T"+startTime+"Z");
+        stopTimestamp = new Date(""+stopDate+"T"+stopTime+"Z");
+        loadLogs(startTimestamp, stopTimestamp);
+    }
+
+</script>
 {% endblock %}
