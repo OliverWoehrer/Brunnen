@@ -33,7 +33,7 @@ def login():
         # Render Login Page: 
         username = session.get("username")
         if username: # flash info message if logged in
-            flash(('Already logged in as '+username+'. You can <a href="/logout">log out</a>.'))
+            flash(('Already logged in as '+username+'.'))
         next_url = request.args.get("next", "/")
         return render_template("special_pages/login.html", next_url=next_url)
     
@@ -67,3 +67,10 @@ def logout():
     session.pop("_flashes", None)
     return redirect("/")
 
+@app.errorhandler(Exception)
+def error(e):
+    if isinstance(e, HTTPException): # display HTTP errors
+        return render_template("special_pages/error.html", code=e.code, message=e.description), e.code
+    else: # return unknown errors
+        # TODO: remove for deployment!
+        return render_template("special_pages/error.html", code=500, message=str(e)), 500

@@ -193,11 +193,3 @@ def user():
 def log(response):
     set_last_visit(datetime.now(timezone.utc).replace(microsecond=0))
     return response
-
-@web.errorhandler(Exception)
-def error(e):
-    if isinstance(e, HTTPException): # display HTTP errors
-        return render_template("special_pages/error.html", code=e.code, message=e.description), e.code
-    else: # return unknown errors
-        # TODO: remove for deployment!
-        return render_template("special_pages/error.html", code=500, message=str(e)), 500
