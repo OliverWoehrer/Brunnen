@@ -1,0 +1,33 @@
+{% import "macros/cards.html" as cards %}
+{% import "macros/buttons.html" as buttons %}
+
+{% macro datetime(action_function) %}
+    {% call cards.white(stylings="width: 100%; min-height: 300px;") %}
+    <header class="w3-container"> 
+        <h2>Select Range</h2>
+        <div class="linkspace w3-cell-row" style="width: 100%; justify-content: center;">
+            <div class="link w3-cell">
+                <button class="w3-button" onclick="openTab(event, 'id_start')" style="width: 100%;">Start</button>
+            </div>
+            <div class="link w3-cell">
+                <button class="w3-button" onclick="openTab(event, 'id_stop')" style="width: 100%;">Stop</button>
+            </div>
+        </div>
+    </header>
+    <main class="tabspace scrollable" style="min-height: 300px;">
+        <div id="id_start" class="tab">
+            <input type="date" id="start_date" name="Start Date" value="2024-08-01" pattern="\d{2}.\d{2}.\d{4}" placeholder="DD.MM.YYYY">
+            <input type="time" id="start_time" name="Start Time" value="00:00" step="60" placeholder="HH:MM">
+        </div>
+        <div id="id_stop" class="tab">
+            <input type="date" id="stop_date" name="Stop Date" value="2024-08-05" pattern="\d{2}.\d{2}.\d{4}" placeholder="DD.MM.YYYY">
+            <input type="time" id="stop_time" name="Stop Time" value="23:59" step="60" placeholder="HH:MM">
+        </div>
+    </main>
+    <footer class="w3-center">
+        {{ buttons.button_neutral("Cancel", "hideElement('id_range_selector')") }}
+        {% set af = action_function+"('start_date','start_time','stop_date','stop_time')" %}
+        {{ buttons.button_secondary("Select", af ) }}
+    </footer>
+    {% endcall %}
+{% endmacro %}
