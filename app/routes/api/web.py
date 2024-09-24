@@ -91,7 +91,7 @@ def data():
     
     # Read Data From Database:
     total_period = stop - start
-    (msg,data) = db.queryData(start_time=start, stop_time=stop, window_size=timedelta(seconds=5*60))
+    (msg,data) = db.queryData(start_time=start, stop_time=stop, window_size=(total_period/2000))
     if data is None:
         raise BadGateway(("Problem while reading data: "+msg))
     
