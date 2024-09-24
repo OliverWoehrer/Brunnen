@@ -47,6 +47,11 @@ function toLocalTime(timestamp) {
  * @param {Array} dataList list of data objects (json with keys matching the column names)
  */
 function fillTable(tableElem, columnsList, dataList) {
+    // Clear Exisitng Rows:
+    while(tableElem.rows.length > 0) {
+        tableElem.deleteRow(0);
+    }
+
     // Insert Table Header:
     let row = tableElem.insertRow(0);
     for(let i = 0; i < columnsList.length; i++) {
@@ -118,4 +123,143 @@ function updateChart(myChart, newSize) {
     myChart.resize();
     // myChart.reset();
     // myChart.render();
+}
+
+function loadLatestValues(loadFunction) {
+    $.ajax({ 
+        url: "/api/web/sync", 
+        type: "get",
+        accepts: "application/json",
+        success: function(res) {
+            const lastSync = res["last_sync"];
+            const delta = DELTA_DAYS * 24 * 60 * 60 * 1000; // days in milliseconds
+            stopTime = new Date(lastSync);
+            startTime = new Date (stopTime.getTime() - delta);
+            loadFunction(startTime, stopTime);
+        },
+        error: function(res) {
+            console.log("Failed to request time of last sync:"+res);
+        }
+    });
+}
+
+function loadLogs(startTime, stopTime) {
+    startString = startTime.toISOString().replace("Z","");
+    stopString = stopTime.toISOString().replace("Z","");
+    $.ajax({ 
+        url: "/api/web/logs",
+        type: "get",
+        accepts: "application/json",
+        data: { start: startString, stop: stopString },
+        beforeSend: function() {
+            waitingAnimation = document.getElementById("logs_table_waiting");
+            waitingAnimation.style.display = "inline-block";
+        },
+        success: function(res) {
+            // Parse Reponse:
+            columns = res["columns"];
+            data = res["data"];
+
+            // Get DOM Element for Table:
+            let logsTable = document.getElementById("logs_table");
+
+            // Hide Waiting Animation:
+            waitingAnimation = document.getElementById("logs_table_waiting");
+            waitingAnimation.style.display = "none";
+            
+            // Insert User as Table Rows:
+            fillTable(logsTable, columns, data);
+        },
+        error: function(res) {
+            console.log("Failed to request logs:"+res);
+            alertErrorResponse(res);
+        }
+    });
+}
+
+function loadData(startTime, stopTime) {
+    startString = startTime.toISOString().replace("Z","");
+    stopString = stopTime.toISOString().replace("Z","");
+    $.ajax({ 
+        url: "/api/web/data", 
+        type: "get",
+        accepts: "application/json",
+        data: { start: startString, stop: stopString },
+        beforeSend: function() {
+            waitingAnimation = document.getElementById("myChart_waiting");
+            waitingAnimation.style.display = "inline-block";
+        },
+        success: function(res) {
+            //Declare Global Variables:
+            const POINTS = 2000;
+            const FLOW_SCALING = 0.002577; // 388 pulses per litre
+            const PRESSURE_SCALING = 0.002513; // 398 increments per bar
+            const LEVEL_SCALING = 0.00157356; // 635 increments per meter
+
+            // Parse Reponse:
+            columnNames = Object.keys(res);
+
+            // Parse Labels from Response:
+            let labels;
+            if("Time" in res) {
+                labels = Object.values(res["Time"]);
+            }
+
+            let datasets = new Array();
+            if("Flow" in res) {
+                values = Object.values(res["Flow"]);
+                set = {
+                    label: "Flow [L/s]",
+                    data: values,
+                    borderColor: "rgb(68, 114, 196)"
+                }
+                datasets.push(set);
+            }
+            if("Pressure" in res) {
+                values = Object.values(res["Pressure"]);
+                set = {
+                    label: "Pressure [Bar]",
+                    data: values,
+                    borderColor: "rgb(237, 125, 49)"
+                }
+                datasets.push(set);
+            }
+            if("Level" in res) {
+                values = Object.values(res["Level"]);
+                set = {
+                    label: "Level [m]",
+                    data: values,
+                    borderColor: "rgb(165, 165, 165)"
+                }
+                datasets.push(set);
+            }
+
+            // Hide Waiting Animation:
+            waitingAnimation = document.getElementById("myChart_waiting");
+            waitingAnimation.style.display = "none";
+
+            // Plot Data:
+            let chartCanvas = document.getElementById("myChart");
+            plotData(chartCanvas, myChart, labels, datasets);
+        },
+        error: function(res) {
+            console.log("Failed to request logs:"+res);
+        }
+    });
+}
+
+function showElement(elementID) {
+    document.getElementById(elementID).style.display = "block";
+}
+
+function hideElement(elementID) {
+    document.getElementById(elementID).style.display = "none";
+}
+
+function alertErrorResponse(res) {
+    console.log(res.responseText);
+    const doc = new DOMParser().parseFromString(res.responseText, "text/html");
+    let title = doc.getElementsByTagName("title");
+    let nodes = doc.getElementsByTagName("p");
+    window.alert("Server Response: ["+title[0].innerText+"] "+nodes[0].innerText);
 }
