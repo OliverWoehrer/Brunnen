@@ -42,7 +42,7 @@
                 <h2>Live</h2>
             </div>
             <div class="w3-cell w3-cell-top w3-right-align">
-                {{ buttons.link_primary("More Details", url_for("web.dashboard.live")) }}
+                {{ buttons.link_primary("Coming soon", "#") }}
             </div>
         </header>
         <main class="w3-center">
@@ -73,6 +73,9 @@
                 <h2 class="w3-left">Measurements</h2>
                 <div id="myChart_waiting" class="loader w3-margin"></div>
             </div>
+            <div class="w3-cell w3-cell-top w3-right-align">
+                {{ buttons.link_primary("More Details", url_for("web.dashboard.measurements")) }}
+            </div>
         </header>
         <main>
             <canvas id="myChart"></canvas>
@@ -87,8 +90,7 @@
 <script src="{{ url_for('static',filename='script.js') }}"></script>
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
 <script>
-    const DELTA_DAYS = 2
-    let myChart;
+    const DELTA_DAYS = 2;
     loadLatestValues(loadDashboardValues);
 
     function loadDashboardValues(startTime, stopTime) {

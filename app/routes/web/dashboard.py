@@ -10,16 +10,12 @@ dashboard = Blueprint("dashboard", __name__, url_prefix="/dashboard")
 def index():
     return render_template("main_pages/dashboard.html")
 
-@dashboard.route("/live", methods=["GET"])
-def live():
-    return render_template("sub_pages/live.html")
-
 @dashboard.route("/logs", methods=["GET"])
 def logs():
     return render_template("sub_pages/logs.html")
 
-@dashboard.route("/feed", methods=["GET"])
-def feed():
-    return render_template("special_pages/error.html")
+@dashboard.route("/measurements", methods=["GET"])
+def measurements():
+    return render_template("sub_pages/measurements.html")
 
 

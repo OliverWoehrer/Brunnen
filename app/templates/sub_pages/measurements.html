@@ -1,0 +1,51 @@
+{% extends "sub_pages/base.html" %}
+{% import "macros/cards.html" as cards %}
+{% import "macros/buttons.html" as buttons %}
+{% import "macros/picker.html" as picker %}
+
+
+{% set page_title = "Measurements" %}
+{% set backpath = url_for("web.dashboard.index") %}
+{% set heading = "Measurements" %}
+
+{% block action %}
+{{ buttons.button_secondary("Select Range", "showElement('id_range_selector'); initTabs();") }}
+{{ buttons.button_secondary("Reset Zoom", "resetZoom();") }}
+{% endblock %}
+
+{% block main %}
+<div class="w3-center" style="height: 100%;">
+    {% call cards.white(stylings="height: 100%;") %}
+        <div id="myChart_waiting" class="loader w3-margin"></div>
+        <canvas id="myChart"></canvas>
+        </div>
+        <div id="id_range_selector" class="w3-modal">
+            <div class="w3-modal-content w3-transparent">
+                {{ picker.datetime("parseDateTime") }}
+            </div>
+        </div>
+    {% endcall %}
+</div>
+{% endblock %}
+
+{% block script %}
+<script src="{{ url_for('static',filename='tabs.js') }}"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.0.0/chartjs-plugin-zoom.js"></script>
+<script>
+    const DELTA_DAYS = 2;
+    loadLatestValues(loadData);
+
+    function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
+        hideElement("id_range_selector");
+        startDate = document.getElementById(startDateID).value;
+        startTime = document.getElementById(startTimeID).value;
+        stopDate = document.getElementById(stopDateID).value;
+        stopTime = document.getElementById(stopTimeID).value;
+        startTimestamp = new Date(""+startDate+"T"+startTime+"Z");
+        stopTimestamp = new Date(""+stopDate+"T"+stopTime+"Z");
+        loadData(startTimestamp, stopTimestamp);
+    }
+
+</script>
+{% endblock %}

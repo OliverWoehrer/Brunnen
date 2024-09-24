@@ -1,3 +1,5 @@
+let myChart;
+
 /**
  * This function takes the given timestamp and returns the readable formated string of date and
  * time.
@@ -73,7 +75,7 @@ function fillTable(tableElem, columnsList, dataList) {
     }
 }
 
-function plotData(chartCanvas, myChart, labels, datasets) {
+function plotData(chartCanvas, labels, datasets) {
     // Build Canvas Title:
     let firstLabel = labels[0];
     let lastLabel = labels[labels.length - 1];
@@ -114,16 +116,19 @@ function plotData(chartCanvas, myChart, labels, datasets) {
     // Build Canvas:
     if (myChart) myChart.destroy();
     myChart = new Chart(chartCanvas, config);
-
-    // document.getElementById("controller").innerHTML = '<button onclick="resetZoom()">Reset Zoom</button> <button onclick="clearCanvas()">Clear Canvas</button>';
-    // document.getElementById("text").innerHTML = 'Data plotted.';
 }
 
 function updateChart(myChart, newSize) {
     myChart.resize();
-    // myChart.reset();
-    // myChart.render();
 }
+
+/**
+ * Resets the zoom of plot canvas to default
+ */
+function resetZoom() {
+    if(myChart) myChart.resetZoom();
+}
+
 
 function loadLatestValues(loadFunction) {
     $.ajax({ 
@@ -137,9 +142,7 @@ function loadLatestValues(loadFunction) {
             startTime = new Date (stopTime.getTime() - delta);
             loadFunction(startTime, stopTime);
         },
-        error: function(res) {
-            console.log("Failed to request time of last sync:"+res);
-        }
+        error: alertErrorResponse
     });
 }
 
@@ -170,10 +173,7 @@ function loadLogs(startTime, stopTime) {
             // Insert User as Table Rows:
             fillTable(logsTable, columns, data);
         },
-        error: function(res) {
-            console.log("Failed to request logs:"+res);
-            alertErrorResponse(res);
-        }
+        error: alertErrorResponse
     });
 }
 
@@ -188,6 +188,7 @@ function loadData(startTime, stopTime) {
         beforeSend: function() {
             waitingAnimation = document.getElementById("myChart_waiting");
             waitingAnimation.style.display = "inline-block";
+            if (myChart) myChart.destroy();
         },
         success: function(res) {
             //Declare Global Variables:
@@ -240,11 +241,9 @@ function loadData(startTime, stopTime) {
 
             // Plot Data:
             let chartCanvas = document.getElementById("myChart");
-            plotData(chartCanvas, myChart, labels, datasets);
+            plotData(chartCanvas, labels, datasets);
         },
-        error: function(res) {
-            console.log("Failed to request logs:"+res);
-        }
+        error: alertErrorResponse
     });
 }
 
