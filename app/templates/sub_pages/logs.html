@@ -36,10 +36,18 @@
 {% endblock %}
 
 {% block script %}
-<script src="{{ url_for('static',filename='tabs.js') }}"></script>
+<script src="{{ url_for('static',filename='dashboard.js') }}" type="text/javascript"></script>
 <script>
+    // Globals:
     const DELTA_DAYS = 7
-    loadLatestValues(loadLogs);
+    const delta = DELTA_DAYS * 24 * 60 * 60 * 1000; // days in milliseconds
+
+    // Run Init:
+    window.onload = requestLatestValues(delta, requestLogValues);
+
+    function requestLogValues(startTime, stopTime) {
+        requestLogs(startTime, stopTime);
+    }
 
     function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
         hideElement("id_range_selector");
@@ -49,7 +57,7 @@
         stopTime = document.getElementById(stopTimeID).value;
         startTimestamp = new Date(""+startDate+"T"+startTime+"Z");
         stopTimestamp = new Date(""+stopDate+"T"+stopTime+"Z");
-        loadLogs(startTimestamp, stopTimestamp);
+        requestLogs(startTimestamp, stopTimestamp);
     }
 
 </script>
