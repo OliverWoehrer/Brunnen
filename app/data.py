@@ -98,7 +98,7 @@ class InfluxDataClient():
         # Read From Database:
         start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        if window_size is None:
+        if window_size is None or window_size.total_seconds() < 1:
             aggregate_string = ""
         else:
             aggregate_string = "|> aggregateWindow(every: {days}d{seconds}s, fn: mean, createEmpty: false)".format(days=window_size.days, seconds=window_size.seconds)
