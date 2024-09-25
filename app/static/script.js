@@ -1,45 +1,10 @@
-let myChart;
-
 /**
- * This function takes the given timestamp and returns the readable formated string of date and
- * time.
- * @param {int} timestamp UNIX timestamp in milliseconds
- * @returns string of local date and time
+ * @author Oliver Woehrer
+ * @date September 2024
+ * 
+ * This file provides general functionality for the entire page (mainly UI).
+ * 
  */
-function toLocalDateTime(timestamp) {
-    let date = toLocalDate(timestamp);
-    let time = toLocalTime(timestamp);
-    return ""+date+", "+time;
-}
-
-/**
- * This function takes the given timestamp and returns the readable formated string of date.
- * @param {int} timestamp UNIX timestamp in milliseconds
- * @returns string of local date
- */
-function toLocalDate(timestamp) {
-    date = new Date(timestamp);
-    const options = {
-        year: "2-digit",
-        month: "2-digit",
-        day: "2-digit",
-    };
-    return date.toLocaleDateString("de-AT", options);
-}
-
-/**
- * This function takes the given timestamp and returns the readable formated string of time.
- * @param {int} timestamp UNIX timestamp in milliseconds
- * @returns string of local time
- */
-function toLocalTime(timestamp) {
-    date = new Date(timestamp);
-    const options = {
-        hour: "2-digit",
-        minute: "2-digit"
-    };
-    return date.toLocaleTimeString("de-AT", options);
-}
 
 /**
  * Inserts the given list of data into the table element. Use the columns list to specify which
@@ -75,190 +40,191 @@ function fillTable(tableElem, columnsList, dataList) {
     }
 }
 
-function plotData(chartCanvas, labels, datasets) {
-    // Build Canvas Title:
-    let firstLabel = labels[0];
-    let lastLabel = labels[labels.length - 1];
-    titleText = toLocalDate(firstLabel)+" - "+toLocalDate(lastLabel);
-
-    // Convert UNIX Labels to String:
-    labels = labels.map(function(label) { return toLocalTime(label); });
-
-    //Declare Canvas Variables:
-    let config = { // plot canvas config
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            onResize: updateChart,
-            plugins: {
-                title: {
-                    display: true,
-                    text: titleText
-                },
-                tooltip: true,
-                zoom: {
-                    zoom: {
-                        drag: {
-                            enabled: true
-                        },
-                        mode: 'x',
-                    }
-                }
-            }
-        }
-    };
-
-    // Build Canvas:
-    if (myChart) myChart.destroy();
-    myChart = new Chart(chartCanvas, config);
-}
-
-function updateChart(myChart, newSize) {
-    myChart.resize();
-}
-
 /**
- * Resets the zoom of plot canvas to default
+ * This function makes the DOM element (with the given id) visible again
+ * @param {String} elementID id of the DOM element
  */
-function resetZoom() {
-    if(myChart) myChart.resetZoom();
-}
-
-
-function loadLatestValues(loadFunction) {
-    $.ajax({ 
-        url: "/api/web/sync", 
-        type: "get",
-        accepts: "application/json",
-        success: function(res) {
-            const lastSync = res["last_sync"];
-            const delta = DELTA_DAYS * 24 * 60 * 60 * 1000; // days in milliseconds
-            stopTime = new Date(lastSync);
-            startTime = new Date (stopTime.getTime() - delta);
-            loadFunction(startTime, stopTime);
-        },
-        error: alertErrorResponse
-    });
-}
-
-function loadLogs(startTime, stopTime) {
-    startString = startTime.toISOString().replace("Z","");
-    stopString = stopTime.toISOString().replace("Z","");
-    $.ajax({ 
-        url: "/api/web/logs",
-        type: "get",
-        accepts: "application/json",
-        data: { start: startString, stop: stopString },
-        beforeSend: function() {
-            waitingAnimation = document.getElementById("logs_table_waiting");
-            waitingAnimation.style.display = "inline-block";
-        },
-        success: function(res) {
-            // Parse Reponse:
-            columns = res["columns"];
-            data = res["data"];
-
-            // Get DOM Element for Table:
-            let logsTable = document.getElementById("logs_table");
-
-            // Hide Waiting Animation:
-            waitingAnimation = document.getElementById("logs_table_waiting");
-            waitingAnimation.style.display = "none";
-            
-            // Insert User as Table Rows:
-            fillTable(logsTable, columns, data);
-        },
-        error: alertErrorResponse
-    });
-}
-
-function loadData(startTime, stopTime) {
-    startString = startTime.toISOString().replace("Z","");
-    stopString = stopTime.toISOString().replace("Z","");
-    $.ajax({ 
-        url: "/api/web/data", 
-        type: "get",
-        accepts: "application/json",
-        data: { start: startString, stop: stopString },
-        beforeSend: function() {
-            waitingAnimation = document.getElementById("myChart_waiting");
-            waitingAnimation.style.display = "inline-block";
-            if (myChart) myChart.destroy();
-        },
-        success: function(res) {
-            //Declare Global Variables:
-            const POINTS = 2000;
-            const FLOW_SCALING = 0.002577; // 388 pulses per litre
-            const PRESSURE_SCALING = 0.002513; // 398 increments per bar
-            const LEVEL_SCALING = 0.00157356; // 635 increments per meter
-
-            // Parse Reponse:
-            columnNames = Object.keys(res);
-
-            // Parse Labels from Response:
-            let labels;
-            if("Time" in res) {
-                labels = Object.values(res["Time"]);
-            }
-
-            let datasets = new Array();
-            if("Flow" in res) {
-                values = Object.values(res["Flow"]);
-                set = {
-                    label: "Flow [L/s]",
-                    data: values,
-                    borderColor: "rgb(68, 114, 196)"
-                }
-                datasets.push(set);
-            }
-            if("Pressure" in res) {
-                values = Object.values(res["Pressure"]);
-                set = {
-                    label: "Pressure [Bar]",
-                    data: values,
-                    borderColor: "rgb(237, 125, 49)"
-                }
-                datasets.push(set);
-            }
-            if("Level" in res) {
-                values = Object.values(res["Level"]);
-                set = {
-                    label: "Level [m]",
-                    data: values,
-                    borderColor: "rgb(165, 165, 165)"
-                }
-                datasets.push(set);
-            }
-
-            // Hide Waiting Animation:
-            waitingAnimation = document.getElementById("myChart_waiting");
-            waitingAnimation.style.display = "none";
-
-            // Plot Data:
-            let chartCanvas = document.getElementById("myChart");
-            plotData(chartCanvas, labels, datasets);
-        },
-        error: alertErrorResponse
-    });
-}
-
 function showElement(elementID) {
     document.getElementById(elementID).style.display = "block";
 }
 
+/**
+ * This function hides the DOM element (with the given id).
+ * @param {String} elementID id of the DOM element
+ */
 function hideElement(elementID) {
     document.getElementById(elementID).style.display = "none";
 }
 
-function alertErrorResponse(res) {
-    console.log(res.responseText);
-    const doc = new DOMParser().parseFromString(res.responseText, "text/html");
-    let title = doc.getElementsByTagName("title");
-    let nodes = doc.getElementsByTagName("p");
-    window.alert("Server Response: ["+title[0].innerText+"] "+nodes[0].innerText);
+
+
+
+//===============================================
+// Helper Functions
+//===============================================
+
+/**
+ * This function takes the given timestamp and returns the readable formated string of date and
+ * time.
+ * @description Helper Function
+ * @param {int} timestamp UNIX timestamp in milliseconds
+ * @returns string of local date and time
+ */
+function toLocalDateTime(timestamp) {
+    let date = toLocalDate(timestamp);
+    let time = toLocalTime(timestamp);
+    return ""+date+", "+time;
+}
+
+/**
+ * This function takes the given timestamp and returns the readable formated string of date.
+ * @description Helper Function
+ * @param {int} timestamp UNIX timestamp in milliseconds
+ * @returns string of local date
+ */
+function toLocalDate(timestamp) {
+    date = new Date(timestamp);
+    const options = {
+        year: "2-digit",
+        month: "2-digit",
+        day: "2-digit",
+    };
+    return date.toLocaleDateString("de-AT", options);
+}
+
+/**
+ * This function takes the given timestamp and returns the readable formated string of time.
+ * @description Helper Function
+ * @param {int} timestamp UNIX timestamp in milliseconds
+ * @returns string of local time
+ */
+function toLocalTime(timestamp) {
+    date = new Date(timestamp);
+    const options = {
+        hour: "2-digit",
+        minute: "2-digit"
+    };
+    return date.toLocaleTimeString("de-AT", options);
+}
+
+
+
+
+//===============================================
+// Tab Controls
+//===============================================
+/**
+ * [Tab Controlls]
+ * Open and close tabs by hidding and showing them when clicked. There is a seperation between
+ * Links and Tabs for maximum flexibility. Links are always visible (e.g. a bar). Tabs are
+ * displayed if the matching link is clicked.
+ * 
+ * Link Spaces are containers for links, use CSS class "linkspace" for those elements. Use the CSS
+ * class "link" for Links. Tab Spaces are containers for tabs, use CSS class "tabspace" for those
+ * elements. Use the CSS class "tab" for Tabs.
+ * 
+ */
+/**
+ * Changes the visuals of the given element to indicate, that this tab is currently active
+ * @param {HTMLElement} link element to style
+ */
+function styleSelected(link) {
+    link.style.borderBottomStyle = "solid";
+}
+
+/**
+ * Changes the visuals of the given element to a default style, if this tab is currently not active
+ * @param {HTMLElement} link element to style
+ */
+function styleDefault(link) {
+    link.style.borderBottomStyle = "none";
+}
+
+/**
+ * This function makes the tab (with the given id) visible and updates the styles of the links
+ * accordingly, so only the clicked link is visualized active and others. 
+ * @param {Event} event passed by the "onclick" event, if a tab-link is clicked
+ * @param {String} tabName id of the DOM element to make visible (open given tab)
+ */
+function openTab(event, tabName) {
+    // Find Other Links:
+    currentElement = event.currentTarget
+    isLink = currentElement.classList.contains("link");
+    while(!isLink) { // climb up the element hierarchy until element is a link
+        currentElement = currentElement.parentElement;
+        isLink = currentElement.classList.contains("link");
+    }
+    
+    // Look For Sibling Elements (Links):
+    linkspace = currentElement.parentElement;
+    const links = linkspace.getElementsByClassName("link");
+
+    // Style All Links (Default):
+    for(const link of links) {
+        styleDefault(link);
+    }
+
+    // Style Target Link:
+    targetLink = currentElement;
+    styleSelected(targetLink);
+
+    // Find Other Tabs:
+    targetTab = document.getElementById(tabName);
+    tabspace = targetTab;
+    isTabSpace = false;
+    while(!isTabSpace) { // climb up the element hierarchy until element is a tabspace
+        tabspace = tabspace.parentElement;
+        isTabSpace = tabspace.classList.contains("tabspace");
+    }
+
+    // Hide Other Tabs (Default):
+    const tabs = tabspace.getElementsByClassName("tab");
+    for(const tab of tabs) {
+        tab.style.display = "none";
+    }
+
+    // Show Target Tab:
+    targetTab.style.display = "block";
+}
+
+/**
+ * This function initializes all Link Spaces and Tab Spaces on the page. Always the first link
+ * element and a Link Space and the first tab in a Tab Space will be made visible, others are
+ * hidden. If you want other behaviour, you can hide the elements with HTML inline stylings and
+ * manually call the style functions above.
+ * @see styleSelected for visualizing a link as selected
+ * @see styleDefault for visualizing a link as not selected (default)
+ * @param {Event} event passed by the "onclick" event, if a tab-link is clicked
+ * @param {String} tabName id of the DOM element to make visible (open given tab)
+ */
+function initTabs() {
+    // Initalize Link Spaces:
+    const linkspaces = document.getElementsByClassName("linkspace");
+    for(const linkspace of linkspaces) {
+        // Get Links in Linkspace:
+        const links = linkspace.getElementsByClassName("link");
+        
+        // Style All Tab Links (Default Style):
+        for(const link of links) {
+            styleDefault(link);
+        }
+
+        // Style First Tab Link (Selected Style):
+        styleSelected(links[0])
+    }
+
+    // Initalize Tab Spaces:
+    const tabspaces = document.getElementsByClassName("tabspace");
+    for(const tabspace of tabspaces) {
+        // Get Tabs in Tabspace:
+        const tabs = tabspace.getElementsByClassName("tab");
+        
+        // Hide All Tab (Default):
+        for(const tab of tabs) {
+            tab.style.display = "none";
+        }
+
+        // Show First Tab (Selected):
+        tabs[0].style.display = "block";
+    }
 }
