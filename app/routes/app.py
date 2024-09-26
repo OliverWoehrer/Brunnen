@@ -73,4 +73,4 @@ def error(e):
         return render_template("special_pages/error.html", code=str(e.code), message=e.description), e.code
     else: # return unknown errors
         # TODO: remove for deployment!
-        return render_template("special_pages/error.html", code=500, message=str(e)), 500
+        return render_template("special_pages/error.html", code=str(500), message=str(e)), 500
