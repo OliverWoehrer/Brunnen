@@ -45,7 +45,13 @@ function fillTable(tableElem, columnsList, dataList) {
  * @param {String} elementID id of the DOM element
  */
 function showElement(elementID) {
-    document.getElementById(elementID).style.display = "block";
+    const elem = document.getElementById(elementID);
+    if(elem.classList.contains("myLoader")) {
+        elem.style.display = "inline-block";
+    } else {
+        elem.style.display = "block";
+    }
+    
 }
 
 /**
