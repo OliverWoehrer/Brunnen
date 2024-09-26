@@ -10,14 +10,13 @@
 
 {% block action %}
 {{ buttons.button_secondary("Select Range", "showElement('id_range_selector'); initTabs();") }}
-{{ buttons.button_secondary("Reset Zoom", "resetZoom();") }}
 {% endblock %}
 
 {% block main %}
 <div class="w3-center" style="height: 100%;">
     {% call cards.white(stylings="height: 100%;") %}
-        <div id="myChart_waiting" class="loader w3-margin"></div>
-        <canvas id="myChart"></canvas>
+        <div id="lineChart_waiting" class="loader w3-margin"></div>
+        <div id="lineChartDiv" style="height: 100%;"></div>
         </div>
         <div id="id_range_selector" class="w3-modal">
             <div class="w3-modal-content w3-transparent">
@@ -29,20 +28,29 @@
 {% endblock %}
 
 {% block script %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/1.0.0/chartjs-plugin-zoom.js"></script>
 <script src="{{ url_for('static',filename='dashboard.js') }}" type="text/javascript"></script>
+<script src="https://code.jscharting.com/latest/jscharting.js" type="text/javascript"></script> 
+<script src="https://code.jscharting.com/latest/modules/types.js" type="text/javascript"></script>
 <script>
-    // Globals:
-    const DELTA_DAYS = 2
-    const delta = DELTA_DAYS * 24 * 60 * 60 * 1000; // days in milliseconds
+    // Global Varaiables:
+    const WINDOW_SIZE = 48 * 60 * 60 * 1000; // 48 hours
+    let lineChart;
 
-    // Run Init:
-    window.onload = requestLatestValues(delta, requestDataValues);
+    // Run Initalization:
+    window.onload = init;
 
-    function requestDataValues(startTime, stopTime) {
-        requestData(startTime, stopTime);
+    async function init() {
+        // Plot Empty Chart:
+        plotLines("lineChartDiv");
+        
+        // Fetch Latest Data:
+        try {
+            const stopTime = await getLatestTimestamp();
+            const startTime = new Date(stopTime.getTime() - WINDOW_SIZE);
+            requestData(startTime, stopTime);
+        } catch(error) {
+            alertErrorResponse(error);
+        }
     }
 
     function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
@@ -53,7 +61,8 @@
         stopTime = document.getElementById(stopTimeID).value;
         startTimestamp = new Date(""+startDate+"T"+startTime+"Z");
         stopTimestamp = new Date(""+stopDate+"T"+stopTime+"Z");
-        loadData(startTimestamp, stopTimestamp);
+        plotLines("lineChartDiv");
+        requestData(startTimestamp, stopTimestamp);
     }
 
 </script>
