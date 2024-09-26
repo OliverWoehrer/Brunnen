@@ -71,16 +71,8 @@ th {
 /***************************************/
 /* Individual Styles: */
 /***************************************/
-.loader {
-    display: inline-block;
-    margin: 10px;
-    border: 5px solid var(--secondary-color);
-    border-radius: 50%;
-    border-top: 5px solid var(--primary-color);
-    width: 24px;
-    height: 24px;
-    -webkit-animation: spin 2s linear infinite; /* Safari */
-    animation: spin 2s linear infinite;
+.myLoader {
+    height: 45px;
 }
 /* Safari */
 @-webkit-keyframes spin {
