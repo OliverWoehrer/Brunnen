@@ -131,7 +131,7 @@ class InfluxDataClient():
         json_data = json.loads(json_string)
         return ("success", json_data)
 
-    def queryLatestData(self) -> (str,datetime):
+    def queryLatestTimestamp(self) -> (str,datetime):
         """
         This function querys the latest data available in water meaurements and returns its
         timestamp.
