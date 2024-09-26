@@ -24,7 +24,7 @@ web = Blueprint("web", __name__, url_prefix="/web")
 @web.route("/sync", methods=["GET"])
 def sync():
     # Read Logs From Database:
-    (msg,timestamp) = db.queryLatestData()
+    (msg,timestamp) = db.queryLatestTimestamp()
     if timestamp is None:
         raise BadGateway(("Problem while reading latest sync: "+msg))
     
@@ -91,7 +91,8 @@ def data():
     
     # Read Data From Database:
     total_period = stop - start
-    (msg,data) = db.queryData(start_time=start, stop_time=stop, window_size=(total_period/2000))
+    window_size = (total_period/1000) + timedelta(seconds=1)
+    (msg,data) = db.queryData(start_time=start, stop_time=stop, window_size=window_size)
     if data is None:
         raise BadGateway(("Problem while reading data: "+msg))
     
