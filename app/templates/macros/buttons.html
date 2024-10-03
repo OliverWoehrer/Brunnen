@@ -13,23 +13,23 @@
 {% endmacro %}
 
 {% macro button_primary(text, action_function) %}
-    <button class="w3-button w3-round-large color-primary w3-large" onclick="{{ action_function }}">
+    <button type="button" class="w3-button w3-round-large color-primary w3-large" onclick="{{ action_function }}">
         <span class="w3-cell-middle">{{text}}</span>
     </button>
 {% endmacro %}
 
 {% macro button_secondary(text, action_function) %}
-    <button class="w3-button w3-round-large color-secondary w3-large" onclick="{{ action_function }}">
-        <span class="w3-cell-middle">{{text}}</span>
+    <button type="button" class="w3-button w3-round-large color-secondary w3-large w3-cell-middle" onclick="{{ action_function }}">
+        {{text}}
     </button>
 {% endmacro %}
 
 {% macro button_neutral(text, action_function) %}
-    <button class="w3-button w3-round-large color-background w3-large" onclick="{{ action_function }}">
+    <button type="button" class="w3-button w3-round-large color-background w3-large" onclick="{{ action_function }}">
         <span class="w3-cell-middle">{{text}}</span>
     </button>
 {% endmacro %}
 
 {% macro submit_secondary(text) %}
-    <input type="submit" value="{{ text }}" class="w3-block w3-button w3-round-large color-secondary">
+    <input type="submit" value="{{ text }}" class="w3-block w3-button w3-round-large color-secondary w3-large">
 {% endmacro %}
