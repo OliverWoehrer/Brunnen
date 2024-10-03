@@ -13,17 +13,16 @@
 {% endblock %}
 
 {% block main %}
-<div class="w3-center" style="height: 100%;">
-    {% call cards.white(stylings="height: 100%;") %}
+<div id="viewcontainer" style="height: 100%;">
+    <div id="view" style="height: 100%;">
         <div id="lineChart_waiting" class="loader w3-margin"></div>
         <div id="lineChartDiv" style="height: 100%;"></div>
+    </div>
+    <div id="id_range_selector" class="w3-modal">
+        <div class="w3-modal-content w3-transparent">
+            {{ picker.datetime("parseDateTime") }}
         </div>
-        <div id="id_range_selector" class="w3-modal">
-            <div class="w3-modal-content w3-transparent">
-                {{ picker.datetime("parseDateTime") }}
-            </div>
-        </div>
-    {% endcall %}
+    </div>
 </div>
 {% endblock %}
 
@@ -40,9 +39,32 @@
     window.onload = init;
 
     async function init() {
+        // Set Width & Height for Landscape:
+        if(screen.orientation.type.startsWith("portrait")) {
+            const viewcontainer = document.getElementById("viewcontainer");
+            const rect = viewcontainer.getBoundingClientRect();
+            const view = document.getElementById("view");
+            view.style.width = rect.height+"px";
+            view.style.height = rect.width+"px";
+
+            lineChartDiv = document.getElementById("lineChartDiv");
+            lineChartDiv.style.width = view.style.width;
+            lineChartDiv.style.height = view.style.height;
+        }
+
         // Plot Empty Chart:
         plotLines("lineChartDiv");
-        
+
+        // Rotate to Landscape:
+        if(screen.orientation.type.startsWith("portrait")) {
+            const viewcontainer = document.getElementById("viewcontainer");
+            const rect = viewcontainer.getBoundingClientRect();
+            const view = document.getElementById("view");
+            const horizontalOffset = (rect.width/2) - (rect.height/2);
+            const verticalOffset = (rect.height/2) - (rect.width/2);
+            view.style.transform = "translate("+horizontalOffset+"px, "+verticalOffset+"px) rotate(90deg)";
+        }
+
         // Fetch Latest Data:
         try {
             const stopTime = await getLatestTimestamp();
