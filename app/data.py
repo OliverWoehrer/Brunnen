@@ -297,6 +297,8 @@ class InfluxDataClient():
                 cols.append(key)
         timestamp = datetime.now(timezone.utc).replace(microsecond=0)
         df = pd.DataFrame(data, index=[timestamp], columns=cols)
+        if df.empty:
+            return "Got no supported settings in given object."
 
         try:
             self._write_api.write(bucket=MEASUREMENT_BUCKET, record=df, data_frame_measurement_name=SETTINGS)
@@ -404,6 +406,8 @@ class InfluxDataClient():
             return "Missing fields in given user."
         timestamp = datetime.now(timezone.utc).replace(microsecond=0)
         df = pd.DataFrame(data, index=[timestamp], columns=cols)
+        if df.empty:
+            return "Can only insert supported fields in user object."
 
         try:
             self._write_api.write(bucket=CREDENTIALS_BUCKET, record=df, data_frame_measurement_name=USERS, data_frame_tag_columns=["username"])
@@ -534,6 +538,8 @@ class InfluxDataClient():
             return "Missing fields in given device."
         timestamp = datetime.now(timezone.utc).replace(microsecond=0)
         df = pd.DataFrame(data, index=[timestamp], columns=cols)
+        if df.empty:
+            return "Got no supported fields in device object."
 
         try:
             self._write_api.write(bucket=CREDENTIALS_BUCKET, record=df, data_frame_measurement_name=DEVICES, data_frame_tag_columns=["id"])
