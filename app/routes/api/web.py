@@ -6,8 +6,8 @@ from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import HTTPException, BadRequest, UnprocessableEntity, BadGateway, Unauthorized, Forbidden
 from datetime import datetime, timedelta, timezone
 import json
-import pandas as pd
 import re
+import config
 from data import data_client as db
 from ..web.web import set_last_visit
 
@@ -107,17 +107,12 @@ def user():
         raise Unauthorized("Log in to continue")
     if group != "admin":
         raise Forbidden("You do not have permissions to create new users.")
-    
-    # Build Next Destination:
-    root_url = request.root_url
-    refferer = request.referrer
-    origin = refferer.replace(root_url,"")
 
     if request.method == "GET":
         # Read All Users:
         (msg,users) = db.queryUsers()
         if users is None:
-            raise BadGateway(("Problem while reading logs: "+msg))
+            raise BadGateway(("Problem while reading users: "+msg))
         return users
     
     if request.method == "POST":
@@ -189,6 +184,189 @@ def user():
             # Inform User:
             flash("Delete user "+username+".")
             return redirect(request.referrer)
+    
+@web.route("/intervals", methods=["GET","POST"])
+def intervals():
+    # Read Intervals From Database:
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    intervals = settings.get("intervals", [])
+    
+    if request.method == "GET":
+        return intervals
+
+    if request.method == "POST":
+        # Parse Parameters:
+        action = request.form.get("action")
+        if action is None:
+            raise BadRequest("Missing parameter 'action'.")
+        
+        if action == "create":
+            # Parse Start Parameter:
+            start_param = request.form.get("start")
+            if start_param is None:
+                raise UnprocessableEntity("Missing parameter 'start'.")
+            try:
+                start = datetime.strptime(start_param, '%H:%M').time()
+            except ValueError as e:
+                raise BadRequest(("Problem while parsing parameter 'start': "+str(e)))
+            
+            # Parse Stop Parameter:
+            stop_param = request.form.get("stop")
+            if stop_param is None:
+                raise UnprocessableEntity("Missing parameter 'stop'.")
+            try:
+                stop = datetime.strptime(stop_param, '%H:%M').time()
+            except ValueError as e:
+                raise BadRequest(("Problem while parsing parameter 'stop': "+str(e)))
+            
+            # Input Cleaning:
+            if start > stop:
+                raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
+
+            # Build New Interval:
+            weekdays = 0
+            keys = request.form.keys()
+            if "mon" in keys:
+                weekdays = weekdays | 0b00000001
+            if "tue" in keys:
+                weekdays = weekdays | 0b00000010
+            if "wed" in keys:
+                weekdays = weekdays | 0b00000100
+            if "thu" in keys:
+                weekdays = weekdays | 0b00001000
+            if "fri" in keys:
+                weekdays = weekdays | 0b00010000
+            if "sat" in keys:
+                weekdays = weekdays | 0b00100000
+            if "sun" in keys:
+                weekdays = weekdays | 0b01000000
+            interval = { "start": start.strftime("%H:%M"), "stop": stop.strftime("%H:%M"), "wdays": weekdays }
+            intervals.append(interval)
+
+        elif action == "delete":
+            interval_id_param = request.form.get("interval_id")
+            if interval_id_param is None:
+                raise UnprocessableEntity("Missing parameter 'interval_id'.")
+            try:
+                interval_id = int(interval_id_param)
+            except ValueError as e:
+                raise BadRequest(("Problem while parsing parameter 'interval_id': "+str(e)))
+            
+            if 0 <= interval_id and interval_id < len(intervals):
+                del intervals[interval_id]
+            else:
+                raise BadRequest("Invalid interval id.")
+
+        else:
+            raise BadRequest("Unknown value for field 'action'.")
+
+        # Write Update Settings to Database:
+        updatedSettings = { "intervals": intervals }
+        msg = db.insertSettings(updatedSettings)
+        if msg:
+            raise BadGateway(("Problem while writing settings: "+msg))
+
+        # Return JSON Response:
+        return redirect(request.referrer)
+
+@web.route("/synchronization", methods=["GET","POST"])
+def synchronization():
+    # Read Intervals From Database:
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    sync = settings.get("sync", config.readBrunnenSettings("sync"))
+    
+    if request.method == "GET":
+        return sync
+
+    if request.method == "POST":
+        # Parse Sleep Mode:
+        sleep_mode_input = request.form.get("sleep_mode_period")
+        if sleep_mode_input is None:
+            raise UnprocessableEntity("Missing parameter 'sleep_mode_period'.")
+        try:
+            sleep_mode_period = int(sleep_mode_input)
+        except ValueError as e:
+            raise BadRequest("Parameter 'sleep_mode_period' is not an integer.")
+
+        # Parse Standby Mode:
+        standby_mode_input = request.form.get("standby_mode_period")
+        if standby_mode_input is None:
+            raise UnprocessableEntity("Missing parameter 'standby_mode_period'.")
+        try:
+            standby_mode_period = int(standby_mode_input)
+        except ValueError as e:
+            raise BadRequest("Parameter 'standby_mode_period' is not an integer.")
+
+        # Parse Realt-Time Mode:
+        rt_mode_input = request.form.get("rt_mode_period")
+        if rt_mode_input is None:
+            raise UnprocessableEntity("Missing parameter 'rt_mode_period'.")
+        try:
+            rt_mode_period = int(rt_mode_input)
+        except ValueError as e:
+            raise BadRequest("Parameter 'rt_mode_period' is not an integer.")
+
+        # Update Sync Settings:
+        sync["long"] = sleep_mode_period
+        sync["medium"] = standby_mode_period
+        sync["short"] = rt_mode_period
+
+        # Write Update Settings to Database:
+        updatedSettings = { "sync": sync }
+        msg = db.insertSettings(updatedSettings)
+        if msg:
+            raise BadGateway(("Problem while writing settings: "+msg))
+
+        # Return JSON Response:
+        return redirect(request.referrer)
+
+
+@web.route("/thresholds", methods=["GET","POST"])
+def thresholds():
+    # Read Thresholds From Database:
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    thresholds = settings.get("thresholds", config.readBrunnenSettings("thresholds"))
+    
+    if request.method == "GET":
+        return thresholds
+
+    if request.method == "POST":
+        # Parse Rain Threshold:
+        rain_threshold_input = request.form.get("rain_threshold")
+        if rain_threshold_input is None:
+            raise UnprocessableEntity("Missing parameter 'rain_threshold'.")
+        try:
+            rain_threshold = float(rain_threshold_input)
+        except ValueError as e:
+            raise BadRequest("Parameter 'rain_threshold' is not a float.")
+
+        # Parse Marker Threshold:
+        marker_threshold_input = request.form.get("marker_threshold")
+        if marker_threshold_input is None:
+            raise UnprocessableEntity("Missing parameter 'marker_threshold'.")
+        try:
+            marker_threshold = float(marker_threshold_input)
+        except ValueError as e:
+            raise BadRequest("Parameter 'marker_threshold' is not a float.")
+
+        # Update Threshold Settings:
+        thresholds["rain"] = rain_threshold
+        thresholds["marker"] = marker_threshold
+
+        # Write Update Settings to Database:
+        updatedSettings = { "thresholds": thresholds }
+        msg = db.insertSettings(updatedSettings)
+        if msg:
+            raise BadGateway(("Problem while writing settings: "+msg))
+
+        # Return JSON Response:
+        return redirect(request.referrer)
 
 @web.after_request
 def log(response):
