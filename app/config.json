@@ -26,9 +26,9 @@
             "software": {
                 "version": 3
             },
-            "threshold": {
-                "rain": 50,
-                "marker": 200
+            "thresholds": {
+                "rain": 2,
+                "marker": 4
             }
         }
     }
