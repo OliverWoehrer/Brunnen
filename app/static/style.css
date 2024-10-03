@@ -50,12 +50,17 @@ h2 {
     margin-top: 0px;
 }
 
+h4 {
+    margin-top: 0px;
+    margin-bottom: 0px;
+}
+
 th {
     position: sticky;
     top: 0; /* Don't forget this, required for the stickiness */
     box-shadow: 0 15px 15px -10px rgba(0, 0, 0, 0.20);
     color: #000000!important;
-    background: #F1F1F1;
+    background: var(--background-color);
 }
 
 @media (prefers-color-scheme: dark) {
