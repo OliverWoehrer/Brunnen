@@ -58,13 +58,11 @@ This bucket holds all data of the pump device. The following measurements are re
     "mode": String(<"long"|"medium"|"short">)
 }
 
-"intervals": {
-	"intervals": [
-        { "start":String(<HH:MM:SS>), "stop":String(<HH:MM:SS>), "wdays":Integer(<mask>) },
-    	{ "start":String(<HH:MM:SS>), "stop":String(<HH:MM:SS>), "wdays":Integer(<mask>) },
-        ...
-	]
-}
+"intervals": [
+    { "start":String(<HH:MM>), "stop":String(<HH:MM>), "wdays":Integer(<mask>) },
+	{ "start":String(<HH:MM>), "stop":String(<HH:MM>), "wdays":Integer(<mask>) },
+    ...
+]
 
 "pump": {
 	"state": Boolean
