@@ -41,12 +41,15 @@
     const WINDOW_SIZE = 48 * 60 * 60 * 1000; // 48 hours
     window.onload = init;
 
-    function init() {
-        requestLatestValues(WINDOW_SIZE, requestLogValues);
-    }
-    
-    function requestLogValues(startTime, stopTime) {
-        requestLogs(startTime, stopTime);
+    async function init() {
+        // Fetch Latest Data:
+        try {
+            const stopTime = await getLatestTimestamp();
+            const startTime = new Date(stopTime.getTime() - WINDOW_SIZE);
+            requestLogs(startTime, stopTime);
+        } catch(error) {
+            alertErrorResponse(error);
+        }
     }
 
     function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
