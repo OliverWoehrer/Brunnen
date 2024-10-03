@@ -59,7 +59,7 @@ def readBrunnenSettings(setting: str = None) -> dict:
     if setting is None:
         return settings
     if setting not in settings:
-        raise ValueError("No setting named"+setting)
+        raise ValueError("No setting named "+setting)
     return settings.get(setting)
 
 def readBrunnenDaytime() -> dict:
