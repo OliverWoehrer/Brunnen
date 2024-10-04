@@ -42,25 +42,29 @@
     window.onload = init;
 
     async function init() {
-        // Fetch Latest Data:
         try {
-            const stopTime = await getLatestTimestamp();
-            const startTime = new Date(stopTime.getTime() - WINDOW_SIZE);
-            requestLogs(startTime, stopTime);
+            const stop = await fetchLatestTimestamp();
+            const start = new Date(stop.getTime() - WINDOW_SIZE);
+            await updateLogs(start, stop, "logs_table");
         } catch(error) {
-            alertErrorResponse(error);
+            window.alert("Could not fetch logs: "+error);
+            return;
         }
     }
 
-    function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
-        hideElement("id_range_selector");
-        startDate = document.getElementById(startDateID).value;
-        startTime = document.getElementById(startTimeID).value;
-        stopDate = document.getElementById(stopDateID).value;
-        stopTime = document.getElementById(stopTimeID).value;
-        startTimestamp = new Date(""+startDate+"T"+startTime+"Z");
-        stopTimestamp = new Date(""+stopDate+"T"+stopTime+"Z");
-        requestLogs(startTimestamp, stopTimestamp);
+    async function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
+        const startDate = document.getElementById(startDateID).value;
+        const startTime = document.getElementById(startTimeID).value;
+        const stopDate = document.getElementById(stopDateID).value;
+        const stopTime = document.getElementById(stopTimeID).value;
+        const start = new Date(""+startDate+"T"+startTime+"Z");
+        const stop = new Date(""+stopDate+"T"+stopTime+"Z");
+        try {
+            await updateLogs(start, stop, "logs_table");
+        } catch(error) {
+            window.alert("Could not fetch logs: "+error);
+            return;
+        }
     }
 
 </script>
