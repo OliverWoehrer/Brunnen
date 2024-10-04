@@ -115,7 +115,7 @@ class InfluxDataClient():
         except InfluxDBError as e:
             return (e.message, None)
         if df.empty:
-            return ("No data found", None)
+            return ("No data found", {})
 
         # Check Required Fields:
         REQUIERED_FIELDS = ["_time","flow","level","pressure"]
