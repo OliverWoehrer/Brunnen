@@ -1,0 +1,18 @@
+<!doctype html>
+<head>
+    <title>{{ page_title }}</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static',filename='favicon.ico') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@48,700,1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="{{ url_for('static',filename='w3.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+    {% block style %} {% endblock %}
+</head>
+<body>
+    <div class="color-background" style="height: 100%; display: flex; justify-content: center; align-items: center;">
+        {% block main %} {% endblock %}
+    </div>
+    {% block script %} {% endblock %}
+</body>

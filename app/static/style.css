@@ -1,0 +1,241 @@
+/***************************************/
+/* Global Properties: */
+/***************************************/
+:root {
+    /* Main Theme Colors: */
+    --primary-color: #8BC34A;
+    --secondary-color: #000000;
+    --accent-color: #D1E7B7;
+    
+    /* Text Colors: */
+    --light-text-color: #FFFFFF;
+    --dark-text-color: #000000;
+
+    /* Neutral Colors: */
+    --neutral-color: #FFFFFF;
+    --neutral-text: var(--dark-text-color);
+    --background-color: #F1F1F1;
+    --background-text: var(--dark-text-color);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        /* Background Colors: */
+        --neutral-color: #4C4C4C;
+        --neutral-text: var(--light-text-color);
+        --background-color: #353535;
+        --background-text: var(--light-text-color);
+    }
+}
+
+
+
+
+/***************************************/
+/* Overwrite Default Styles: */
+/***************************************/
+html,
+body {
+    font-family: "Ubuntu";
+    overflow: hidden;
+    height: 100vh;
+}
+
+h1 {
+    font-weight: bold;
+}
+
+h2 {
+    font-weight: bold;
+    margin-top: 0px;
+}
+
+h4 {
+    margin-top: 0px;
+    margin-bottom: 0px;
+}
+
+th {
+    position: sticky;
+    top: 0; /* Don't forget this, required for the stickiness */
+    box-shadow: 0 15px 15px -10px rgba(0, 0, 0, 0.20);
+    color: #000000!important;
+    background: var(--background-color);
+}
+
+@media (prefers-color-scheme: dark) {
+    th {
+        color: var(--background-text)!important;
+        background: var(--background-color);
+    }
+}
+
+
+
+
+/***************************************/
+/* Individual Styles: */
+/***************************************/
+.myLoader {
+    height: 45px;
+}
+/* Safari */
+@-webkit-keyframes spin {
+    0% { -webkit-transform: rotate(0deg); }
+    100% { -webkit-transform: rotate(360deg); }
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.linkspace {
+    border-bottom: 1px #C0C0C0 solid;
+    margin-bottom: 8px;
+}
+.link {
+    border-width: 5px;
+    border-color: var(--primary-color)!important;
+}
+
+.filter {
+    margin: 8px;
+    border: 1px solid var(--background-color)!important;
+    border-radius: 8px;
+}
+.filter:hover {
+    background-color: var(--accent-color)!important;
+    border: 1px solid var(--background-color)!important;
+}
+.selected {
+    background-color: var(--accent-color)!important;
+    border: 1px solid var(--neutral-color)!important;
+}
+
+
+
+/***************************************/
+/* Individual Colors: */
+/***************************************/
+.color-primary {
+    color:var(--dark-text-color)!important;
+    background-color: var(--primary-color)!important;
+}
+
+.color-secondary {
+    color: var(--light-text-color)!important;
+    background-color: var(--secondary-color)!important;
+}
+
+.color-accent {
+    color: var(--dark-text-color)!important;
+    background-color: var(--accent-color)!important;
+}
+
+.color-neutral {
+    color: var(--neutral-text)!important;
+    background-color: var(--neutral-color)!important
+}
+
+.color-background {
+    color:var(--background-text)!important;
+    background-color:var(--background-color)!important;
+    /* background: linear-gradient(to bottom, #8BC34A 20vh, #F1F1F1 20vh)!important; */
+}
+
+
+
+
+/***************************************/
+/* Responsive Navigation Layout:
+	responsive navigation bar
+	screen width > 600px: sidebar
+	screen width < 600px bottombar
+*/
+/***************************************/
+.layout {
+    display: flex;
+    height: 100%;
+}
+.layout > nav {
+    flex-grow: 0;
+    flex-shrink: 1;
+    flex-basis: auto;
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+    justify-content: stretch;
+}
+.layout > nav > a {
+    border-radius: 8px;
+    margin: 8px 0px 0px 0px;
+}
+.layout > nav > .selected {
+    color:var(--dark-text-color)!important;
+    background-color:var(--primary-color)!important;
+}
+.layout > main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: auto;
+    overflow-y: auto;
+}
+
+@media (max-width: 992px) {
+    .layout {
+        flex-direction: column-reverse;
+    }
+    .layout > nav {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+    .layout > nav > a {
+        flex: 1 1 auto;
+        vertical-align: middle;
+        margin: 0px 0px 0px 8px;
+    }
+}
+
+
+
+
+/***************************************/
+/* Sticky App Layout:
+	"header" is auto height
+    "footer" is auto height
+    "main" is remaining height of app container
+*/
+/***************************************/
+html, body {
+    height: 100%; /* Set Body Height for Height-Inheritance */
+}
+  
+.app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    /* align-items: center; <-- items are centered and not full width */
+}
+  
+.app > header {
+    flex-grow: 0;
+    flex-shrink: 1;
+    flex-basis: auto;
+}
+
+.app > footer {
+    flex-grow: 0;
+    flex-shrink: 1;
+    flex-basis: auto;
+}
+
+.app > main {
+    flex-grow: 1;
+    flex-shrink: 1;
+    flex-basis: auto;
+}
+
+.app > main .scrollable { /* use for "main" to make content scrollable */
+    height: 1px;
+    overflow: auto;
+}

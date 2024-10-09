@@ -1,0 +1,28 @@
+{% extends "special_pages/base.html" %}
+{% import "macros/buttons.html" as buttons %}
+
+{% set page_title = "Error "+code %}
+
+{% block style %}
+<style>
+.error-layout {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+}
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="w3-large error-layout">
+    <img srcset="{{url_for('static',filename='logo-broken.png')}}" class="w3-padding w3-image" style="max-height: 30vh;">
+    <div class="w3-padding" style="display: inline-block; max-width: 600px;">
+        <h1>Error {{ code }}</h1>
+        <p>{{ message }}</p>
+        {{ buttons.link_primary("Back to Home", "/") }}
+    </div>
+</div>
+{% endblock %}

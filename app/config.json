@@ -1,0 +1,35 @@
+{
+    "port": 5000,
+    "influx": {
+        "host": "http://localhost",
+        "port": 8086,
+        "organization": "Private"
+    },
+    "brunnen": {
+        "daytime": {
+            "start": "08:00:00",
+            "stop": "20:00:00"
+        },
+        "settings": {
+            "sync": {
+                "long": 3600,
+                "medium": 60,
+                "short": 5,
+                "mode": "medium"
+            },
+            "intervals": {
+                "intervals": []
+            },
+            "pump": {
+                "state": false
+            },
+            "software": {
+                "version": 3
+            },
+            "thresholds": {
+                "rain": 2,
+                "marker": 4
+            }
+        }
+    }
+}

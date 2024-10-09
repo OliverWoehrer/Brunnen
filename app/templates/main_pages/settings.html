@@ -1,0 +1,306 @@
+{% extends "main_pages/base.html" %}
+{% import "macros/cards.html" as cards %}
+{% import "macros/buttons.html" as buttons %}
+
+{% set page_title = "Settings" %}
+{% set settings_selector = "selected" %}
+{% set heading = "Settings" %}
+
+{% block style %}
+<style>
+.board {
+    height: 99%;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+}
+
+.panel {
+    width: 33%;
+}
+@media (max-width: 992px) {
+    .panel {
+        width: 50%;
+    }
+}
+@media (max-width: 600px) {
+    .panel {
+        width: 100%;
+    }
+}
+
+.interval {
+    margin-bottom: 8px;
+    border: 1px solid var(--background-color)!important;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.add {
+    background-color: var(--background-color);
+}
+
+.weekday {
+    /* width: 14.3%; */
+    color: var(--accent-color);
+}
+
+.enabled {
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+
+</style>
+{% endblock %}
+
+{% block main %}
+<div class="w3-container">
+    <h2>Brunnen</h2>
+</div>
+<div class="board">
+    {% call cards.white(classes="panel") %}
+        <h3>Intervals</h3>
+        <!-- Interval Container -->
+        <div id="interval_container">
+            <div id="skeleton_interval" class="interval w3-cell-row" style="display: none;">
+                <div class="w3-cell w3-cell-top w3-left-align">
+                    <h4>Title</h4>
+                    <div class="w3-cell-row">
+                        <span id="mon" class="w3-cell weekday">Mo</span>
+                        <span id="tue" class="w3-cell weekday">Tu</span>
+                        <span id="wed" class="w3-cell weekday">We</span>
+                        <span id="thu" class="w3-cell weekday">Th</span>
+                        <span id="fri" class="w3-cell weekday">Fr</span>
+                        <span id="sat" class="w3-cell weekday">Sa</span>
+                        <span id="sun" class="w3-cell weekday">Su</span>
+                    </div>
+                </div>
+                <div class="w3-cell w3-cell-middle w3-right-align">
+                    <form method="POST" action="/api/web/intervals">
+                        <input type="hidden" name="interval_id" value="0" class="id">
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit" class="w3-button"><span class="material-symbols-outlined">delete</span></button>
+                    </form>
+                </div>
+            </div>
+            <div class="interval w3-center">
+                <button onclick="showElement('create_interval')" title="Add New Interval" class="w3-button"><span class="material-symbols-outlined">add</span></button>
+            </div>
+        </div>
+        <!-- Create Interval Modal -->
+        <div id="create_interval" class="w3-modal">
+            <div class="w3-modal-content w3-transparent">
+                {% call cards.white(stylings="width: 100%; min-height: 300px;") %}
+                    <form method="POST" action="/api/web/intervals">
+                        <header class="w3-container"> 
+                            <h2>Add Interval</h2>
+                        </header>
+                        <main>
+                            <div class="w3-row">
+                                <div class="w3-col" style="width: 50px;">
+                                    Start
+                                </div>
+                                <div class="w3-rest">
+                                    <input type="time" name="start" value="00:00" step="60" placeholder="HH:MM">
+                                </div>
+                            </div>
+                            <div class="w3-row">
+                                <div class="w3-col" style="width: 50px;">
+                                    Stop
+                                </div>
+                                <div>
+                                    <input type="time" name="stop" value="23:59" step="60" placeholder="HH:MM">
+                                </div>
+                            </div>
+                            <div>
+                                <p>
+                                    <input type="checkbox" name="mon" class="w3-check" checked>
+                                    <label>Mon</label> 
+                                </p>
+                                <p>
+                                    <input type="checkbox" name="tue" class="w3-check" checked>
+                                    <label>Tue</label> 
+                                </p>
+                                <p>
+                                    <input type="checkbox" name="wed" class="w3-check" checked>
+                                    <label>Wed</label> 
+                                </p>
+                                <p>
+                                    <input type="checkbox" name="thu" class="w3-check" checked>
+                                    <label>Thu</label> 
+                                </p>
+                                <p>
+                                    <input type="checkbox" name="fri" class="w3-check" checked>
+                                    <label>Fri</label> 
+                                </p>
+                                <p>
+                                    <input type="checkbox" name="sat" class="w3-check" checked>
+                                    <label>Sat</label> 
+                                </p>
+                                <p>
+                                    <input type="checkbox" name="sun" class="w3-check" checked>
+                                    <label>Sun</label> 
+                                </p>
+                            </div>
+                        </main>
+                        <footer class="w3-center">
+                            {{ buttons.button_neutral("Cancel", "hideElement('create_interval')") }}
+                            <input type="hidden" name="action" value="create">
+                            <input type="submit" value="Confirm" class="w3-button w3-round-large color-secondary w3-large">
+                        </footer>
+                    </form>
+                {% endcall %}
+            </div>
+        </div>
+    {% endcall %}
+    {% call cards.white(classes="panel") %}
+        <h3>Synchronization</h3>
+        <form method="POST" action="/api/web/synchronization">
+            <div class="w3-margin-bottom">
+                <label>Sleep Mode</label>
+                <select class="w3-select" name="sleep_mode_period">
+                    <option value="7200">2 Hours</option>
+                    <option value="3600" selected>1 Hour</option>
+                    <option value="1800">30 Minutes</option>
+                </select>
+            </div>
+            <div class="w3-margin-bottom">
+                <label>Standby Mode</label>
+                <select class="w3-select" name="standby_mode_period">
+                    <option value="120">2 Minutes</option>
+                    <option value="60" selected>1 Minutes</option>
+                    <option value="30">30 Seconds</option>
+                </select>
+            </div>
+            <div class="w3-margin-bottom">
+                <label>Real-Time Mode</label>
+                <select class="w3-select" name="rt_mode_period">
+                    <option value="10">10 Seconds</option>
+                    <option value="5" selected>5 Seconds</option>
+                    <option value="2">2 Seconds</option>
+                </select>
+            </div>
+            {{ buttons.submit_secondary("Update Sync Periods") }}
+        </form>
+    {% endcall %}
+    {% call cards.white(classes="panel") %}
+        <h3>Thresholds</h3>
+        <form method="POST" action="/api/web/thresholds">
+            <div class="w3-margin-bottom">
+                <label>Rain [m]</label>
+                <input name="rain_threshold" type="number" value="2" min="0" max="5" step="0.5" class="w3-input">
+            </div>
+            <div class="w3-margin-bottom">
+                <label>Marker [m]</label>
+                <input name="marker_threshold" type="number" value="4" min="0" max="5" step="0.5" class="w3-input">
+            </div>
+            {{ buttons.submit_secondary("Update Thresholds") }}
+        </form>
+    {% endcall %}
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    requestIntervals();
+    requestSynchronization();
+    requestThresholds();
+
+    function requestIntervals() {
+        $.ajax({ 
+            url: "/api/web/intervals", 
+            type: "get",
+            success: function(res) {
+                // Parse Reponse:
+                const intervals = res;
+                const numIntervals = intervals ? intervals.length : 0
+
+                // Insert Intervals into Container:
+                const skeletonInterval = document.getElementById("skeleton_interval");
+                for(let idx = numIntervals-1; idx >= 0; idx--) { // reverse order
+                    // Clone Skeleton HTML Element:
+                    const interval = intervals[idx];
+                    const intervalNode = skeletonInterval.cloneNode(true);
+
+                    // Set Visibility and Title :
+                    intervalNode.style.display = "table";
+                    intervalNode.getElementsByTagName("h4")[0].innerText = interval["start"]+" - "+interval["stop"];
+
+                    // Set Enabled Weekdays:
+                    const weekdays = intervalNode.getElementsByClassName("weekday");
+                    for(let idx = 0; idx < weekdays.length; idx++) {
+                        if((interval["wdays"] >> idx) & 1) {
+                            weekdays[idx].classList.add("enabled");
+                        }
+                    }
+                    
+                    // Set Interval ID:
+                    intervalNode.getElementsByClassName("id")[0].value = idx;
+
+                    // Insert Interval into Container:
+                    skeletonInterval.after(intervalNode);
+                }
+            },
+            error: function(res) {
+                console.log("failed to request interval settings");
+            }
+        });
+    }
+
+    function requestSynchronization() {
+        $.ajax({ 
+            url: "/api/web/synchronization", 
+            type: "get",
+            success: function(res) {
+                // Parse Reponse:
+                if(!(res instanceof Object)) {
+                    console.log("Could not parse response '"+res+"': "+e);
+                    return; // no further handling of response
+                }
+                const sync = res;
+
+                // Insert Values into Form:
+                const sleepModeInput = document.getElementsByName("sleep_mode_period")[0];
+                sleepModeInput.value = sync["long"];
+                const standbyModeInput = document.getElementsByName("standby_mode_period")[0];
+                standbyModeInput.value = sync["medium"];
+                const rtModeInput = document.getElementsByName("rt_mode_period")[0];
+                rtModeInput.value = sync["short"];
+                
+            },
+            error: function(res) {
+                console.log("failed to request sync settings");
+            }
+        });
+    }
+
+    function requestThresholds() {
+        $.ajax({ 
+            url: "/api/web/thresholds", 
+            type: "get",
+            success: function(res) {
+                // Parse Reponse:
+                if(!(res instanceof Object)) {
+                    console.log("Could not parse response '"+res+"': "+e);
+                    return; // no further handling of response
+                }
+                const thresholds = res;
+
+                // Insert Values into Form:
+                const rainThresholdInput = document.getElementsByName("rain_threshold")[0];
+                rainThresholdInput.value = thresholds["rain"];
+                const markerThresholdInput = document.getElementsByName("marker_threshold")[0];
+                markerThresholdInput.value = thresholds["marker"];
+            },
+            error: function(res) {
+                console.log("failed to request settings");
+            }
+        });
+    }
+
+</script>
+{% endblock %}

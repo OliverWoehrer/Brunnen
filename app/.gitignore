@@ -1,0 +1,5 @@
+# Temporary Builds Folders:
+__pycache__
+
+# Start-Up Script:
+run.sh

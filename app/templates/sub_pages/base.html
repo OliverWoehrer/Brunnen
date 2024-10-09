@@ -1,0 +1,46 @@
+{% import "macros/cards.html" as cards %}
+
+<!doctype html>
+<head>
+    <title>{{ page_title }}</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static',filename='favicon.ico') }}">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL@48,700,1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="{{ url_for('static',filename='w3.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static',filename='style.css') }}">
+    <style>
+        .topbar {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            justify-content: space-between;;
+            align-items: center;            
+        }
+    </style>
+    {% block style %} {% endblock %}
+</head>
+<body>
+    <div class="app">
+        <header class="w3-padding color-primary topbar">
+                <div>
+                    <a class="w3-button" href="{{ backpath }}" style="font-size: 2rem;"><span class="material-symbols-outlined">arrow_back_ios</span></a>
+                </div>
+                <div>
+                    {% block action %} {% endblock %}
+                </div>
+                <div>
+                    <h1>{{ heading }}</h1>
+                </div>
+        </header>
+        <main>
+            {% block main %} {% endblock %}
+        </main>
+        <footer class="w3-container">
+            Template: /sub_pages/base.html
+        </footer>
+    </div>
+    <script src="{{ url_for('static',filename='script.js') }}" type="text/javascript"></script>
+    {% block script %} {% endblock %}
+</body>
