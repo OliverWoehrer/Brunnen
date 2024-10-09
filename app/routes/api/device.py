@@ -72,6 +72,7 @@ def brunnen():
         raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
 
     if request.method == "GET":
+        g.last_sync = datetime(1970,1,1)
         pass
 
     if request.method == "POST":
