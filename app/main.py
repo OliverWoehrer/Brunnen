@@ -31,4 +31,4 @@ if __name__ == "__main__":
 
     # Start App at Desired Port:
     port = config.readPort()
-    app.run(host="localhost", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True)
