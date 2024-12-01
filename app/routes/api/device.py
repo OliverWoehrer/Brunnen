@@ -2,7 +2,7 @@
 This module implements the functions to handle routes of "/device"
 """
 from flask import Blueprint, g, request
-from werkzeug.exceptions import BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway, Unauthorized
+from werkzeug.exceptions import HTTPException, BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway, Unauthorized
 from datetime import datetime, timedelta, timezone
 import time
 import json
@@ -14,8 +14,8 @@ from ..web.web import get_last_visit
 # Global Variables:
 last_sync = datetime.now(timezone.utc).replace(microsecond=0)
 daytime = config.readBrunnenDaytime()
-daytime_start = time.strptime(daytime.get("start","08:00:00"), "%H:%M:%S")
-daytime_stop = time.strptime(daytime.get("stop","20:00:00"), "%H:%M:%S")
+daytime_start = datetime.strptime(daytime.get("start","08:00:00"), "%H:%M:%S").replace(tzinfo=timezone.utc).timetz()
+daytime_stop = datetime.strptime(daytime.get("stop","20:00:00"), "%H:%M:%S").replace(tzinfo=timezone.utc).timetz()
 
 # Register Blueprint Hierarchy:
 device = Blueprint("device", __name__, url_prefix="/device")
@@ -49,32 +49,9 @@ def check_credentials():
 
 @device.route("/brunnen", methods=["GET", "POST", "DELETE"])
 def brunnen():    
-    # Parse Start Parameter:
-    start_param = request.args.get("start")
-    if start_param is None:
-        raise UnprocessableEntity("Missing parameter 'start'.")
-    try:
-        start = datetime.fromisoformat(start_param)
-    except ValueError as e:
-        raise BadRequest(("Problem while parsing parameter 'start': "+str(e)))
-    
-    # Parse Stop Parameter:
-    stop_param = request.args.get("stop")
-    if stop_param is None:
-        raise UnprocessableEntity("Missing parameter 'stop'.")
-    try:
-        stop = datetime.fromisoformat(stop_param)
-    except ValueError as e:
-        raise BadRequest(("Problem while parsing parameter 'stop': "+str(e)))
-
-    # Input Cleaning:
-    if start > stop:
-        raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
-
     if request.method == "GET":
         g.last_sync = datetime(1970,1,1)
-        pass
-
+		
     if request.method == "POST":
         # Parse Request Body:
         body = request.data.decode("utf-8")
@@ -94,12 +71,6 @@ def brunnen():
             # Initalize Dataframe:
             df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
             df = df.set_index(pd.to_datetime(df.index)) # convert to datetime
-
-            # Check Parameters:
-            if start != df.index[0]:
-                raise UnprocessableEntity("Parameter 'start' does not match with the start of the given data.")
-            if stop != df.index[-1]:
-                raise UnprocessableEntity("Parameter 'stop' does not match with the stop of the given data.")
 
             # Write Data Data:
             msg = db.insertData(data=df)
@@ -130,6 +101,27 @@ def brunnen():
                 raise BadGateway(("Problem while inserting settings: "+str(msg)))
 
     if request.method == "DELETE":
+		# Parse Start Parameter:
+        start_param = request.args.get("start")
+        if start_param is None:
+            raise UnprocessableEntity("Missing parameter 'start'.")
+        try:
+            start = datetime.fromisoformat(start_param)
+        except ValueError as e:
+            raise BadRequest(("Problem while parsing parameter 'start': "+str(e)))
+
+        # Parse Stop Parameter:
+        stop_param = request.args.get("stop")
+        if stop_param is None:
+            raise UnprocessableEntity("Missing parameter 'stop'.")
+        try:
+            stop = datetime.fromisoformat(stop_param)
+        except ValueError as e:
+            raise BadRequest(("Problem while parsing parameter 'stop': "+str(e)))
+        # Input Cleaning:
+        if start > stop:
+            raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
+
         # Parse Request Body:
         body = request.data.decode("utf-8")
         payload = json.loads(body)
@@ -196,3 +188,10 @@ def log(response):
     global last_sync
     last_sync = g.last_sync
     return response
+
+@device.errorhandler(Exception)
+def error(e):
+    if isinstance(e, HTTPException): # display HTTP errors
+        return e.description, e.code
+    else: # return unknown errors
+        return str(e), 500
