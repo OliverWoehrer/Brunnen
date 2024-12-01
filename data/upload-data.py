@@ -1,42 +1,74 @@
 import argparse
 import os
-import csv
 from datetime import datetime
-import requests
 
-HOST = "localhost:8086"
-PATH = "/api/v2/write"
-INFLUX_API_TOKEN = "djWUq7Fj1_1nIDR1va4ORRMvQHinkYg9J4YQX6k9TVVSUGIIJYu3tt8-45-jq2QygLkHWWlr2wGZNIp2w8qjyw=="
-PAYLOAD_LIMIT = 1E+6
-output_index = 0
+import influxdb_client
+from influxdb_client import InfluxDBClient
+from influxdb_client.client.exceptions import InfluxDBError
+from influxdb_client.client.write_api import SYNCHRONOUS
+import pandas as pd
 
-def uploadData(payload):
-    url = "http://"+HOST+PATH
-    query_params = {
-        "bucket": "Brunnen",
-        "org": "Private",
-        "precision": "ns"
-    }
-    headers = {
-        "Accept": "application/json",
-        "Authorization": "Token "+INFLUX_API_TOKEN,
-    }
-    proxies = {
-        "http": "http://localhost:8086",
-    }
-    res = requests.post(url, params=query_params, headers=headers, data=payload, verify=False, proxies=proxies)
-    if not res.ok:
-        print(res.json())
+influx_write_api = None
 
-def writeData(payload):
-    global output_index
-    output_path = f"export{output_index}.line"
-    output_file = open(output_path, 'w')
-    output_file.write(payload)
-    output_file.close()
-    output_index += 1
-    print("Data written to:",output_path)
+URL = "http://localhost:8086"
+INFLUX_API_TOKEN = "Ds0mb4m_-wYE_qzXPyxz-q6ctjCfm8QicbjhZIdzMpWjH_RwLwSvauOna_db2weY7rhX5xkpoFRQR-vB7vWEqg=="
+ORGANIZATION = "Private"
+MEASUREMENT_BUCKET = "Brunnen"
+DATA = "water"
 
+def insertData(data: pd.DataFrame) -> str:
+    """
+    This function takes the given data and inserts it into the measurements. The index column
+    of the dataframe needs to be timestamps (data.index must be pd.DatetimeIndex). The fields
+    "flow", "pressure" and "level" must be all present.
+    Example dataframe:
+                            flow  pressure  level
+    2024-09-05 00:05:23     0      1379   1402
+    2024-09-05 00:05:24     5      1379   1450
+    2024-09-05 00:05:25    10      1200   1500
+    2024-09-05 00:05:26    10      1200   1550
+
+    :param data: dataframe holding the data to insert
+
+    :return: Error message on failure, None on success
+    """
+    global influx_write_api
+
+    if not isinstance(data.index, pd.DatetimeIndex):
+        return "Dataframe index must be pd.DatetimeIndex"
+    if "flow" not in data:
+        return "Dataframe is missing 'flow' field"
+    if "pressure" not in data:
+        return "Dataframe is missing 'pressure' field"
+    if "level" not in data:
+        return "Dataframe is missing 'level' field"
+    try:
+        rec = data[["flow", "pressure", "level"]] # only use defined field columns
+        influx_write_api.write(bucket=MEASUREMENT_BUCKET, record=rec, data_frame_measurement_name=DATA)
+    except InfluxDBError as e:
+        return e.message
+    else:
+        return None
+
+def convert_to_datetime(date_str):
+    try:
+        return pd.to_datetime(date_str)
+    except ValueError:
+        return None
+
+# Initalitze Influx Client:
+client = influxdb_client.InfluxDBClient(url=URL, token=INFLUX_API_TOKEN, org=ORGANIZATION)
+if not client.ping():
+    raise RuntimeError("Failed to initialize database client. Could not reach database server.")
+
+# Initalize API Objects:
+buckets_api = client.buckets_api()
+influx_write_api = client.write_api(write_options=SYNCHRONOUS)
+
+# Check For Required Database Buckets:
+bucket = buckets_api.find_bucket_by_name(MEASUREMENT_BUCKET)
+if not bucket:
+    raise RuntimeError(f"Found no bucket named {MEASUREMENT_BUCKET}", org=organization)
 
 # Initalize Argument Parser:
 parser = argparse.ArgumentParser(prog="upload-data.py", description="This script reads input files (CSV format) and uploads them to the influx database.")
@@ -53,37 +85,17 @@ for dir_item in dir_list:
         file_paths.append(args.input_directory+dir_item)
 
 # Iterate All Input Files:
-data = ""
-for file_path in file_paths:
-    print(file_path)
+num = len(file_paths) - 1
+for idx,file_path in enumerate(file_paths):
     # Read CSV Data:
-    file = open(file_path, mode="r")
-    csv_reader = csv.DictReader(file, delimiter=',', lineterminator='\r\n')
+    print(f"[{idx:03}/{num:03}] {file_path}")
+    df = pd.read_csv(file_path, sep=",", header=0, names=["flow","pressure","level"], on_bad_lines="warn")
+    df.index = pd.to_datetime(df.index, errors='coerce') # convert to datetime, NaN on faulty line
+    df = df[df.index.notnull()] # drop rows with faulty index
+    df = df.dropna() # drop rows with faulty data
+    df = df.astype(int)
 
-    # Iterate All Rows in CSV File:
-    for row in csv_reader:
-        try: # parse csv cells
-            time = datetime.strptime(row["Timestamp"], "%d-%m-%Y %H:%M:%S")
-            flow = int(row["Flow"])
-            pressure = int(row["Pressure"])
-            level = int(row["Level"])
-        except Exception as e: # skip bad rows
-            print("skipping row:",file_path,">>>",e)
-        else:
-            unix_timestamp = datetime.timestamp(time) * 1E9 # convert to nanoseconds
-            line = "water flow=%d,pressure=%d,level=%d %u\n" % (flow,pressure,level,unix_timestamp)
-            if len(data) + len(line) > PAYLOAD_LIMIT: # upload if accumulated data would be larger then PAYLOAD_LIMIT
-                if args.upload:
-                    uploadData(data)
-                if args.export:
-                    writeData(data)
-                data = line
-            else:
-                data = data + line
-
-# Upload Rest of Data:
-if len(data) > 0:
-    if args.upload:
-        uploadData(data)
-    if args.export:
-        writeData(data)
+    # Write Data Data:
+    msg = insertData(data=df)
+    if msg:
+        print("Problem while inserting data: "+str(msg))
