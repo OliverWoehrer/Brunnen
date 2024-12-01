@@ -19,6 +19,8 @@ from routes.app import app
 if __name__ == "__main__":
     # Initalize Database Client:
     token = os.environ.get("INFLUXDB_TOKEN")
+    if not token:
+        raise RuntimeError("Failed to load INFLUXDB_TOKEN environment variable.")
     org = config.readInfluxOrganization()
     influx_host = config.readInfluxHost()
     influx_port = config.readInfluxPort()
@@ -27,6 +29,8 @@ if __name__ == "__main__":
 
     # Initalize Flask App:
     key = os.environ.get("APP_KEY")
+    if not key:
+        raise RuntimeError("Failed to load APP_KEY environment variable.")
     app.secret_key = key
 
     # Start App at Desired Port:
