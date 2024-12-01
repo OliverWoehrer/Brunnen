@@ -2,6 +2,8 @@
 #define GW_H
 
 #include <ESP_Mail_Client.h>
+#include <ArduinoJson.h>
+#include "hw.h"
 
 //Global return value:
 #define SUCCESS 0
@@ -36,9 +38,24 @@ namespace EMail {}
 
 namespace OpenMeteoAPI {}
 
+namespace TreeAPI{
+    typedef enum {
+        SHORT = 0,
+        MEDIUM = 1,
+        LONG = 2
+    } sync_mode_t;
+    typedef struct {
+        unsigned int periods[3];
+        sync_mode_t mode;
+    } sync_t;
+}
+
+using api_sync_t = TreeAPI::sync_t;
+
 int init(const char* smtpServer, int smtpPort, const char* address, const char* password);
 int addInfoText(const char* text);
 int addData(const char* fileName);
+bool insertData(Hardware::sensor_data_t sensorData[], size_t lenght);
 int sendData();
 const char* getErrorMsg();
 int clearData();
@@ -46,6 +63,12 @@ int clearData();
 int requestWeatherData(const char* startDate, const char* endDate);
 int getWeatherData(const char* data);
 const char* getWeatherResponse();
+
+int synchronize();
+const char* getResponse();
+int getIntervals(Hardware::pump_intervall_t* intervals);
+int getSync(Gateway::api_sync_t* sync);
+void clear();
 
 }
 

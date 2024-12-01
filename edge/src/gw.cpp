@@ -11,6 +11,8 @@
 #include <ArduinoJson.h>
 #include "Arduino.h"
 #include "gw.h"
+#include "hw.h"
+#include "dt.h"
 
 namespace Gateway {
 
@@ -195,7 +197,7 @@ namespace OpenMeteoAPI {
     }
 
     /**
-     * Request weather data for the fiven intervall/date periode over an api call
+     * Request weather data for the given intervall/date periode over an api call
      * @param startDate start of the periode (including)
      * @param endDate end of the periode (including)
      * @return SUCCESS if the request was successful, FAILURE otherwise
@@ -271,6 +273,388 @@ namespace OpenMeteoAPI {
     int clearData() {
         responseBuffer[0] = '\0'; // clear error text
         return SUCCESS;
+    }
+}
+
+//===============================================================================================
+// TreeAPI
+//===============================================================================================
+namespace TreeAPI {
+    // Example JSON:
+    /*{
+        "data": {
+            "columns": ["flow", "pressure", "level"],
+            "values": {
+                "2024-09-10T00:00:00": [3, 2, 1],
+                ...
+            }
+        },
+        "logs": {
+            "2024-09-10T00:00:00": ["I am a log message", "debug"],
+            "2024-09-10T00:00:01": ["I am a info message", "info"],
+            ...
+        },
+        "settings": {
+            "pump": {
+                "state": false
+            },
+            "software": {
+                "version": 4
+            }
+        }
+    }*/
+    JsonDocument doc;
+    char responseBuffer[RESPONSE_BUFFER_SIZE] = "";
+    int httpCode = 0;
+
+    const char* statusToString(int statusCode) {
+        switch (statusCode) {
+        case 100:
+            return "Continue";
+        case 101:
+            return "Switching Protocols";
+        case 102:
+            return "Processing";
+        case 200:
+            return "OK";
+        case 201:
+            return "Created";
+        case 202:
+            return "Accepted";
+        case 203:
+            return "Non-Authoritative Information";
+        case 204:
+            return "No Content";
+        case 205:
+            return "Reset Content";
+        case 206:
+            return "Partial Content";
+        case 207:
+            return "Multi-Status";
+        case 208:
+            return "Already Reported";
+        case 226:
+            return "IM Used";
+        case 300:
+            return "Multiple Choices";
+        case 301:
+            return "Moved Permanently";
+        case 302:
+            return "Found";
+        case 303:
+            return "See Other";
+        case 304:
+            return "Not Modified";
+        case 305:
+            return "Use Proxy";
+        case 307:
+            return "Temporary Redirect";
+        case 308:
+            return "Permanent Redirect";
+        case 400:
+            return "Bad Request";
+        case 401:
+            return "Unauthorized";
+        case 402:
+            return "Payment Required";
+        case 403:
+            return "Forbidden";
+        case 404:
+            return "Not Found";
+        case 405:
+            return "Method Not Allowed";
+        case 406:
+            return "Not Acceptable";
+        case 407:
+            return "Proxy Authentication Required";
+        case 408:
+            return "Request Timeout";
+        case 409:
+            return "Conflict";
+        case 410:
+            return "Gone";
+        case 411:
+            return "Length Required";
+        case 412:
+            return "Precondition Failed";
+        case 413:
+            return "Payload Too Large";
+        case 414:
+            return "URI Too Long";
+        case 415:
+            return "Unsupported Media Type";
+        case 416:
+            return "Range Not Satisfiable";
+        case 417:
+            return "Expectation Failed";
+        case 421:
+            return "Misdirected Request";
+        case 422:
+            return "Unprocessable Entity";
+        case 423:
+            return "Locked";
+        case 424:
+            return "Failed Dependency";
+        case 426:
+            return "Upgrade Required";
+        case 428:
+            return "Precondition Required";
+        case 429:
+            return "Too Many Requests";
+        case 431:
+            return "Request Header Fields Too Large";
+        case 500:
+            return "Internal Server Error";
+        case 501:
+            return "Not Implemented";
+        case 502:
+            return "Bad Gateway";
+        case 503:
+            return "Service Unavailable";
+        case 504:
+            return "Gateway Timeout";
+        case 505:
+            return "HTTP Version Not Supported";
+        case 506:
+            return "Variant Also Negotiates";
+        case 507:
+            return "Insufficient Storage";
+        case 508:
+            return "Loop Detected";
+        case 510:
+            return "Not Extended";
+        case 511:
+            return "Network Authentication Required";
+        default:
+            return "Unknown Status";
+        }
+    }
+
+    tm stringToTime(const char* timeString) {
+        tm time;
+        char copy[strlen(timeString)];
+        strcpy(copy, timeString);
+        char* hourString = strtok(copy, ":");
+        if(hourString) {
+            time.tm_hour = atoi(hourString);
+        } else {
+            time.tm_hour = 0;
+        }
+        char* minuteString = strtok(NULL, ":");
+        if(minuteString) {
+            time.tm_min = atoi(minuteString);
+        } else {
+            time.tm_min = 0;
+        }
+        time.tm_sec = 0;
+        return time;
+    }
+
+    TreeAPI::sync_mode_t stringToMode(const char* modeString) {
+        if(strcmp(modeString, "short") == 0) {
+            return SHORT;
+        } else if(strcmp(modeString, "medium") == 0) {
+            return MEDIUM;
+        } else if(strcmp(modeString, "long") == 0) {
+            return LONG;
+        } else {
+            return MEDIUM;
+        }
+    }
+
+    bool addData(Hardware::sensor_data_t sensorData[], size_t lenght) {
+        JsonObject data = doc["data"].to<JsonObject>();
+        JsonArray columns = data["columns"].to<JsonArray>();
+        columns.add("flow");
+        columns.add("pressure");
+        columns.add("level");
+        JsonObject values = data["values"].to<JsonObject>();
+        
+        Serial.printf("addData(sensorData[%u]) = {\r\n", lenght);
+        for(unsigned int idx = 0; idx < lenght; idx++) {
+            Serial.printf("[%u] %s: [%d,%d,%d]\r\n", idx, sensorData[idx].timestamp.c_str(), sensorData[idx].flow, sensorData[idx].pressure, sensorData[idx].flow);
+            JsonArray a = values[sensorData[idx].timestamp].to<JsonArray>();
+            a.add(sensorData[idx].flow);
+            a.add(sensorData[idx].pressure);
+            a.add(sensorData[idx].level);
+        }
+        Serial.printf("}\r\n");
+
+        // Set Payload:
+        std::string payload;
+        serializeJson(doc, payload);
+        doc.shrinkToFit();
+        return true;
+    }
+
+    int synchronize() {
+        // Initialize and Make GET Request:
+        HTTPClient http;
+        if(!http.begin("192.168.1.104", 5000, "/api/device/brunnen")) { // 192.168.1.104
+            sprintf(responseBuffer,"Failed to begin request!");
+            http.end(); // clear http object
+            return FAILURE;
+        }
+
+        // Set Headers:
+        http.addHeader("Accept", "application/json");
+        http.addHeader("Content-Type", "application/json");
+        http.setAuthorization("brunnen", "ABBA1972");
+        http.setUserAgent("ESP32 Brunnen");
+
+        // Set Payload:
+        std::string payload;
+        serializeJson(doc, payload);
+        Serial.printf("Payload:\r\n%s\r\n", payload.c_str());
+        
+        // Start Connection:
+        httpCode = http.POST((uint8_t*)payload.c_str(), payload.size()); // start connection and send HTTP header
+
+        // Check Response:
+        if(httpCode < 0) { // httpCode is negative on error
+            sprintf(responseBuffer,"Request failed: %s", http.errorToString(httpCode).c_str());
+            http.end(); // clear http object
+            return FAILURE;
+        }
+        if(httpCode != HTTP_CODE_OK) {
+            sprintf(responseBuffer,"Response: [%d %s] %s", httpCode, statusToString(httpCode), http.getString().c_str());
+            http.end(); // clear http object
+            return FAILURE;
+        }
+        if(http.getSize() > RESPONSE_BUFFER_SIZE) { // check reponse body size
+            sprintf(responseBuffer,"Response body too large.");
+            http.end(); // clear http object
+            return FAILURE;
+        }
+
+        // Read HTTP Response Body:
+        size_t size = http.getSize();
+        char jsonString[RESPONSE_BUFFER_SIZE+1];
+        strncpy(jsonString, http.getString().c_str(), size);
+        jsonString[size] = '\0';
+        http.end(); // clear http object
+
+        // Parse JSON Data:
+        DeserializationError error = deserializeJson(doc, jsonString);
+        if(error) {
+            sprintf(responseBuffer,"Failed to parse JSON data: %s",error.f_str());
+            return FAILURE;
+        }
+        Serial.printf("Response:\r\n=====\r\n%s\r\n=====\r\n", jsonString);
+
+        return SUCCESS;
+    }
+
+    const char* getResponseMsg() {
+        return responseBuffer;
+    }
+ 
+    int getIntervals(Hardware::pump_intervall_t* inters) {
+        // Convert to JSON:
+        JsonObjectConst obj = doc.as<JsonObjectConst>();
+
+        // Parse JSON Document:
+        JsonObjectConst settings = obj["settings"].as<JsonObjectConst>();
+        if(!settings) {
+            sprintf(responseBuffer,"response does not have key 'settings'");
+            return FAILURE;
+        }
+        JsonArrayConst intervals = settings["intervals"].as<JsonArrayConst>();
+        if(!intervals) {
+            sprintf(responseBuffer,"settings has no 'intervals' array");
+            return FAILURE;
+        }
+
+        // Parse Intervals:
+        size_t i = 0;
+        for(JsonObjectConst interval: intervals) {
+            // Parse Start:
+            const char* start = interval["start"].as<const char*>();
+            if(!start) {
+                sprintf(responseBuffer,"interval has no 'start' string");
+                return FAILURE;
+            }
+
+            // Parse Stop:
+            const char* stop = interval["stop"].as<const char*>();
+            if(!stop) {
+                sprintf(responseBuffer,"interval has no 'stop' string");
+                return FAILURE;
+            }
+
+            // Parse Weekdays:
+            unsigned char wdays = interval["wdays"].as<unsigned char>();
+            if(!wdays) {
+                sprintf(responseBuffer,"interval has not 'wdays' integer");
+                return FAILURE;
+            }
+            
+            // Push Interval to Array:
+            Hardware::pump_intervall_t newInterval = {
+                .start = stringToTime(start),
+                .stop = stringToTime(stop),
+                .wday = wdays
+            };
+            inters[i] = newInterval;
+            i++;
+            if(i == MAX_INTERVALLS) { break; }
+        }
+        for(;i < MAX_INTERVALLS; i++) {
+            inters[i] = Hardware::defaultInterval();
+        }
+
+        // Return Array of Intervals:
+        return SUCCESS;
+    }
+
+    int getSync(Gateway::api_sync_t* syncs) {
+        // Convert to JSON:
+        JsonObjectConst obj = doc.as<JsonObjectConst>();
+
+        // Parse JSON Document:
+        JsonObjectConst settings = obj["settings"].as<JsonObjectConst>();
+        if(!settings) {
+            sprintf(responseBuffer,"response does not have key 'settings'");
+            return FAILURE;
+        }
+        JsonObjectConst sync = settings["sync"].as<JsonObjectConst>();
+        if(!sync) {
+            sprintf(responseBuffer,"settings has no 'sync' object");
+            return FAILURE;
+        }
+
+        // Parse Sync Periods:
+        unsigned int short_periode = sync["short"].as<unsigned int>();
+        if(!short_periode) {
+            sprintf(responseBuffer,"sync does not have 'short' key");
+            return FAILURE;
+        }
+        unsigned int medium_periode = sync["medium"].as<unsigned int>();
+        if(!medium_periode) {
+            sprintf(responseBuffer,"sync does not have 'medium' key");
+            return FAILURE;
+        }
+        unsigned int long_periode = sync["long"].as<unsigned int>();
+        if(!long_periode) {
+            sprintf(responseBuffer,"sync does not have 'long' key");
+            return FAILURE;
+        }
+        const char* sync_mode = sync["mode"].as<const char*>();
+        if(!sync_mode) {
+            sprintf(responseBuffer,"sync does not have 'mode' key");
+            return FAILURE;
+        }
+
+        // Return Sync:
+        syncs->periods[SHORT] = short_periode;
+        syncs->periods[MEDIUM] = medium_periode;
+        syncs->periods[LONG] = long_periode;
+        syncs->mode = stringToMode(sync_mode);
+        return SUCCESS;
+    }
+
+    void clear() {
+        doc.clear();
     }
 }
 
@@ -358,5 +742,31 @@ int getWeatherData(const char* data) {
 const char* getWeatherResponse() {
     return OpenMeteoAPI::getResponseMsg();
 }
+
+bool insertData(Hardware::sensor_data_t sensorData[], size_t lenght) {
+    return TreeAPI::addData(sensorData, lenght);
+}
+
+int synchronize() {
+    return TreeAPI::synchronize();
+}
+
+const char* getResponse() {
+    return TreeAPI::getResponseMsg();
+}
+
+int getIntervals(Hardware::pump_intervall_t* intervals) {
+    return TreeAPI::getIntervals(intervals);
+}
+
+int getSync(Gateway::api_sync_t* sync) {
+    return TreeAPI::getSync(sync);
+}
+
+void clear() {
+    TreeAPI::clear();
+}
+
+
 
 }

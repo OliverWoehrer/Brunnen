@@ -167,12 +167,55 @@ namespace Time {
 // LOG SYSTEM
 //===============================================================================================
 namespace Log {
-    /**
-     * Mounts the internal file system and initializes the logfile (/log.txt) with a welcome
-     * message. If there is already a log file in place the new content is appended at the end.
-     * @return SUCCESS if the welcome message was written successfully
-     */
-    int init(const char* timestamp) {
+
+    void writeFile(const char* path, const char* message) {
+        //Mount internal file system:
+        if(!SPIFFS.begin(true)) {
+            Serial.printf("Unable to mount SPIFFS.\r\n");
+        }
+
+        File file = SPIFFS.open(path, FILE_WRITE);
+        if (!file) {
+            Serial.println("Failed to open file for writing");
+            return;
+        }
+        if(file.print(message)) {
+            Serial.println("File written");
+        } else {
+            Serial.println("Write failed");
+        }
+        file.close();
+    }
+
+    void listDirectory(const char *dirname, uint8_t levels) {
+        if(!SPIFFS.begin(false)) { return; }
+        Serial.printf("Listing directory: %s\r\n", dirname);
+        File root = SPIFFS.open(dirname);
+        if (!root) {
+            Serial.println("Failed to open directory");
+            return;
+        }
+        if (!root.isDirectory()) {
+            Serial.println("Not a directory");
+            return;
+        }
+        File file = root.openNextFile();
+        while (file) {
+            if (file.isDirectory()) {
+                Serial.print("  DIR : ");
+                Serial.println(file.name());
+                if (levels) listDirectory(file.name(), levels - 1);
+            } else {
+                Serial.print("  FILE: ");
+                Serial.print(file.name());
+                Serial.print("  SIZE: ");
+                Serial.println(file.size());
+            }
+            file = root.openNextFile();
+        }
+    }
+
+    int init(const char* fName) {
         //Mount internal file system:
         if(!SPIFFS.begin(true)) {
             Serial.printf("Unable to mount SPIFFS.\r\n");
@@ -180,20 +223,14 @@ namespace Log {
         }
 
         //Open File to Write:
-        File fileToWrite = SPIFFS.open("/log.txt", FILE_APPEND);
-        if(!fileToWrite){
+        File file = SPIFFS.open(fName);
+        if(!file){
             Serial.printf("Unable to open log file for writing.\r\n");
+            writeFile(fName, "setup\r\n");
             return FAILURE;
         }
         
-        /* write first line to file:
-        char logMsg[TIME_STRING_LENGTH+24] = "";
-        sprintf(logMsg,"%s [INFO] System booted!\r\n",timestamp);
-        if(!fileToWrite.printf(logMsg)) {
-            Serial.printf("Failed to write to log file.\r\n");
-            return FAILURE;
-        }*/
-        fileToWrite.close();
+        file.close();
         return SUCCESS;
     }
 
@@ -260,45 +297,111 @@ namespace Log {
             logString = logString + String(file.readString()) + "\r\n";
         }
         file.close();
-        return logString.c_str();      
-        // int fileSize = file.size();
-        // char logString[fileSize];
-        // file.readBytes(logString,fileSize);
-        // file.close();
+        return logString.c_str();
     }
 
-    /*int readFile() {
+    int readFile(char* buffer, size_t size) {
+        if(!SPIFFS.begin(false)) { return -1; }
         File file = SPIFFS.open("/log.txt", FILE_READ);
-        if (!file) {
-            Serial.print("Failed to open log file\r\n");
+        if(!file) { return -1; }
+        unsigned int used = 0;
+        char line[MAX_LOG_LENGTH] = "";
+        char lineIdx = 0;
+        while(file.available() && used < size) {
+            char byte = file.read();
+            if(byte == -1) { return -1; }
+
+            if(lineIdx < MAX_LOG_LENGTH-1) {
+                line[lineIdx] = byte;
+                lineIdx++;
+            }
+            if(byte == '\n') {
+                line[lineIdx] = '\0';
+                sprintf(&buffer[used], "%s", line);
+                used += lineIdx;
+                lineIdx = 0;
+            }                
+        }
+        file.close();
+        buffer[used] = '\0';
+        return used;
+    }
+
+    int copy(const char* src, const char* dest, size_t start) {
+        // Open Source File:
+        if(!SPIFFS.begin(false)) { // mount internal file system
+            Serial.printf("Unable to mount SPIFFS.\r\n");
             return FAILURE;
         }
-        Serial.print(" <<< LOG FILE /log.txt >>>\r\n");
-        while(file.available()){
-            Serial.write(file.read());
+        File srcFile = SPIFFS.open(src, FILE_READ);
+        if(!srcFile) {
+            Serial.print("Failed to open source file\r\n");
+            return FAILURE;
         }
-        Serial.print(" >>> END OF LOG FILE <<<\r\n");
-        file.close();
+        if(!srcFile.seek(start)) {
+            Serial.print("Failed to set file curser.\r\n");
+            return FAILURE;
+        }
+
+        // Create Destination File:
+        if(init(dest)) {
+            Serial.printf("Could not initalize target file");
+            return FAILURE;
+        }
+
+        // Open Target File:
+        File destFile = SPIFFS.open(dest, FILE_WRITE);
+        if(!destFile) {
+            Serial.print("Failed to open target file\r\n");
+            return FAILURE;
+        }
+
+        // Copy Lines:
+        while(srcFile.available()) {
+            uint8_t bytes[MAX_LOG_LENGTH] = "";
+            size_t num = srcFile.read(bytes, MAX_LOG_LENGTH);
+            num = destFile.write(bytes, num);
+        }
+
+        // Close Files:
+        srcFile.close(); 
+        destFile.close();
         return SUCCESS;
-    }*/
+    }
+
+    int remove(const char* path) {
+        if(!SPIFFS.begin(false)) { return -1; }
+        if(!SPIFFS.remove(path)) { return FAILURE; }
+        return SUCCESS;
+    }
+
+    int rename(const char* pathFrom, const char* pathTo) {
+        if(!SPIFFS.begin(false)) { return -1; }
+        if(!SPIFFS.rename(pathFrom, pathTo)) { return FAILURE; }
+        return SUCCESS;
+    }
 
     /**
      * Looks for the log file (/log.txt) and returns it size
      * @return size of log file in bytes
      */
-    int getFileSize() {
+    int getFileSize(const char* path) {
         if(!SPIFFS.begin(false)) { // mount internal file system
             Serial.printf("Unable to mount SPIFFS.\r\n");
             return 0;
         }
-        File file = SPIFFS.open("/log.txt", FILE_READ);
+        File file = SPIFFS.open(path, FILE_READ);
         if (!file) {
-            Serial.print("Failed to open log file\r\n");
+            Serial.print("Failed to open file.\r\n");
             return 0;
         }
         int fileSize = file.size();
         file.close();
         return fileSize;
+    }
+
+    int getFileSize() {
+        return getFileSize("/log.txt");
     }
 
     /**
@@ -364,10 +467,10 @@ namespace Pref {
         sprintf(startHrString, "start_hour_%02d", i);
         sprintf(startMinString, "start_min_%02d", i);
 
-        struct tm start;
+        tm start;
         preferences.begin("brunnen", false);
-        start.tm_hour = preferences.getUInt(startHrString);
-        start.tm_min = preferences.getUInt(startMinString);
+        start.tm_hour = (int)preferences.getUInt(startHrString, 0);
+        start.tm_min = (int)preferences.getUInt(startMinString);
         start.tm_sec = 0;
         preferences.end();
         return start;
@@ -402,8 +505,8 @@ namespace Pref {
 
         struct tm stop;
         preferences.begin("brunnen", false);
-        stop.tm_hour = preferences.getUInt(stopHrString);
-        stop.tm_min = preferences.getUInt(stopMinString);
+        stop.tm_hour = (int)preferences.getUInt(stopHrString);
+        stop.tm_min = (int)preferences.getUInt(stopMinString);
         stop.tm_sec = 0;
         preferences.end();
         return stop;
@@ -617,7 +720,7 @@ int init() {
     Wlan::disconnect();
 
     const char* timeString = Time::toString();
-    if(Log::init(timeString)) {
+    if(Log::init("/log.txt")) {
         Serial.printf("[ERROR] Failed to initialize log system!\r\n");
         return FAILURE;
     }
@@ -754,6 +857,30 @@ int getLogFileSize() {
     return Log::getFileSize();
 }
 
+int exportLogFile(char* buffer, size_t size) {
+    return Log::readFile(buffer, size);
+}
+
+int shrinkLogFile(size_t start) {
+    if(Log::init("/temp.txt")) {
+        Serial.printf("Failed to init temporary copy file\r\n");
+        return FAILURE;
+    }
+    if(Log::copy("/log.txt", "/temp.txt", start)) {
+        Serial.printf("Failed to copy content\r\n");
+        return FAILURE;
+    }
+    if(Log::remove("/log.txt")) {
+        Serial.printf("Failed to remove log file.\r\n");
+        return FAILURE;
+    }
+    if(Log::rename("/temp.txt", "/log.txt")) {
+        Serial.printf("Failed to rename temporary file to log file.\r\n");
+        return FAILURE;
+    }
+    return SUCCESS;
+}
+
 void saveStartTime(tm start, unsigned int i) {
     Pref::setStartTime(start, i);
 }
@@ -777,6 +904,28 @@ void saveWeekDay(unsigned char wday, unsigned int i) {
 unsigned char loadWeekDay(unsigned int i) {
     return Pref::getWeekDay(i);
 }
+
+void savePumpInterval(Hardware::pump_intervall_t interval, unsigned int i) {
+    Pref::setStartTime(interval.start, i);
+    Pref::setStopTime(interval.stop, i);
+    Pref::setWeekDay(interval.wday, i);
+}
+
+void savePumpIntervals(Hardware::pump_intervall_t* intervals) {
+    for(size_t i = 0; i < MAX_INTERVALLS; i++) {
+        savePumpInterval(intervals[i], i);
+    }
+}
+
+Hardware::pump_intervall_t loadPumpInterval(unsigned int i) {
+    Hardware::pump_intervall_t interval;
+    interval.start = Pref::getStartTime(i);
+    interval.stop = Pref::getStopTime(i);
+    interval.wday = Pref::getWeekDay(i);
+    return interval;
+}
+
+
 
 void saveJobLength(unsigned char jobLength) {
     Pref::setJobLength(jobLength);

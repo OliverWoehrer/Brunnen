@@ -7,6 +7,9 @@
  * ready. Due to the water level sensor having a weak up delay of approximately 360 ms the values
  * have to be requested an can be read when they are ready (after aprox. 360 ms). 
  */
+#include <string>
+#include <sstream>
+#include <vector>
 #include <Preferences.h>
 #include <SPIFFS.h>
 #include "FS.h"
@@ -110,12 +113,6 @@ namespace Leds {
 // SENSORS
 //===============================================================================================
 namespace Sensors {
-    unsigned int flowMinThreshold = 0;
-    unsigned int flowMaxThreshold = 7000;
-    unsigned int pressureMinThreshold = 200;
-    unsigned int pressureMaxThreshold = 4000;
-    unsigned int levelMinThreshold = 1000;
-    unsigned int levelMaxThreshold = 4000;
     unsigned int edgeCounter = 0; // used for counting edges produced by the water flow sensor
     unsigned int waterFlow = 0;
     int waterPressure = 0;
@@ -191,24 +188,11 @@ namespace Sensors {
     }
 
     /**
-     * Checks if all sensor values are in between their min/max threaholds
-     * @return true, if all sensors are in nominal ranges
-     */
-    bool hasNominalValues() {
-        if ((flowMinThreshold <= edgeCounter && edgeCounter <= flowMaxThreshold)
-            && (pressureMinThreshold <= waterPressure && waterPressure <= pressureMaxThreshold)
-            && (levelMinThreshold <= waterLevel && waterLevel <= levelMaxThreshold))
-            return SUCCESS;
-        else
-            return FAILURE;
-    }
-
-    /**
      * Get the water level updated at the last sensor read out
      * @return water level raw value
      */
-    int hasMinWaterLevel() {
-        return waterLevel > levelMinThreshold;
+    int getWaterLevel() {
+        return waterLevel;
     }
 
     /**
@@ -236,7 +220,7 @@ namespace Button {
      * than BTN_SAMPLING_RATE is not detected.
      * @note IRAM_ATTR prefix so the code gets placed in IRAM and is faster loaded when needed
      */
-    void static IRAM_ATTR periodicButton() { //static
+    void IRAM_ATTR periodicButton() { //static
         if (digitalRead(BUTTON) == HIGH) {
             cnt++;
             if (cnt == 30) { // max cnt 30: long press
@@ -259,21 +243,6 @@ namespace Button {
     }
 
     /**
-     * Initializes the button pin and attaches the ISR to handle the rising edge on
-     * the button input pin
-     */
-    void init(TaskHandle_t* buttonHandler) {
-        pinMode(BUTTON, INPUT);
-        btnHandler = *buttonHandler;
-        attachInterrupt(BUTTON, ISR, ONHIGH); // interrupt on high level, otherwise RISING
-
-        // Initalize Btn Sampling Timer:
-        btnTimer = timerBegin(1, 80, true); // initialize timer1
-        timerAlarmWrite(btnTimer, BTN_SAMPLING_RATE, true);
-        timerAlarmEnable(btnTimer);
-    }
-
-    /**
      * Called when a rising edge is detected in the button input pin. This means that the
      * button is pressed and therefore the periodic button sampling is stated. The sampling ISR
      * done by calling the periodicButton() function every BTN_SAMPLING_RATE and checking the
@@ -282,7 +251,23 @@ namespace Button {
      */
     void IRAM_ATTR ISR() {
         detachInterrupt(BUTTON); // disable interrupt
-        timerAttachInterrupt(btnTimer, &periodicButton, false); // enable periodic btn sampling
+        timerAttachInterrupt(btnTimer, periodicButton, false); // enable periodic btn sampling
+    }
+
+    /**
+     * Initializes the button pin and attaches the ISR to handle the rising edge on
+     * the button input pin
+     */
+    void init(TaskHandle_t* buttonHandler) {
+        pinMode(BUTTON, INPUT);
+        btnHandler = *buttonHandler;
+        attachInterrupt(BUTTON, ISR, ONHIGH); // interrupt on high level, otherwise RISING
+        Serial.printf("Button::init(); -> attachInterrupt(); -> done\r\n");
+
+        // Initalize Btn Sampling Timer:
+        btnTimer = timerBegin(1, 80, true); // initialize timer1
+        timerAlarmWrite(btnTimer, BTN_SAMPLING_RATE, true);
+        timerAlarmEnable(btnTimer);
     }
 
     /**
@@ -487,17 +472,32 @@ namespace FileSystem {
      * Reads the content of the file at the given path
      * @param fs address of the file system in use (e.g. SD or SPIFFS)
      * @param path name of the directory (e.g "/")
+     * @return SUCCESS on success, FAILURE otherwise
      */
-    void readFile(fs::FS &fs, const char *path) {
-        Serial.printf("Reading file: %s\r\n", path);
+    int readFile(fs::FS &fs, const char *path, char* buffer, size_t size) {
         File file = fs.open(path);
-        if (!file) {
-            Serial.println("Failed to open file for reading");
-            return;
+        if (!file) { return FAILURE; }
+        unsigned int used = 0;
+        char line[VALUE_STRING_LENGTH] = "";
+        char lineIdx = 0;
+        while(file.available() && used < size) {
+            char byte = file.read();
+            if(byte == -1) { return FAILURE; }
+
+            if(lineIdx < VALUE_STRING_LENGTH-1) {
+                line[lineIdx] = byte;
+                lineIdx++;
+            }
+            if(byte == '\n') {
+                line[lineIdx] = '\0';
+                sprintf(&buffer[used], "%s", line);
+                used += lineIdx;
+                lineIdx = 0;
+            }                
         }
-        Serial.print("Read from file: ");
-        while (file.available()) Serial.write(file.read());
         file.close();
+        buffer[used] = '\0';
+        return SUCCESS;
     }
 
     /**
@@ -527,11 +527,8 @@ namespace FileSystem {
      */
     void appendFile(fs::FS &fs, const char *path, const char *message) {
         File file = fs.open(path, FILE_APPEND);
-        if (!file) {
-            return;
-        }
-
-        if (!file.print(message)) Serial.println("Append failed");
+        if (!file) { return; }
+        file.print(message);
         file.close();
     }
 
@@ -629,16 +626,14 @@ void setErrorLed(char value) {
  * @param timeString string timestamp to write to data file
  * @return false, if a sensor is out of its nominal range
  */
-void sampleSensorValues(const char* timeString) {
+void sampleSensors(const char* timeString) {
     // Indicate Start of Sensor Sampling:
-    Leds::turnOn(Leds::BLUE); 
+    Leds::turnOn(Leds::BLUE);
 
     // Read Sensor Values:
     Sensors::requestValues();
     vTaskDelay((360+10) / portTICK_PERIOD_MS); // wait for sensor to weak up
-    if (Sensors::hasValuesReady()) {
-        Sensors::readValues();
-    }
+    Sensors::readValues();
 
     // Save Sensor Values:
     size_t len = strlen(timeString);
@@ -650,20 +645,93 @@ void sampleSensorValues(const char* timeString) {
     Leds::turnOff(Leds::BLUE);
 }
 
+bool parseCSVLine(const std::string& line, sensor_data_t& data) {
+    // Split Line into Tokens:
+    std::vector<std::string> tokens;
+    const std::string delimiter = ",";
+    size_t last = 0;
+    size_t next = 0;
+    while((next = line.find(delimiter, last)) != std::string::npos) {
+        std::string split = line.substr(last, next-last);
+        tokens.push_back(split);
+        last = next + 1;
+    }
+    std::string split = line.substr(last);
+    tokens.push_back(line);
+
+    // Parse Tokens:
+    if(tokens.size() != 4) {
+        return false; // error
+    }
+    data.timestamp = tokens[0];
+    int flow;
+    if(!(std::stringstream(tokens[1]) >> flow)) {
+        return false; // failed to parse integer
+    }
+    data.flow = flow;
+    int pressure;
+    if(!(std::stringstream(tokens[1]) >> pressure)) {
+        return false;
+    }
+    data.pressure = flow;
+    int level;
+    if(!(std::stringstream(tokens[1]) >> level)) {
+        return false;
+    }
+    data.level = level;
+
+    // Return on Success:
+    return true;
+}
+
+int exportDataFile(sensor_data_t sensor_data[], size_t num) {
+    // Read Data File:
+    size_t line_length = TIME_STRING_LENGTH + 1 + VALUE_STRING_LENGTH + 4;
+    size_t size = num * line_length;
+    char buffer[size]; // buffer has maximum possible size for 'num' lines of data file
+    sprintf(buffer,"Timestamp,Flow,Pressure,Level\r\n2024-03-31T14:32:19,0,920,2541\r\n2024-03-31T14:32:20,0,930,2539\r\n2024-03-31T14:32:21,0,926,2539\r\n2024-03-31T14:32:22,0,926,2575\r\n2024-03-31T14:32:23,0,923,2544\r\n2024-03-31T14:32:24,0,926,2549\r\n2024-03-31T14:32:25,0,929,2545\r\n2024-03-31T14:32:26,0,927,2559\r\n2024-03-31T14:32:27,0,927,2547\r\n2024-03-31T14:32:28,0,931,2557\r\n2024-03-31T14:32:29,0,924,2543\r\n2024-03-31T14:32:30,0,915,2559\r\n2024-03-31T14:32:31,0,930,2545\r\n2024-03-31T14:32:32,0,925,2551\r\n2024-03-31T14:32:33,0,931,2546\r\n2024-03-31T14:32:34,0,923,2554\r\n2024-03-31T14:32:35,0,923,2533\r\n");
+    /*TODO: read file instead of buffer
+    if(FileSystem::readFile(SD, FileSystem::getFileName(), buffer, size)) {
+        return -1;
+    }*/
+
+    // Parse CSV Lines:
+    unsigned int bufferIdx = 0;
+    char line[MAX_LOG_LENGTH] = "";
+    unsigned int lineIdx = 0;
+    unsigned int lineCount = 0;
+    while(buffer[bufferIdx] != '\0' && lineCount < num) {
+        if(lineIdx < line_length-1) { // read single character into line
+            line[lineIdx] = buffer[bufferIdx];
+            lineIdx++;
+        }
+        if(buffer[bufferIdx] == '\n') { // found line ending, parse full line
+            line[lineIdx] = '\0'; // terminate string
+            lineIdx = 0;
+            sensor_data_t data = sensor_data_t();
+            if(parseCSVLine(line, data)) {
+                //TODO: check return value of first line (Header of CSV)
+                sensor_data[lineCount] = data;
+                lineCount++;
+            }
+        }
+        bufferIdx++;
+    }
+
+    return lineCount;
+}
+
+int shrinkDataFile(size_t size) {
+    
+    return FAILURE;
+}
+
 /**
  * Returns the string representation of the sensor values from the last sensor readout 
  * @return string with max length VALUE_STRING_LENGTH
  */
 char* sensorValuesToString() {
     return Sensors::toString();
-}
-
-/**
- * Checks if all sensor values are in between their min/max threaholds
- * @return true, if all sensors are in nominal ranges
- */
-bool hasNominalSensorValues() {
-    return Sensors::hasNominalValues();
 }
 
 /**
@@ -748,8 +816,27 @@ void setPumpOperatingLevel(int level) {
  * @param interval interval to be set at the timed scheduled
  * @param i index of the interval array
  */
-void setPumpInterval(Relais::interval_t interval, unsigned int i) {
+void setPumpInterval(Hardware::pump_intervall_t interval, unsigned int i) {
     Relais::setInterval(interval, i);
+}
+
+void setPumpIntervals(Hardware::pump_intervall_t* intervals) {
+    for(size_t i = 0; i < MAX_INTERVALLS; i++) {
+        Relais::setInterval(intervals[i], i);
+    }
+}
+
+Hardware::pump_intervall_t defaultInterval() {
+    tm start;
+    start.tm_hour = 0;
+    start.tm_min = 0;
+    start.tm_sec = 0;
+    tm stop;
+    stop.tm_hour = 0;
+    stop.tm_min = 0;
+    stop.tm_sec = 0;
+    Hardware::pump_intervall_t interval = { .start = start, .stop = stop, .wday = 0 };
+    return interval;
 }
 
 /**
@@ -779,7 +866,7 @@ int getScheduledPumpState(tm timeinfo) {
         return Relais::checkIntervals(timeinfo); 
         break;
     case Relais::AUTOMATIC:
-        return Relais::checkIntervals(timeinfo) && Sensors::hasMinWaterLevel();
+        return Relais::checkIntervals(timeinfo) && (Sensors::getWaterLevel() >= Relais::getOperatingLevel());
         break;
     default:
         return 0;

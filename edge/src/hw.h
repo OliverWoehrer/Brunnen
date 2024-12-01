@@ -2,6 +2,7 @@
 #define HW_H
 
 #include <Preferences.h>
+// #include "dt.h"
 
 //Global return value:
 #define SUCCESS 0
@@ -13,11 +14,16 @@
 #define LED_GREEN 16
 #define LED_BLUE 2
 
+// Redefine:
+#define TIME_STRING_LENGTH 20
+#define MAX_LOG_LENGTH 100
+
 //Sensors:
 #define WATERFLOW_SENSOR 22
 #define WATER_PRESSURE_SENSOR 32
 #define SENSOR_SWITCH 25
 #define WATER_LEVEL_SENSOR 33
+#define VALUE_STRING_LENGTH 40
 
 //Button:
 #define BUTTON 15
@@ -26,7 +32,6 @@
 //Relais:
 #define RELAIS 13
 #define MAX_INTERVALLS 8
-#define VALUE_STRING_LENGTH 40
 
 //File System:
 #define FILE_NAME_LENGTH 21
@@ -42,14 +47,23 @@ namespace Leds {
     typedef enum {RED, YELLOW, GREEN, BLUE} color_t;
 }
 
-namespace Sensors {}
+namespace Sensors {
+    typedef struct {
+        std::string timestamp;
+        int flow;
+        int pressure;
+        int level;
+    } sensor_data_t;
+}
 
 namespace Button {
     typedef struct {
         bool shortPressed; // gets set true when button was pressed shortly
         bool longPressed; // true when button was pressed for at least 3 seconds
     } indicator_t;
-    void ISR();
+    // TODO: change indicator to enum: NONE, SHORT, LONG
+    void IRAM_ATTR periodicButton();
+    void IRAM_ATTR ISR();
 }
 
 namespace Relais {
@@ -71,15 +85,17 @@ namespace FileSystem {}
 using button_indicator_t = Button::indicator_t;
 using pump_intervall_t = Relais::interval_t;
 using pump_op_mode_t = Relais::op_mode_t;
+using sensor_data_t = Sensors::sensor_data_t;
 
 int init(TaskHandle_t* buttonHandler,const char* fileName);
 void setUILed(char value);
 void setIndexLed(char value);
 void setErrorLed(char value);
 
-void sampleSensorValues(const char* timeString);
+void sampleSensors(const char* timeString);
 char* sensorValuesToString();
-bool hasNominalSensorValues();
+int exportDataFile(sensor_data_t sensor_data[], size_t num);
+int shrinkDataFile(size_t size);
 
 button_indicator_t getButtonIndicator();
 void resetButtonFlags();
@@ -90,10 +106,12 @@ void pauseScheduledPumpOperation();
 void resumeScheduledPumpOperation();
 int getPumpOperatingLevel();
 void setPumpOperatingLevel(int level);
-void setPumpInterval(Relais::interval_t interval, unsigned int i);
+void setPumpInterval(pump_intervall_t interval, unsigned int i);
+void setPumpIntervals(pump_intervall_t* intervals);
+pump_intervall_t defaultInterval();
+
 pump_intervall_t getPumpInterval(unsigned int i);
 int getScheduledPumpState(tm timeinfo);
-
 
 int createCurrentDataFile();
 char* loadActiveDataFileName();
