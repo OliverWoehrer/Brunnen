@@ -3,7 +3,7 @@
  * @date 17.08.2022
  * @file ui.cpp
  * This modul [User Interface] provides functions to handle requests at the web server
- *  representing the user interface of the application.
+ * representing the user interface of the application.
  */
 #include <ESPAsyncWebServer.h>
 #include <Update.h>
