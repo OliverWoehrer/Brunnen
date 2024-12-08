@@ -27,7 +27,6 @@ public:
     void read();
     void countEdge();
     int getWaterLevel();
-
 private:
     Output::Digital led;
     Output::Digital sensorSwitch;
