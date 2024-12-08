@@ -16,7 +16,7 @@ DataFileClass::DataFileClass() : FileManager(SD) {
  * @return 
  */
 bool DataFileClass::init(const char* filename) {
-    this->filename = filename;
+    sprintf(this->filename, "%s", filename);
     if(!checkFile(filename)) { // check if file exisits
         writeLine(filename, "Timestamp,Flow,Pressure,Level\r\n"); // write header on new file
     }

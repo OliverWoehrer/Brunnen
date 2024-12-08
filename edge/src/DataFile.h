@@ -28,7 +28,6 @@ public:
     char* getFilename();
 private:
     char* filename;
-    
     bool parseCSVLine(const char* line, sensor_data_t& data);
 };
 
