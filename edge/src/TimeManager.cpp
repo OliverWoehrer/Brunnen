@@ -5,6 +5,11 @@
  */
 TimeManager::TimeManager() {}
 
+/**
+ * Initalizes the time system time by connecting to the NTP server. WiFi needs to be enabled for
+ * this.
+ * @return true on success, false otherwise
+ */
 bool TimeManager::init() {
     // Set NTP Configuration: 
     configTime(GMT_TIME_ZONE, DAYLIGHT_OFFSET, NTP_SERVER);
@@ -19,6 +24,15 @@ bool TimeManager::init() {
     return true;
 }
 
+/**
+ * 
+ * @return 
+ */
+
+/**
+ * Returns the timeinfo holding the system time
+ * @return timeinfo of 'this'
+ */
 tm TimeManager::getTime() {
     struct tm timeinfo;
     if(getLocalTime(&timeinfo)) {
@@ -37,20 +51,31 @@ tm TimeManager::getTime() {
     return timeinfo;    
 }
 
-char* TimeManager::toString() {
+/**
+ * Converts timeinfo of 'this' to ISO format string
+ * @return string in the format YYYY-MM-DDTHH:MM:SS
+ */
+std::string TimeManager::toString() {
     tm timeinfo = this->getTime();
     return toString(timeinfo);
 }
 
-char* TimeManager::toString(tm timeinfo) {
-    char timeString[TIME_STRING_LENGTH];
-    size_t bytes = strftime(timeString, TIME_STRING_LENGTH, TIME_STRING_FORMAT, &timeinfo);
-    if(bytes == 0) {
-        return NULL;
-    }
-    return timeString;
+/**
+ * Converts the given timeinfo to a ISO format string
+ * @param timeinfo time struct to convert
+ * @return string in the format YYYY-MM-DDTHH:MM:SS
+ */
+std::string TimeManager::toString(tm timeinfo) {
+    char buffer[TIME_STRING_LENGTH];
+    size_t bytes = strftime(buffer, TIME_STRING_LENGTH, TIME_STRING_FORMAT, &timeinfo);
+    return buffer;
 }
 
+/**
+ * Parses the given string into a time struct
+ * @param timestring string in the format YYYY-MM-DDTHH:MM:SS
+ * @return time struct
+ */
 tm TimeManager::fromString(const char* timestring) {
     tm timeinfo;
     strptime(timestring, TIME_STRING_FORMAT, &timeinfo);

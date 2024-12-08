@@ -18,9 +18,11 @@ public:
     TimeManager();
     bool init();
     tm getTime();
-    char* toString();
-    static char* toString(tm timeinfo);
-    static tm fromString(const char* timestring);
+    std::string toString();
+    static std::string toString(tm timeinfo);
+    static tm fromString(const char* infostring);
+    static std::string toTime(tm timeinfo);
+    static tm fromTime(const char* timestring);
 };
 
 extern TimeManager Time;
