@@ -1,20 +1,25 @@
 #include "Sensors.h"
-
-void edgeCounterISR() {
-    Sensors.countEdge();
-}
+#include "DataFile.h"
+#include <string>
 
 /**
  * Constructor initalizes all member sensor objects with the pin number defined in "Sensors.h"
  */
-SensorClass::SensorClass() : led(LED_BLUE), sensorSwitch(SENSOR_SWITCH), waterPressure(WATER_PRESSURE_SENSOR), waterLevel(WATER_LEVEL_SENSOR), waterFlow(WATER_FLOW_SENSOR, edgeCounterISR, RISING) {
+SensorClass::SensorClass() : led(LED_BLUE), sensorSwitch(SENSOR_SWITCH), waterPressure(WATER_PRESSURE_SENSOR), waterLevel(WATER_LEVEL_SENSOR), waterFlow(WATER_FLOW_SENSOR, SensorClass::edgeCounterISR, RISING) {
     this->edgeCounter = 0;
     this->data = {
-        .timestamp = Time.getTime(),
+        .timestamp = TimeManager::fromString("1970-01-01T00:00:00"),
         .flow = 0,
         .pressure = 0,
         .level = 0
     };
+}
+
+/**
+ * @brief Enables the continues sampling of edges of the water flow sensor
+ */
+void SensorClass::begin() {
+    this->waterFlow.enable();
 }
 
 /**
@@ -62,6 +67,10 @@ void SensorClass::countEdge() {
  */
 int SensorClass::getWaterLevel() {
     return this->data.level;
+}
+
+void SensorClass::edgeCounterISR() {
+    Sensors.countEdge();
 }
 
 SensorClass Sensors = SensorClass();

@@ -4,7 +4,7 @@
  * Constructor initalizes all outputs with the pin numbers defined in "Pump.h" and sets all
  * intervals to default values.
  */
-Pump::Pump() : relais(RELAIS), led(LED_YELLOW) {
+PumpClass::PumpClass() : relais(RELAIS), led(LED_YELLOW) {
     this->relais.off();
     this->led.off();
     this->operatingMode = SCHEDULED;
@@ -16,15 +16,19 @@ Pump::Pump() : relais(RELAIS), led(LED_YELLOW) {
 /**
  * @brief Toggles the state of the waterpump
  */
-void Pump::togglePump() {
+void PumpClass::toggle() {
     bool state = this->relais.toggle();
-    this->led.set(state);
+    if(state) {
+        this->led.on();
+    } else {
+        this->led.off();
+    }
 }
 
 /**
  * @brief Pauses the (scheduled) operating pump, manual mode instead
  */
-void Pump::pauseSchedule() {
+void PumpClass::pauseSchedule() {
     if (operatingMode != MANUAL) { // only set mode if it is not paused already
         this->cachedOperatingMode = this->operatingMode;
         this->operatingMode = MANUAL;
@@ -34,7 +38,7 @@ void Pump::pauseSchedule() {
 /**
  * @brief Resumes the (scheduled) operating pump
  */
-void Pump::resumeSchedule() {
+void PumpClass::resumeSchedule() {
     this->operatingMode = this->cachedOperatingMode;
 }
 
@@ -42,7 +46,7 @@ void Pump::resumeSchedule() {
  * @brief Return the current threshold level of this pump
  * @return sensor threshold level
  */
-int Pump::getThreshold() {
+int PumpClass::getThreshold() {
     return this->threshold;
 }
 
@@ -50,7 +54,7 @@ int Pump::getThreshold() {
  * @brief Update the current threshold of this pump
  * @param level sensor threshold level
  */
-void Pump::setThreshold(int level) {
+void PumpClass::setThreshold(int level) {
     this->threshold = level;
 }
 
@@ -59,7 +63,7 @@ void Pump::setThreshold(int level) {
  * @param interval interval to add to schedule
  * @param i index to add
  */
-void Pump::addInterval(interval_t interval) {
+void PumpClass::addInterval(interval_t interval) {
     this->intervals.push_back(interval);
 }
 
@@ -68,11 +72,11 @@ void Pump::addInterval(interval_t interval) {
  * @param i index to delete from
  * @return true on success, false otherwise
  */
-bool Pump::removeInterval(size_t i) {
+bool PumpClass::removeInterval(size_t i) {
     if(i >= this->intervals.size()) {
         return false;
     }
-    std::list<interval_t>::iterator iter = intervals.begin(); // iterator to first element
+    std::vector<interval_t>::iterator iter = intervals.begin(); // iterator to first element
     std::next(iter, i); // advance by i steps
     this->intervals.erase(iter);
     return true;
@@ -83,7 +87,7 @@ bool Pump::removeInterval(size_t i) {
  * @param intervals array of intervals to add
  * @return true on success, false otherwise
  */
-void Pump::scheduleIntervals(std::list<interval_t>& intervals) {
+void PumpClass::scheduleIntervals(std::vector<interval_t>& intervals) {
     this->intervals.clear();
     this->intervals = intervals;
 }
@@ -95,7 +99,7 @@ void Pump::scheduleIntervals(std::list<interval_t>& intervals) {
  * @param waterlevel water level from sensors
  * @return true if the pump changed state, false if no change happened
  */
-bool Pump::scheduler(int waterlevel) {
+bool PumpClass::scheduler(int waterlevel) {
     // Check MANUAL Mode:
     if(this->operatingMode == MANUAL) {
         return false; // no schedule in manual mode
@@ -139,7 +143,7 @@ bool Pump::scheduler(int waterlevel) {
  * @brief Create a default interval (00:00 - 00:00, no days enabled)
  * @return created interval
  */
-static interval_t defaultInterval() {
+interval_t PumpClass::defaultInterval() {
     tm start;
     start.tm_hour = 0;
     start.tm_min = 0;
@@ -151,3 +155,5 @@ static interval_t defaultInterval() {
     interval_t interval = { .start = start, .stop = stop, .wday = 0 };
     return interval;
 }
+
+PumpClass Pump = PumpClass();

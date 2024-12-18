@@ -3,7 +3,7 @@
 
 #include "TimeManager.h"
 #include "Output.h"
-#include <list>
+#include <vector>
 
 // Pin Definitions:
 #define RELAIS 13
@@ -24,17 +24,17 @@ typedef enum {  // operation mode of pump
     AUTOMATIC   // switch pump on for scheduled intervals if there is enough water
 } op_mode_t;
 
-class Pump {
+class PumpClass {
 public:
-    Pump();
-    void togglePump();
+    PumpClass();
+    void toggle();
     void pauseSchedule();
     void resumeSchedule();
     int getThreshold();
     void setThreshold(int level);
     void addInterval(interval_t interval);
     bool removeInterval(size_t i);
-    void scheduleIntervals(std::list<interval_t>& intervals);
+    void scheduleIntervals(std::vector<interval_t>& intervals);
     bool scheduler(int waterlevel);
     
     static interval_t defaultInterval();
@@ -45,7 +45,9 @@ private:
     op_mode_t cachedOperatingMode = SCHEDULED;
     bool scheduledState;
     int threshold = 0;
-    std::list<interval_t> intervals;
+    std::vector<interval_t> intervals;
 };
+
+extern PumpClass Pump;
 
 #endif /* PUMP_H */

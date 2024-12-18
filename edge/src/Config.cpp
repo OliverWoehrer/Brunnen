@@ -5,14 +5,13 @@
 /**
  * Default constructor initalizes the preferences and mounts the flash memory
  */
-Config::Config() : preferences() {
+ConfigClass::ConfigClass() : preferences() {
     this->semaphore = xSemaphoreCreateMutex();
     if(semaphore == NULL) {
-        log_e("Not enough heap to use data file semaphore.");
+        log_e("Not enough heap to use config semaphore.");
     }
-    bool ret = this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.begin(CONFIG_NAME, false);
     this->preferences.end();
-    Serial.printf("Config();\r\n");
 }
 
 /**
@@ -20,7 +19,7 @@ Config::Config() : preferences() {
  * @param interval interval struct to be stored
  * @param index index of intervall
  */
-void Config::storePumpInterval(interval_t interval, size_t index) {
+void ConfigClass::storePumpInterval(interval_t interval, size_t index) {
     // Build Start Time Key:
     char startHrString[14]; // format: start_hour_XX
     char startMinString[13]; // format: start_min_XX
@@ -54,7 +53,7 @@ void Config::storePumpInterval(interval_t interval, size_t index) {
  * at index 0.
  * @param intervals vector of intervals, to be stored
  */
-void Config::storePumpIntervals(std::vector<interval_t>& intervals) {
+void ConfigClass::storePumpIntervals(std::vector<interval_t>& intervals) {
     for(size_t i = 0; i < intervals.size(); i++) {
         this->storePumpInterval(intervals[i], i);
     }
@@ -65,7 +64,7 @@ void Config::storePumpIntervals(std::vector<interval_t>& intervals) {
  * @param index index to read from
  * @return interval struct read from memory
  */
-interval_t Config::loadPumpInterval(size_t index) {
+interval_t ConfigClass::loadPumpInterval(size_t index) {
     // Build Start Time Key:
     char startHrString[14]; // format: start_hour_XX
     char startMinString[13]; // format: start_min_XX
@@ -102,11 +101,16 @@ interval_t Config::loadPumpInterval(size_t index) {
     return inter;
 }
 
+void ConfigClass::loadPumpIntervals(std::vector<interval_t>& intervals) {
+    for(size_t i = 0; i < intervals.capacity() && intervals.size() < intervals.capacity(); i++) {
+        intervals.push_back(this->loadPumpInterval(i));
+    }
+}
 /**
  * Write the number of jobs into preferences
  * @param jobLength number to store
  */
-void Config::storeJobLength(size_t jobLength) {
+void ConfigClass::storeJobLength(size_t jobLength) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
     this->preferences.putUChar("jobLength", jobLength);
@@ -118,7 +122,7 @@ void Config::storeJobLength(size_t jobLength) {
  * Read the number of jobs from preferences
  * @return number of jobs available
  */
-size_t Config::loadJobLength() {
+size_t ConfigClass::loadJobLength() {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
     size_t jl = (size_t)this->preferences.getUChar("jobLength", 0);
@@ -132,7 +136,7 @@ size_t Config::loadJobLength() {
  * @param fileName filename of the datafile to store
  * @param index index to write at preferences
  */
-void Config::storeJob(const char* fileName, size_t index) {
+void ConfigClass::storeJob(const char* fileName, size_t index) {
     // Build Job Key:
     char jobKey[7]; // format: job_XX
     sprintf(jobKey, "job_%02d", index);
@@ -150,7 +154,7 @@ void Config::storeJob(const char* fileName, size_t index) {
  * @param index index to read from
  * @return filename of datafile
  */
-std::string Config::loadJob(size_t index) {
+std::string ConfigClass::loadJob(size_t index) {
     // Build Job Key:
     char jobKey[7]; // format: job_XX;
     sprintf(jobKey,"job_%02d", index);
@@ -171,7 +175,7 @@ std::string Config::loadJob(size_t index) {
  * Remove the job(=filename) from the preferences at the given index
  * @param index index to delete from
  */
-void Config::deleteJob(size_t index) {
+void ConfigClass::deleteJob(size_t index) {
     // Build Job Key:
     char jobKey[7]; // format: job_XX
     sprintf(jobKey, "job_%02d", index);
@@ -188,7 +192,7 @@ void Config::deleteJob(size_t index) {
  * Write the given threshold into preferences memory
  * @param level threshold values to store
  */
-void Config::storeRainThresholdLevel(uint8_t level) {
+void ConfigClass::storeRainThresholdLevel(uint8_t level) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
     this->preferences.putUChar("threshold", level);
@@ -200,7 +204,7 @@ void Config::storeRainThresholdLevel(uint8_t level) {
  * Read the threshold from preferences memory
  * @return threshold value from memory
  */
-uint8_t Config::loadRainThresholdLevel() {
+uint8_t ConfigClass::loadRainThresholdLevel() {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
     uint8_t threshold = (uint8_t)this->preferences.getUChar("threshold");
@@ -210,10 +214,39 @@ uint8_t Config::loadRainThresholdLevel() {
 }
 
 /**
+ * Takes a mail address and stores it into flash memory
+ * @param addres address string
+ */
+void ConfigClass::storeMailAddress(const char* address) {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.putBytes("mail_address", address, strlen(address));
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+}
+
+/**
+ * Loads the (e-mail) address from flash memory
+ * @return address string from memory
+ */
+std::string ConfigClass::loadMailAddress() {
+    // Read From Memory:
+    char buffer[50]; // max. password length
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, true);
+    this->preferences.getBytes("mail_address", buffer, 50);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    
+    // Return Password:
+    return buffer;
+}
+
+/**
  * Takes a (e-mail) password and stores it into flash memory
  * @param pw password string to store
  */
-void Config::storePassword(const char* pw) {
+void ConfigClass::storeMailPassword(const char* pw) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
     this->preferences.putBytes("password", pw, strlen(pw));
@@ -225,7 +258,7 @@ void Config::storePassword(const char* pw) {
  * Loads the (e-mail) password from flash memory
  * @return password string from memory
  */
-std::string Config::loadPassword() {
+std::string ConfigClass::loadMailPassword() {
     // Read From Memory:
     char buffer[50]; // max. password length
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
@@ -239,30 +272,61 @@ std::string Config::loadPassword() {
 }
 
 /**
- * Takes a authentication key and stores it into flash memory
- * @param key authentication key to store
+ * Takes a authentication password and stores it into flash memory
+ * @param username authentication username for api
  */
-void Config::storeAuthKey(const char* key) {
+void ConfigClass::storeAPIUsername(const char* username) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
-    this->preferences.putBytes("auth_key", key, strlen(key));
+    this->preferences.putBytes("api_username", username, strlen(username));
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 }
 
 /**
- * Loads the authentication key from flash memory
- * @return authentication key from memory
+ * Loads the authentication username for the api from flash memory
+ * @return authentication password from memory
  */
-std::string Config::loadAuthKey() {
+std::string ConfigClass::loadAPIUsername() {
     // Read From Memory:
     char buffer[50]; // max. password length
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
-    this->preferences.getBytes("auth_key", buffer, 50);
+    this->preferences.getBytes("api_username", buffer, 50);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 
     // Return Key:
     return buffer;
 }
+
+/**
+ * Takes a authentication password and stores it into flash memory
+ * @param password authentication password for api
+ */
+void ConfigClass::storeAPIPassword(const char* password) {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.putBytes("api_password", password, strlen(password));
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+}
+
+/**
+ * Loads the authentication password for the api from flash memory
+ * @return authentication password from memory
+ */
+std::string ConfigClass::loadAPIPassword() {
+    // Read From Memory:
+    char buffer[50]; // max. password length
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, true);
+    this->preferences.getBytes("api_password", buffer, 50);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+
+    // Return Key:
+    return buffer;
+}
+
+ConfigClass Config = ConfigClass();

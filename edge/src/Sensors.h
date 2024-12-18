@@ -3,8 +3,6 @@
 
 #include "Input.h"
 #include "Output.h"
-#include <string>
-#include "DataFile.h"
 #include "TimeManager.h"
 
 // Pin Definitions:
@@ -24,6 +22,7 @@ typedef struct {
 class SensorClass {
 public:
     SensorClass();
+    void begin();
     void read();
     void countEdge();
     int getWaterLevel();
@@ -35,6 +34,8 @@ private:
     Input::Interrupted waterFlow;
     unsigned int edgeCounter;
     sensor_data_t data;
+
+    static void edgeCounterISR();
 };
 
 extern SensorClass Sensors;

@@ -8,13 +8,14 @@
 
 #define CONFIG_NAME "brunnen"
 
-class Config {
+class ConfigClass {
 public:
-    Config();
+    ConfigClass();
 
     void storePumpInterval(interval_t interval, size_t index);
     void storePumpIntervals(std::vector<interval_t>& intervals);
     interval_t loadPumpInterval(size_t index);
+    void loadPumpIntervals(std::vector<interval_t>& intervals);
 
     void storeJobLength(size_t jobLength);
     size_t loadJobLength();
@@ -25,13 +26,19 @@ public:
     void storeRainThresholdLevel(uint8_t level);
     uint8_t loadRainThresholdLevel();
     
-    void storePassword(const char* pw);
-    std::string loadPassword();
-    void storeAuthKey(const char* key);
-    std::string loadAuthKey();
+    void storeMailAddress(const char* address);
+    std::string loadMailAddress();
+    void storeMailPassword(const char* pw);
+    std::string loadMailPassword();
+    void storeAPIUsername(const char* name);
+    std::string loadAPIUsername();
+    void storeAPIPassword(const char* pw);
+    std::string loadAPIPassword();
 private:
     Preferences preferences;
     SemaphoreHandle_t semaphore;
 };
+
+extern ConfigClass Config;
 
 #endif /* CONFIG_H */
