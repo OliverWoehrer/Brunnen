@@ -22,10 +22,13 @@ public:
     WifiManager();
     bool init();
     bool connect();
+    bool disconnect();
     bool isConnected();
 private:
     credentials_t credentials;
     bool login(const char* ssid, const char* pw);
 };
+
+extern WifiManager Wlan;
 
 #endif /* WIFI_MANAGER_H */
