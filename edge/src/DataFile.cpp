@@ -1,11 +1,17 @@
 #include "DataFile.h"
 
+#define MUTEX_TIMEOUT (2*1000)/portTICK_PERIOD_MS // 2000 ms
+
 /**
  * Constructor initalizes the file system (external SD card)
  */
 DataFileClass::DataFileClass() : FileManager(SD) {
     if(!SD.begin(SPI_CD)) {
-        Serial.printf("Failed to mount SD card!\r\n");
+        log_e("Failed to mount SD card");
+    }
+    this->semaphore = xSemaphoreCreateMutex();
+    if(semaphore == NULL) {
+        log_e("Not enough heap to use data file semaphore");
     }
 }
 
@@ -15,11 +21,15 @@ DataFileClass::DataFileClass() : FileManager(SD) {
  * @param filename 
  * @return 
  */
-bool DataFileClass::init(const char* filename) {
-    sprintf(this->filename, "%s", filename);
-    if(!checkFile(filename)) { // check if file exisits
-        writeLine(filename, "Timestamp,Flow,Pressure,Level\r\n"); // write header on new file
+bool DataFileClass::init(std::string filename) {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->filename = filename;
+    bool success = true;
+    if(!checkFile(this->filename.c_str())) { // check if file exisits
+        success = writeLine(this->filename.c_str(), "Timestamp,Flow,Pressure,Level"); // write header on new file
     }
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    return success;
 }
 
 /**
@@ -29,26 +39,35 @@ bool DataFileClass::init(const char* filename) {
  * @return true on success, false otherwise
  */
 bool DataFileClass::store(sensor_data_t data) {
-    char buffer[DATA_STRING_LENGTH]; // TIME,FLOW,PRESSURE,LEVEL<CR><LF>
-    size_t bytes = sprintf(buffer, "%s,%d,%d,%d", TimeManager::toString(data.timestamp), data.flow, data.pressure, data.level);
+    char buffer[DATA_STRING_LENGTH]; // format: "TIME,FLOW,PRESSURE,LEVEL<CR><LF>"
+    size_t bytes = sprintf(buffer, "%s,%d,%d,%d", TimeManager::toString(data.timestamp).c_str(), data.flow, data.pressure, data.level);
     if(bytes == 0) {
+        log_e("Failed to build line from sensor data");
         return false;
     }
-    return writeLine(this->filename, buffer);
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    bool success = writeLine(this->filename.c_str(), buffer);
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    return success;
 }
 
 /**
  * Extracts sensor data from the beginning of the data file and writes it into the given data
  * buffer. Depending on the size of 'data' it tries to read that many lines and parse them.
- * @param data buffer to be filled. Needs to have a pre-allocated size, so 'data.size()' works
- * @return number of lines, that were read from file and could succesfully be parsed
+ * @param data buffer to be filled. Needs to be allocated with reserve(), so 'data.capacity()' works
+ * @return number of lines that could succesfully be parsed, -1 on error
  */
 int DataFileClass::exportData(std::vector<sensor_data_t>& data) {
     // Read Data File:
-    std::vector<std::string> lines(data.size());
-    if(!this->readLines(this->filename, lines)) {
+    std::vector<std::string> lines(data.capacity());
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    bool success = this->readLines(this->filename.c_str(), lines);
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!success) {
+        log_e("Failed to read lines from file");
         return -1;
     }
+
     /*std::vector<std::string> lines = {
         "Timestamp,Flow,Pressure,Level",
         "2024-03-31T14:32:19,0,920,2541",
@@ -61,17 +80,15 @@ int DataFileClass::exportData(std::vector<sensor_data_t>& data) {
     };*/
 
     // Parse CSV Lines:
-    int lineCount = 0;
     for(std::string line : lines) {
         sensor_data_t d;
         if(parseCSVLine(line.data(), d)) {
-            data[lineCount] = d;
-            lineCount++;
+            data.push_back(d);
         }
     }
 
     // Return Count of Actually Read Lines:
-    return lineCount;
+    return data.size();
 }
 
 /**
@@ -82,20 +99,30 @@ int DataFileClass::exportData(std::vector<sensor_data_t>& data) {
  * @return true on success, false otherwise
  */
 bool DataFileClass::shrinkData(size_t numLines) {
+    bool success;
     if(this->createFile("/temp.txt")) {
-        Serial.printf("Failed to create temporary copy file\r\n");
+        log_e("Failed to create temporary copy file");
         return false;
     }
-    if(this->copyFile(this->filename, "/temp.txt", numLines)) {
-        Serial.printf("Failed to copy content\r\n");
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    success = this->copyFile(this->filename.c_str(), "/temp.txt", numLines);
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!success) {
+        log_e("Failed to copy content");
         return false;
     }
-    if(this->deleteFile(this->filename)) {
-        Serial.printf("Failed to remove log file.\r\n");
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    success = this->deleteFile(this->filename.c_str());
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!success) {
+        log_e("Failed to remove log file");
         return false;
     }
-    if(this->renameFile("/temp.txt", this->filename)) {
-        Serial.printf("Failed to rename temporary file to log file.\r\n");
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    success = this->renameFile("/temp.txt", this->filename.c_str());
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!success) {
+        log_e("Failed to rename temporary file to log file");
         return false;
     }
     return true;
@@ -106,14 +133,30 @@ bool DataFileClass::shrinkData(size_t numLines) {
  * @return true on success, false otherwise
  */
 bool DataFileClass::clear() {
-    return this->clearFile(this->filename);
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    bool success = this->clearFile(this->filename.c_str());
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    return success;
+}
+
+/**
+ * @brief Deletes the data file and sets the filename to "" (emtpy string). To re-use the data file
+ * again use init() to create a new document.
+ * @return true on success, false otherwise
+ */
+bool DataFileClass::remove() {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    bool success = this->deleteFile(this->filename.c_str());
+    this->filename = "";
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    return success;
 }
 
 /**
  * Return the filename of the active data file
  * @return string of the file path
  */
-char* DataFileClass::getFilename() {
+std::string DataFileClass::getFilename() {
     return this->filename;
 }
 
@@ -123,10 +166,11 @@ char* DataFileClass::getFilename() {
  * @param data sensor data struct to be filled with parsed values
  * @return true on success, false if one of values failed to parse
  */
-bool DataFileClass::parseCSVLine(const char* line, sensor_data_t& data) {
+bool DataFileClass::parseCSVLine(const char line[], sensor_data_t& data) {
     // Copy Into Local String Buffer:
-    char buffer[DATA_STRING_LENGTH];
-    strncpy(buffer, line, DATA_STRING_LENGTH);
+    size_t len = strlen(line);
+    char buffer[len];
+    strncpy(buffer, line, len);
 
     // Parse Time String:
     char* token = strtok(buffer,",");

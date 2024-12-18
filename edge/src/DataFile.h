@@ -5,7 +5,6 @@
 #include "SD.h"
 #include "Sensors.h"
 #include "TimeManager.h"
-// #include "time.h"
 
 // SD Card:
 #define SD_CARD
@@ -14,21 +13,24 @@
 #define SPI_CLK 18
 #define SPI_MISO 19
 
-// Time String:
+// String Lenghts:
+#define FILE_NAME_LENGTH 25
 #define DATA_STRING_LENGTH 40
 
 class DataFileClass : FileManager {
 public:
     DataFileClass();
-    bool init(const char* filename);
+    bool init(std::string filename);
     bool store(sensor_data_t data);
     int exportData(std::vector<sensor_data_t>& data);
     bool shrinkData(size_t numLines);
     bool clear();
-    char* getFilename();
+    bool remove();
+    std::string getFilename();
 private:
-    char* filename;
-    bool parseCSVLine(const char* line, sensor_data_t& data);
+    std::string filename; // "/data_YYYY-MM-DD.txt"
+    SemaphoreHandle_t semaphore;
+    bool parseCSVLine(const char line[], sensor_data_t& data);
 };
 
 extern DataFileClass DataFile;
