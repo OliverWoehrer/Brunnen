@@ -20,8 +20,7 @@ public:
     Digital(uint8_t pin);
     void on(void);
     void off(void);
-    void set(uint8_t value);
-    void toggle(void);
+    bool toggle(void);
 };
 
 }

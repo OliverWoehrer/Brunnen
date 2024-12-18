@@ -43,19 +43,14 @@ void Digital::off() {
 }
 
 /**
- * Sets the output level to the given value
- * @param value target value: zero = LOW, HIGH = non zero
- * @return 
+ * @brief Inverts the current output level. So HIGH becomes LOW and vice versa. Returns the new
+ * state after toggle
+ * @return true if HIGH, false if LOW
  */
-void Digital::set(uint8_t value) {
-    digitalWrite(this->pin, value);
-}
-
-/**
- * Inverts the current output level. So HIGH becomes LOW and vice versa.
- */
-void Digital::toggle() {
-    digitalWrite(this->pin, !digitalRead(this->pin));
+bool Digital::toggle() {
+    int state = digitalRead(this->pin); // invert current state
+    digitalWrite(this->pin, !state);
+    return !state; // return new state
 }
 
 }
