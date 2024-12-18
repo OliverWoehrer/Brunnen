@@ -24,15 +24,14 @@ public:
 class Interrupted {
 public:
     typedef void(*VoidFunctionPointer_t)();
-private:
-    uint8_t pin;                // pin number
-    VoidFunctionPointer_t isr;  // function pointer to interrupt service routine (ISR)
-    int mode;                   // interrupt mode, e.g. ONHIGH. See "Arduino.h" for more details
-public:
     Interrupted(uint8_t pin, VoidFunctionPointer_t isr, int mode);
     void enable(void);
     void disable(void);
     bool read(void);
+private:
+    uint8_t pin;                // pin number
+    VoidFunctionPointer_t isr;  // function pointer to interrupt service routine (ISR)
+    int mode;                   // interrupt mode, e.g. ONHIGH. See "Arduino.h" for more details
 };
 
 }
