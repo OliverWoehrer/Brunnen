@@ -10,27 +10,22 @@ TimeManager::TimeManager() {}
  * this.
  * @return true on success, false otherwise
  */
-bool TimeManager::init() {
+bool TimeManager::begin() {
     // Set NTP Configuration: 
     configTime(GMT_TIME_ZONE, DAYLIGHT_OFFSET, NTP_SERVER);
     vTaskDelay(700 / portTICK_PERIOD_MS); // wait 700ms
     
     struct tm timeinfo;
     if(!getLocalTime(&timeinfo)) { // check for local time
-        Serial.printf("Failed to config time.\r\n");
+        log_d("Failed to config time");
         return false;
     }
-    Serial.printf("Time initialized at %s\r\n", toString(timeinfo));
+    log_d("Time initialized at %s\r\n", toString(timeinfo).c_str());
     return true;
 }
 
 /**
- * 
- * @return 
- */
-
-/**
- * Returns the timeinfo holding the system time
+ * @brief Returns the timeinfo holding the system time
  * @return timeinfo of 'this'
  */
 tm TimeManager::getTime() {
@@ -52,23 +47,31 @@ tm TimeManager::getTime() {
 }
 
 /**
- * Converts timeinfo of 'this' to ISO format string
+ * @brief Converts timeinfo of 'this' to ISO format string
  * @return string in the format YYYY-MM-DDTHH:MM:SS
  */
 std::string TimeManager::toString() {
     tm timeinfo = this->getTime();
-    return toString(timeinfo);
+    return TimeManager::toString(timeinfo);
 }
 
 /**
- * Converts the given timeinfo to a ISO format string
- * @param timeinfo time struct to convert
- * @return string in the format YYYY-MM-DDTHH:MM:SS
+ * @brief Converts the given timeinfo to a string of ISO format YYYY-MM-DD
+ * @return string on success, empty string on failure
  */
-std::string TimeManager::toString(tm timeinfo) {
-    char buffer[TIME_STRING_LENGTH];
-    size_t bytes = strftime(buffer, TIME_STRING_LENGTH, TIME_STRING_FORMAT, &timeinfo);
-    return buffer;
+std::string TimeManager::toDateString() {
+    const tm timeinfo = this->getTime();
+    return TimeManager::toDateString(timeinfo);
+}
+
+/**
+ * @brief Converts the given timeinfo to a string of ISO format HH:MM:SS
+ * @param timeinfo time struct to convert
+ * @return string on success, empty string on failure
+ */
+std::string TimeManager::toTimeString() {
+    const tm timeinfo = this->getTime();
+    return TimeManager::toTimeString(timeinfo);
 }
 
 /**
@@ -80,6 +83,48 @@ tm TimeManager::fromString(const char* timestring) {
     tm timeinfo;
     strptime(timestring, TIME_STRING_FORMAT, &timeinfo);
     return timeinfo;
+}
+
+/**
+ * @brief Converts the given timeinfo to a string of ISO format YYYY-MM-DDTHH:MM:SS
+ * @param timeinfo time struct to convert
+ * @return string on success, empty string on failure
+ */
+std::string TimeManager::toString(tm timeinfo) {
+    char buffer[TIME_STRING_LENGTH];
+    size_t bytes = strftime(buffer, TIME_STRING_LENGTH, DATETIME_STRING_FORMAT, &timeinfo);
+    if(bytes == 0) {
+        return "";
+    }
+    return buffer;
+}
+
+/**
+ * @brief Converts the given timeinfo to a string of ISO format YYYY-MM-DD
+ * @param timeinfo time struct to convert
+ * @return string on success, empty string on failure
+ */
+std::string TimeManager::toDateString(tm timeinfo) {
+    char buffer[TIME_STRING_LENGTH];
+    size_t bytes = strftime(buffer, TIME_STRING_LENGTH, DATE_STRING_FORMAT, &timeinfo);
+    if(bytes == 0) {
+        return "";
+    }
+    return buffer;
+}
+
+/**
+ * @brief Converts the given timeinfo to a string of ISO format HH:MM:SS
+ * @param timeinfo time struct to convert
+ * @return string on success, empty string on failure
+ */
+std::string TimeManager::toTimeString(tm timeinfo) {
+    char buffer[TIME_STRING_LENGTH];
+    size_t bytes = strftime(buffer, TIME_STRING_LENGTH, TIME_STRING_FORMAT, &timeinfo);
+    if(bytes == 0) {
+        return "";
+    }
+    return buffer;
 }
 
 TimeManager Time = TimeManager();
