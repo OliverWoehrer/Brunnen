@@ -13,11 +13,18 @@
 
 typedef enum {INFO, WARNING, ERROR, DEBUG} log_mode_t;
 
+typedef struct {
+    tm timestamp;
+    std::string message;
+    std::string tag;
+} log_message_t;
+
 class Log : FileManager {
 public:
     Log(const char* filename);
+    bool begin();
     bool log(log_mode_t mode, std::string&& msg);
-    bool exportLogs(std::vector<std::string>& logs);
+    bool exportLogs(std::vector<log_message_t>& logs);
     bool shrinkLogs(size_t numLines);
     bool clear(void);
     size_t size(void);
@@ -26,6 +33,8 @@ private:
     Output::Digital led;
     std::string filename;
     SemaphoreHandle_t semaphore;
+
+    bool parseLogLine(const char line[], log_message_t& msg);
 };
 
 extern Log LogFile;

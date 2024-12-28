@@ -2,20 +2,45 @@
 
 #define MUTEX_TIMEOUT (2*1000)/portTICK_PERIOD_MS // 2000 ms
 
+std::string stringToTag(std::string tagString) {
+    if(tagString == "[INFO]") {
+        return "info";
+    } else if(tagString == "[WARNING]") {
+        return "warning";
+    } else if(tagString == "[ERROR]") {
+        return "error";
+    } else {
+        return "debug";
+    }
+}
+
 /**
  * @brief Constructor initalizes a log file at the file system and creates a semaphore to be ready
  * for multi process usage.
  * @param filename file name of the log file (e.g. "/log,txt")
  */
 Log::Log(const char* filename) : FileManager(SPIFFS), led(LED_RED) {
-    if(!SPIFFS.begin()) { // mount internal file system
-        log_e("Unable to mount SPIFFS");
-    }
     this->semaphore = xSemaphoreCreateMutex();
     if(semaphore == NULL) {
-        log_e("Not enough heap to use data file semaphore");
+        log_e("Not enough heap to use log file semaphore");
     }
     this->filename = filename;
+}
+
+/**
+ * @brief Mounts the internal file system SPIFFS and creates the log file (if it does not exist)
+ * @return true on success, false otherwise
+ */
+bool Log::begin() {
+    if(!SPIFFS.begin(true)) { // mount internal file system
+        log_e("Unable to mount SPIFFS");
+        return false;
+    }
+    if(!this->checkFile(this->filename.c_str())) {
+        this->createFile(this->filename.c_str());
+        log_d("Created new log file");
+    }
+    return true;
 }
 
 /**
@@ -72,11 +97,39 @@ bool Log::log(log_mode_t mode, std::string&& msg) {
  * @param logs buffer to be filled. Needs to be allocated with reserve(), so 'logs.capacity()' works
  * @return true on success, false otherwise
  */
-bool Log::exportLogs(std::vector<std::string>& logs) {
+bool Log::exportLogs(std::vector<log_message_t>& logs) {
+    // Read Log File:
+    std::vector<std::string> lines;
+    lines.reserve(logs.capacity());
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    bool success = this->readLines(this->filename.c_str(), logs);
+    bool success = this->readLines(this->filename.c_str(), lines);
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
-    return success;
+    if(!success) {
+        log_e("Failed to read lines from file");
+        return false;
+    }
+
+    /*std::vector<std::string> lines = {
+        "17-07-2023T00:14:11 [DEBUG] Largest region currently free in heap at 87876 bytes.",
+        "17-07-2023T00:14:11 [INFO] Requesting weather data from OpenMeteo API."
+        "17-07-2023T00:14:14 [INFO] Rain today is 0 mm.",
+        "17-07-2023T00:14:14 [INFO] Too little rain, resume pump operation.",
+        "17-07-2023T00:14:14 [INFO] Sending Mail."
+    };*/
+
+    // Parse CSV Lines:
+    for(std::string line : lines) {
+        log_message_t l;
+        if(parseLogLine(line.c_str(), l)) {
+            logs.push_back(l);
+        }
+    }
+
+    // Return Count of Actually Read Lines:
+    if(logs.size() < logs.capacity()) {
+        log_w("Exported %d/%d lines", logs.size(), logs.capacity());
+    }
+    return true;
 }
 
 /**
@@ -88,7 +141,7 @@ bool Log::exportLogs(std::vector<std::string>& logs) {
  */
 bool Log::shrinkLogs(size_t num) {
     bool success;
-    if(this->createFile("/temp.txt")) {
+    if(!this->createFile("/temp.txt")) {
         log_e("Failed to create temporary copy file");
         return false;
     }
@@ -146,5 +199,45 @@ size_t Log::size() {
 void Log::acknowledge() {
     this->led.off();
 }
+
+/**
+ * Tries to parse sensor data from the given line (CSV format) into the sensor data.
+ * @param line string holding the CSV line in format TIME,FLOW,PRESSURE,LEVEL
+ * @param data sensor data struct to be filled with parsed values
+ * @return true on success, false if one of values failed to parse
+ */
+bool Log::parseLogLine(const char line[], log_message_t& log) {
+    // Copy Into Local String Buffer:
+    size_t len = strlen(line);
+    char buffer[len+1];
+    strncpy(buffer, line, len+1);
+
+    // Parse Time String:
+    char* token = strtok(buffer," ");
+    if(token == NULL) {
+        return false;
+    }
+    if(!TimeManager::fromDateTimeString(token, log.timestamp)) {
+        return false;
+    }
+
+    // Parse Log Tag:
+    token = strtok(NULL, " ");
+    if(token == NULL) {
+        return false;
+    }
+    log.tag = stringToTag(token);
+
+    // Parse Message:
+    token = strtok(NULL, "'");
+    if(token == NULL) {
+        return false;
+    }
+    log.message = std::string(token);
+
+    // Return Success:
+    return true;
+}
+
 
 Log LogFile = Log("/log.txt");
