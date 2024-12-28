@@ -5,7 +5,7 @@
 FileManager::FileManager(fs::FS& fs) : fs(fs) {
     this->semaphore = xSemaphoreCreateMutex();
     if(semaphore == NULL) {
-        log_e("Not enough heap to use data file semaphore.");
+        log_e("Not enough heap to use file semaphore.");
     }
 }
 
@@ -18,12 +18,21 @@ FileManager::FileManager(fs::FS& fs) : fs(fs) {
  * LF character was found
  */
 bool FileManager::readLines(const char* path, std::vector<std::string>& lines) {
+    // Get Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+
+    File file;
+    bool success = false;
+    do { // open scope for critical section
+
     // Open File:
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    File file = this->fs.open(path);
+    file = this->fs.open(path, FILE_READ);
     if(!file) {
         log_e("Could not open file %s", path);
-        return false;
+        break;
     }
 
     // Read Bytes:
@@ -43,10 +52,15 @@ bool FileManager::readLines(const char* path, std::vector<std::string>& lines) {
         }
     }
 
-    // Close File:
+    success = true;
+    } while(0); // exit critical section
+
+    // Clean Up:
     file.close();
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
-    return true;
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
+    return success;
 }
 
 /**
@@ -56,20 +70,36 @@ bool FileManager::readLines(const char* path, std::vector<std::string>& lines) {
  * @return true on success, false otherwise
  */
 bool FileManager::writeLine(const char* path, const std::string& line) {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    File file = this->fs.open(path);
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+    }
+    
+    File file;
+    bool success = false;
+    do { // open scope for critical section
+
+    // Open File:
+    file = this->fs.open(path, FILE_WRITE);
     if(!file) {
         log_e("Could not open file %s", path);
-        return false;
+        break;
     }
     size_t bytes = file.printf("%s\r\n", line.c_str());
     if(bytes == 0) {
         log_e("Could not write to file %s", path);
-        return false;
+        break;
     }
+
+    success = true;
+    } while(0); // exit critical section
+
+    // Clean Up:
     file.close();
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
-    return true;
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
+    return success;
 }
 
 /**
@@ -79,20 +109,37 @@ bool FileManager::writeLine(const char* path, const std::string& line) {
  * @return true on success, false otherwise
  */
 bool FileManager::appendLine(const char* path, const std::string& line) {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    File file = this->fs.open(path, FILE_APPEND);
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+
+    File file;
+    bool success = false;
+    do { // open scope for critical section
+
+    // Open File:
+    file = this->fs.open(path, FILE_APPEND);
     if(!file) {
         log_e("Could not open file %s", path);
-        return false;
+        break;
     }
     size_t bytes = file.printf("%s\r\n", line.c_str());
     if(bytes == 0) {
         log_e("Could not write to file %s", path);
-        return false;
+        break;
     }
+
+    success = true;
+    } while(0); // exit critical section
+
+    // Clean Up:
     file.close();
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
-    return true;
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
+    return success;
 }
 
 /**
@@ -101,15 +148,32 @@ bool FileManager::appendLine(const char* path, const std::string& line) {
  * @return true on success, false otherwise
  */
 bool FileManager::createFile(const char* path) {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    File file = this->fs.open(path, FILE_WRITE);
-    if(!file) {
-        log_e("Could not open file %s", path);
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
         return false;
     }
+
+    File file;
+    bool success = false;
+    do { // open scope for critical section
+
+    // Open File:
+    file = this->fs.open(path, FILE_WRITE);
+    if(!file) {
+        log_e("Could not open file %s", path);
+        break;
+    }
+
+    success = true;
+    } while(0); // exit critical section
+
+    // Clean Up:
     file.close();
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
-    return true;
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
+    return success;
 }
 
 /**
@@ -140,11 +204,21 @@ bool FileManager::deleteFile(const char* path) {
  */
 bool FileManager::copyFile(const char* src, const char* dest, size_t startingLine) {    
     // Open Source File:
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    File srcFile = this->fs.open(src, FILE_READ);
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+
+    File srcFile;
+    File destFile;
+    bool success = true;
+    do { // open scope for critical section
+
+    // Open File:
+    srcFile = this->fs.open(src, FILE_READ);
     if(!srcFile) {
         log_e("Could not open file %s", src);
-        return false;
+        break;
     }
 
     // Set Curser to n-th Line (=lineNumber):
@@ -154,8 +228,8 @@ bool FileManager::copyFile(const char* src, const char* dest, size_t startingLin
         char byte = srcFile.read();
         if(byte == -1) {
             log_e("Read on %s returned with error", src);
-            srcFile.close();
-            return false;
+            success = false;
+            break;
         }
         line.append(1, byte);
         if(byte == '\n') {
@@ -163,22 +237,24 @@ bool FileManager::copyFile(const char* src, const char* dest, size_t startingLin
             line.clear();
         }
     }
+
+    if(!success) {
+        log_e("No success while setting the curser to the n-th line");
+        break;
+    }
+
     if(!srcFile.seek(numBytes)) {
         log_e("Failed to set file curser on %s to %u", src, numBytes);
-        return false;
+        success = false;
+        break;
     }
 
-    // Create Destination File:
-    if(!createFile(dest)) {
-        log_e("Failed to create %s", dest);
-        return false;
-    }
-
-    // Open Destination File:
-    File destFile = this->fs.open(dest, FILE_WRITE);
+    // Open/Create Destination File:
+    destFile = this->fs.open(dest, FILE_WRITE);
     if(!destFile) {
         log_e("Failed to open %s", dest);
-        return false;
+        success = false;
+        break;
     }
 
     // Copy Bytes:
@@ -187,24 +263,27 @@ bool FileManager::copyFile(const char* src, const char* dest, size_t startingLin
         size_t num = srcFile.read(bytes, 100);
         if(num < 0) {
             log_e("Read on %s returned with error", src);
-            srcFile.close();
-            destFile.close();
-            return false;
+            success = false;
+            break;
         }
-        num = destFile.write(bytes, num);
-        if(num == 0) {
+        size_t num2 = destFile.write(bytes, num);
+        if(num != num2) {
             log_e("Write on %s returned with error", dest);
-            srcFile.close();
-            destFile.close();
-            return false;
+            success = false;
+            break;
         }
     }
 
-    // Close Files:
+    } while(0); // exit critical section
+
+
+    // Clean Up:
     srcFile.close(); 
     destFile.close();
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
-    return true;
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
+    return success;
 }
 
 /**
@@ -223,15 +302,31 @@ bool FileManager::renameFile(const char* pathFrom, const char* pathTo) {
  * @return number of bytes
  */
 size_t FileManager::fileSize(const char* path) {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    File file = this->fs.open(path, FILE_READ);
+    // Take MUtex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+
+    File file;
+    size_t size;
+    do { // open scope for critical section
+
+    file = this->fs.open(path, FILE_READ);
     if(!file) {
         log_e("Could not open %s", path);
-        return 0;
+        size = 0;
+        break;
     }
-    size_t size = file.size();
+    size = file.size();
+    
+    } while(0); // exit critical section
+    
+    // Clean Up:
     file.close();
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
     return size;
 }
 
