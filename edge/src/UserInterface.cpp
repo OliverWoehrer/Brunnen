@@ -70,12 +70,12 @@ String processor(const String& var) {
     } else if (var == "FILE_SIZE") {
         return String(LogFile.size());
     } else if (var == "FILE_CONTENT") {
-        std::vector<std::string> logs;
+        std::vector<log_message_t> logs;
         logs.reserve(500);
         std::string logString;
         LogFile.exportLogs(logs);
         for(auto log: logs) {
-            logString = logString + log + "\r\n";
+            logString = logString + TimeManager::toString(log.timestamp) + log.message + "\r\n";
         }
         String ls = String(logString.c_str());
         ls.replace("\n","<br>");
@@ -93,14 +93,14 @@ String processor(const String& var) {
     } else if (var == "STATUS") {
         if (Update.isRunning()) return "IN PROGRESS";
         else return Update.hasError() ? "FAIL" : "OK";
-    } else if (var == "SMTP_SERVER") {
-        return String(SMTP_SERVER);
-    } else if (var == "SMTP_PORT") {
-        return String(SMTP_SERVER_PORT);
-    } else if (var == "ADDRESS") {
+    } else if (var == "MAIL_ADDRESS") {
         return String(EMAIL_SENDER_ACCOUNT);
-    } else if (var == "PASSWORD") {
+    } else if (var == "MAIL_PASSWORD") {
         return String(Config.loadMailPassword().c_str());
+    } else if(var == "API_USERNAME") {
+        return String(Config.loadAPIUsername().c_str());
+    } else if(var == "API_PASSWORD") {
+        return String(Config.loadAPIPassword().c_str());
     } else {
         return String();
     }
@@ -238,44 +238,46 @@ void GET_account(AsyncWebServerRequest *req) {
 }
 
 void POST_account(AsyncWebServerRequest *req) {
-    // Check SMTP Server Parameter:
-    if (req->hasParam("smtpServer", true)) {
-        AsyncWebParameter* p = req->getParam("smtpServer",true,false);
-        String smtpServer = p->value();
-    } else { // invalid request
-        req->send(400, "text/plain", "missing stmp server");
-    }
-
-    // Check SMTP Port Parameter:
-    int smtp;
-    if (req->hasParam("smtpPort", true)) {
-        AsyncWebParameter* p = req->getParam("smtpPort",true,false);
-        smtp = p->value().toInt();
-    } else { // invalid request
-        req->send(400, "text/plain", "missing stmp port");
-    }
-
     // Check Address Parameter:
     String address;
-    if (req->hasParam("address", true)) {
-        AsyncWebParameter* p = req->getParam("address",true,false);
+    if (req->hasParam("mail_address", true)) {
+        AsyncWebParameter* p = req->getParam("mail_address",true,false);
         address = p->value();
     } else { // invalid request
-        req->send(400, "text/plain", "missing address");
+        req->send(400, "text/plain", "missing mail address");
     }
 
     // Check Password Parameter:
     String password;
-    if (req->hasParam("password", true)) {
-        AsyncWebParameter* p = req->getParam("password",true,false);
+    if (req->hasParam("mail_password", true)) {
+        AsyncWebParameter* p = req->getParam("mail_password",true,false);
         password = p->value();
     } else { // invalid request
-        req->send(400, "text/plain", "missing password");
+        req->send(400, "text/plain", "missing mail password");
     }
 
+    // Check Username Parameter:
+    String apiUsername;
+    if (req->hasParam("api_username", true)) {
+        AsyncWebParameter* p = req->getParam("api_username",true,false);
+        apiUsername = p->value();
+    } else { // invalid request
+        req->send(400, "text/plain", "missing api username");
+    }
+
+    // Check Password Parameter:
+    String apiPassword;
+    if (req->hasParam("api_password", true)) {
+        AsyncWebParameter* p = req->getParam("api_password",true,false);
+        apiPassword = p->value();
+    } else { // invalid request
+        req->send(400, "text/plain", "missing api password");
+    }
 
     Config.storeMailAddress(address.c_str());
     Config.storeMailPassword(password.c_str());
+    Config.storeAPIUsername(apiUsername.c_str());
+    Config.storeAPIPassword(apiPassword.c_str());
     Gateway.begin();
     LogFile.log(INFO, "Updated account info.");
 
@@ -373,12 +375,12 @@ UserInterfaceClass::UserInterfaceClass() : led(LED_GREEN), server(UI_PORT) {
 }
 
 bool UserInterfaceClass::enable() {
-    this->led.on();
     if(!Wlan.connect()) {
         this->led.off();
         LogFile.log(ERROR, "Failed to enable user interface");
         return false;
     }
+    this->led.on();
     this->server.begin();
     this->state = true;
     return true;
