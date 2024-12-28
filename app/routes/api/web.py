@@ -242,7 +242,7 @@ def intervals():
                 weekdays = weekdays | 0b00100000
             if "sun" in keys:
                 weekdays = weekdays | 0b01000000
-            interval = { "start": start.strftime("%H:%M"), "stop": stop.strftime("%H:%M"), "wdays": weekdays }
+            interval = { "start": start.strftime("%H:%M:%S"), "stop": stop.strftime("%H:%M:%S"), "wdays": weekdays }
             intervals.append(interval)
 
         elif action == "delete":
@@ -323,7 +323,6 @@ def synchronization():
 
         # Return JSON Response:
         return redirect(request.referrer)
-
 
 @web.route("/thresholds", methods=["GET","POST"])
 def thresholds():
