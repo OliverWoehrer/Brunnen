@@ -16,6 +16,7 @@ public:
     void storePumpIntervals(std::vector<interval_t>& intervals);
     interval_t loadPumpInterval(size_t index);
     void loadPumpIntervals(std::vector<interval_t>& intervals);
+    void deletePumpInterval(size_t index);
 
     void storeJobLength(size_t jobLength);
     size_t loadJobLength();

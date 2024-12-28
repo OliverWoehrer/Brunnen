@@ -10,8 +10,6 @@ ConfigClass::ConfigClass() : preferences() {
     if(semaphore == NULL) {
         log_e("Not enough heap to use config semaphore.");
     }
-    this->preferences.begin(CONFIG_NAME, false);
-    this->preferences.end();
 }
 
 /**
@@ -54,8 +52,12 @@ void ConfigClass::storePumpInterval(interval_t interval, size_t index) {
  * @param intervals vector of intervals, to be stored
  */
 void ConfigClass::storePumpIntervals(std::vector<interval_t>& intervals) {
-    for(size_t i = 0; i < intervals.size(); i++) {
+    size_t i = 0;
+    for(; i < intervals.size(); i++) {
         this->storePumpInterval(intervals[i], i);
+    }
+    for(; i < intervals.capacity(); i++) {
+        this->deletePumpInterval(i);
     }
 }
 
@@ -101,11 +103,50 @@ interval_t ConfigClass::loadPumpInterval(size_t index) {
     return inter;
 }
 
+/**
+ * @brief Loads all intervals from memory
+ * @param intervals vector of intervals, to read into
+ */
 void ConfigClass::loadPumpIntervals(std::vector<interval_t>& intervals) {
-    for(size_t i = 0; i < intervals.capacity() && intervals.size() < intervals.capacity(); i++) {
+    for(size_t i = 0; i < intervals.capacity(); i++) {
         intervals.push_back(this->loadPumpInterval(i));
     }
 }
+
+/**
+ * @brief Removes the pump interval at the given index from memory. This will work if there is no
+ * interval at the index
+ * @param index number of interval to delete
+ */
+void ConfigClass::deletePumpInterval(size_t index) {
+    // Build Start Time Key:
+    char startHrString[14]; // format: start_hour_XX
+    char startMinString[13]; // format: start_min_XX
+    sprintf(startHrString, "start_hour_%02d", index);
+    sprintf(startMinString, "start_min_%02d", index);
+
+    // Build Stop Time Key:
+    char stopHrString[13]; // format: stop_hour_XX
+    char stopMinString[12]; // format: stop_min_XX
+    sprintf(stopHrString, "stop_hour_%02d", index);
+    sprintf(stopMinString, "stop_min_%02d", index);
+
+    // Build Weekday Key:
+    char wdayString[8]; // format: "wday_XX"
+    sprintf(wdayString, "wday_%02d", index);
+
+    // Delete From Memory:
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.remove(startHrString);
+    this->preferences.remove(startMinString);
+    this->preferences.remove(stopHrString);
+    this->preferences.remove(stopMinString);
+    this->preferences.remove(wdayString);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+}
+
 /**
  * Write the number of jobs into preferences
  * @param jobLength number to store
@@ -144,7 +185,7 @@ void ConfigClass::storeJob(const char* fileName, size_t index) {
     // Write To Memory:
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
-    this->preferences.putBytes(jobKey, fileName, strlen(fileName));
+    this->preferences.putString(jobKey, fileName);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 }
@@ -163,7 +204,7 @@ std::string ConfigClass::loadJob(size_t index) {
     char buffer[50]; // max. filename length
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
-    this->preferences.getBytes(jobKey, buffer, 50);
+    this->preferences.getString(jobKey, buffer, 50);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 
@@ -220,7 +261,7 @@ uint8_t ConfigClass::loadRainThresholdLevel() {
 void ConfigClass::storeMailAddress(const char* address) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
-    this->preferences.putBytes("mail_address", address, strlen(address));
+    this->preferences.putString("mail_address", address);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 }
@@ -234,7 +275,7 @@ std::string ConfigClass::loadMailAddress() {
     char buffer[50]; // max. password length
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
-    this->preferences.getBytes("mail_address", buffer, 50);
+    this->preferences.getString("mail_address", buffer, 50);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
     
@@ -249,7 +290,7 @@ std::string ConfigClass::loadMailAddress() {
 void ConfigClass::storeMailPassword(const char* pw) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
-    this->preferences.putBytes("password", pw, strlen(pw));
+    this->preferences.putString("password", pw);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 }
@@ -263,7 +304,7 @@ std::string ConfigClass::loadMailPassword() {
     char buffer[50]; // max. password length
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
-    this->preferences.getBytes("password", buffer, 50);
+    this->preferences.getString("password", buffer, 50);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
     
@@ -278,7 +319,7 @@ std::string ConfigClass::loadMailPassword() {
 void ConfigClass::storeAPIUsername(const char* username) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
-    this->preferences.putBytes("api_username", username, strlen(username));
+    this->preferences.putString("api_username", username);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 }
@@ -292,7 +333,7 @@ std::string ConfigClass::loadAPIUsername() {
     char buffer[50]; // max. password length
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
-    this->preferences.getBytes("api_username", buffer, 50);
+    this->preferences.getString("api_username", buffer, 50);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 
@@ -307,7 +348,7 @@ std::string ConfigClass::loadAPIUsername() {
 void ConfigClass::storeAPIPassword(const char* password) {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, false);
-    this->preferences.putBytes("api_password", password, strlen(password));
+    this->preferences.putString("api_password", password);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 }
@@ -321,7 +362,7 @@ std::string ConfigClass::loadAPIPassword() {
     char buffer[50]; // max. password length
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     this->preferences.begin(CONFIG_NAME, true);
-    this->preferences.getBytes("api_password", buffer, 50);
+    this->preferences.getString("api_password", buffer, 50);
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
 
