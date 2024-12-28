@@ -7,12 +7,10 @@
  */
 SensorClass::SensorClass() : led(LED_BLUE), sensorSwitch(SENSOR_SWITCH), waterPressure(WATER_PRESSURE_SENSOR), waterLevel(WATER_LEVEL_SENSOR), waterFlow(WATER_FLOW_SENSOR, SensorClass::edgeCounterISR, RISING) {
     this->edgeCounter = 0;
-    this->data = {
-        .timestamp = TimeManager::fromString("1970-01-01T00:00:00"),
-        .flow = 0,
-        .pressure = 0,
-        .level = 0
-    };
+    TimeManager::fromDateTimeString("1970-01-01T00:00:00", this->data.timestamp);
+    this->data.flow = 0;
+    this->data.pressure = 0;
+    this->data.level = 0;
 }
 
 /**

@@ -1,5 +1,20 @@
 #include "TimeManager.h"
 
+tm getDefault() {
+    struct tm timeinfo;
+    timeinfo.tm_sec = 0;
+    timeinfo.tm_min = 0;
+    timeinfo.tm_min = 0;
+    timeinfo.tm_hour = 0;
+    timeinfo.tm_mday = 0;
+    timeinfo.tm_mon = 0;
+    timeinfo.tm_year = 0;
+    timeinfo.tm_wday = 0;
+    timeinfo.tm_yday = 0;
+    timeinfo.tm_isdst = 0;
+    return timeinfo;    
+}
+
 /**
  * Default constructor
  */
@@ -20,7 +35,7 @@ bool TimeManager::begin() {
         log_d("Failed to config time");
         return false;
     }
-    log_d("Time initialized at %s\r\n", toString(timeinfo).c_str());
+    log_d("Time initialized at %s", toString(timeinfo).c_str());
     return true;
 }
 
@@ -30,20 +45,11 @@ bool TimeManager::begin() {
  */
 tm TimeManager::getTime() {
     struct tm timeinfo;
-    if(getLocalTime(&timeinfo)) {
-        return timeinfo;
-    } // else: set time manually
-    timeinfo.tm_sec = 0;
-    timeinfo.tm_min = 0;
-    timeinfo.tm_min = 0;
-    timeinfo.tm_hour = 0;
-    timeinfo.tm_mday = 0;
-    timeinfo.tm_mon = 0;
-    timeinfo.tm_year = 0;
-    timeinfo.tm_wday = 0;
-    timeinfo.tm_yday = 0;
-    timeinfo.tm_isdst = 0;
-    return timeinfo;    
+    if(!getLocalTime(&timeinfo)) {
+        log_w("Getting default time");
+        return getDefault();
+    }
+    return timeinfo;
 }
 
 /**
@@ -75,14 +81,33 @@ std::string TimeManager::toTimeString() {
 }
 
 /**
- * Parses the given string into a time struct
- * @param timestring string in the format YYYY-MM-DDTHH:MM:SS
- * @return time struct
+ * @brief Parses the given string into a time struct
+ * @param timestring string in the format HH:MM:SS
+ * @param timeinfo parsed time struct (invalid on failure)
+ * @return true on success, false otherwise
  */
-tm TimeManager::fromString(const char* timestring) {
-    tm timeinfo;
-    strptime(timestring, TIME_STRING_FORMAT, &timeinfo);
-    return timeinfo;
+bool TimeManager::fromTimeString(const char* timestring, tm &timeinfo) {
+    char* endptr = strptime(timestring, TIME_STRING_FORMAT, &timeinfo);
+    if(endptr == NULL) {
+        log_w("Failed to parse time from '%s'", timestring);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief Parses the given string into a time struct
+ * @param timestring string in the format YYYY-MM-DDTHH:MM:SS
+ * @param timeinfo parsed time struct (invalid on failure)
+ * @return true on success, false otherwise
+ */
+bool TimeManager::fromDateTimeString(const char* timestring, tm &timeinfo) {
+    char* endptr = strptime(timestring, DATETIME_STRING_FORMAT, &timeinfo);
+    if(endptr == NULL) {
+        log_w("Failed to parse datetime from '%s'", timestring);
+        return false;
+    }
+    return true;
 }
 
 /**
