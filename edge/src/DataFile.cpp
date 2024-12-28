@@ -6,13 +6,22 @@
  * Constructor initalizes the file system (external SD card)
  */
 DataFileClass::DataFileClass() : FileManager(SD) {
-    if(!SD.begin(SPI_CD)) {
-        log_e("Failed to mount SD card");
-    }
     this->semaphore = xSemaphoreCreateMutex();
     if(semaphore == NULL) {
         log_e("Not enough heap to use data file semaphore");
     }
+}
+
+/**
+ * @brief Mounts the extern file system (external SD card)
+ * @return true on success, false otherwise
+ */
+bool DataFileClass::begin() {
+    if(!SD.begin(SPI_CD)) {
+        log_e("Failed to mount SD card");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -57,15 +66,16 @@ bool DataFileClass::store(sensor_data_t data) {
  * @param data buffer to be filled. Needs to be allocated with reserve(), so 'data.capacity()' works
  * @return number of lines that could succesfully be parsed, -1 on error
  */
-int DataFileClass::exportData(std::vector<sensor_data_t>& data) {
+bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
     // Read Data File:
-    std::vector<std::string> lines(data.capacity());
+    std::vector<std::string> lines;
+    lines.reserve(data.capacity());
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     bool success = this->readLines(this->filename.c_str(), lines);
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
     if(!success) {
         log_e("Failed to read lines from file");
-        return -1;
+        return false;
     }
 
     /*std::vector<std::string> lines = {
@@ -82,13 +92,16 @@ int DataFileClass::exportData(std::vector<sensor_data_t>& data) {
     // Parse CSV Lines:
     for(std::string line : lines) {
         sensor_data_t d;
-        if(parseCSVLine(line.data(), d)) {
+        if(parseCSVLine(line.c_str(), d)) {
             data.push_back(d);
         }
     }
 
     // Return Count of Actually Read Lines:
-    return data.size();
+    if(data.size() < data.capacity()) {
+        log_w("Exported %d/%d lines", data.size(), data.capacity());
+    }
+    return true;
 }
 
 /**
@@ -100,7 +113,7 @@ int DataFileClass::exportData(std::vector<sensor_data_t>& data) {
  */
 bool DataFileClass::shrinkData(size_t numLines) {
     bool success;
-    if(this->createFile("/temp.txt")) {
+    if(!this->createFile("/temp.txt")) {
         log_e("Failed to create temporary copy file");
         return false;
     }
@@ -169,15 +182,17 @@ std::string DataFileClass::getFilename() {
 bool DataFileClass::parseCSVLine(const char line[], sensor_data_t& data) {
     // Copy Into Local String Buffer:
     size_t len = strlen(line);
-    char buffer[len];
-    strncpy(buffer, line, len);
+    char buffer[len+1];
+    strncpy(buffer, line, len+1);
 
     // Parse Time String:
     char* token = strtok(buffer,",");
     if(token == NULL) {
         return false;
     }
-    data.timestamp = TimeManager::fromString(token);
+    if(!TimeManager::fromDateTimeString(token, data.timestamp)) {
+        return false;
+    }
 
     // Parse Flow Value:
     token = strtok(NULL, ",");

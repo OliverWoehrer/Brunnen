@@ -20,9 +20,10 @@
 class DataFileClass : FileManager {
 public:
     DataFileClass();
+    bool begin();
     bool init(std::string filename);
     bool store(sensor_data_t data);
-    int exportData(std::vector<sensor_data_t>& data);
+    bool exportData(std::vector<sensor_data_t>& data);
     bool shrinkData(size_t numLines);
     bool clear();
     bool remove();
