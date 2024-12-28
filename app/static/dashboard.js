@@ -143,7 +143,7 @@ async function fetchLogs(start, stop) {
     }
     const logs = await response.json();
     if(isEmpty(logs)) {
-        throw Error("No logs returned.");
+        return { columns: [], data: [] };
     }
     return { columns: logs["columns"], data: logs["data"] };
 }
