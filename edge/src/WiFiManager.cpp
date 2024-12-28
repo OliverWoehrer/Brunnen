@@ -23,7 +23,7 @@ bool WifiManager::init() {
  */
 bool WifiManager::connect() {
     if(WiFi.isConnected()) {
-        log_w("Already connected");
+        log_i("Already connected at %s", WiFi.localIP().toString());
         return true;
     }
     unsigned char retries = 2; // number of tries to login
