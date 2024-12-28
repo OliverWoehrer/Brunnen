@@ -66,6 +66,7 @@ public:
     
     // Tree API:
     bool insertData(std::vector<sensor_data_t> sensorData);
+    bool insertLogs(std::vector<log_message_t> logMessages);
     bool synchronize();
     bool getIntervals(std::vector<interval_t>& intervals);
     bool getSync(sync_t* sync);
@@ -87,7 +88,7 @@ private:
     std::string response;
 
     // Requests:
-    JsonDocument* doc;
+    JsonDocument doc;
 };
 
 extern GatewayClass Gateway;

@@ -1,4 +1,5 @@
 #include "Gateway.h"
+#include <ArduinoJson.h>
 
 const char* statusToString(int statusCode) {
     switch (statusCode) {
@@ -27,7 +28,7 @@ const char* statusToString(int statusCode) {
     case 208:
         return "Already Reported";
     case 226:
-        return "IM Used";
+        return "Im Used";
     case 300:
         return "Multiple Choices";
     case 301:
@@ -142,6 +143,7 @@ GatewayClass::GatewayClass() {
     this->api_password = "";
     this->mail_address = "";
     this->mail_password = "";
+    this->doc = JsonDocument();
 }
 
 void GatewayClass::begin() {
@@ -152,7 +154,7 @@ void GatewayClass::begin() {
 }
 
 void GatewayClass::clear() {
-    (*(this->doc)).clear();
+    this->doc.clear();
 }
 
 std::string GatewayClass::getResponse() {
@@ -186,28 +188,47 @@ std::string GatewayClass::getResponse() {
 */
 
 bool GatewayClass::insertData(std::vector<sensor_data_t> sensorData) {
-    JsonObject data = (*(this->doc))["data"].to<JsonObject>();
+    if(sensorData.capacity() == 0) {
+        return true;
+    }
+
+    JsonObject data = this->doc["data"].to<JsonObject>();
     JsonArray columns = data["columns"].to<JsonArray>();
     columns.add("flow");
     columns.add("pressure");
     columns.add("level");
     JsonObject values = data["values"].to<JsonObject>();
     
-    log_d("addData(sensorData[%u]) = {", sensorData.size());
     for(sensor_data_t sensdata : sensorData) {
         std::string ts = TimeManager::toString(sensdata.timestamp);
-        log_d("%s: [%d,%d,%d]", ts, sensdata.flow, sensdata.pressure, sensdata.flow);
-        
         JsonArray a = values[ts].to<JsonArray>();
         a.add(sensdata.flow);
         a.add(sensdata.pressure);
         a.add(sensdata.level);
     }
-    log_d("}");
 
     // Set Payload:
     std::string payload;
-    serializeJson((*(this->doc)), payload);
+    serializeJson(this->doc, payload);
+    return true;
+}
+
+bool GatewayClass::insertLogs(std::vector<log_message_t> logMessages) {
+    if(logMessages.capacity() == 0) {
+        return true;
+    }
+    JsonObject logs = this->doc["logs"].to<JsonObject>();
+    
+    for(log_message_t log : logMessages) {
+        std::string ts = TimeManager::toString(log.timestamp);
+        JsonArray a = logs[ts].to<JsonArray>();
+        a.add(log.message);
+        a.add(log.tag);
+    }
+
+    // Set Payload:
+    std::string payload;
+    serializeJson(this->doc, payload);
     return true;
 }
 
@@ -233,9 +254,13 @@ bool GatewayClass::synchronize() {
 
     // Set Payload:
     std::string payload;
-    serializeJson((*(this->doc)), payload);
+    if(this->doc.isNull()) {
+        payload = "{}";
+    } else {
+        serializeJsonPretty(this->doc, payload);
+    }
     log_d("Payload:\r\n%s", payload.c_str());
-    
+
     // Start Connection:
     int httpCode = http.POST((uint8_t*)payload.c_str(), payload.size()); // start connection and send HTTP header
 
@@ -259,13 +284,13 @@ bool GatewayClass::synchronize() {
     http.end(); // clear http object
 
     // Parse JSON Data:
-    DeserializationError error = deserializeJson((*(this->doc)), payload);
+    DeserializationError error = deserializeJson(this->doc, payload);
     if(error) {
         std::string msg = error.c_str();
         LogFile.log(WARNING,"Failed to parse JSON data: "+msg);
         return false;
     }
-    log_d("Response Payload:\r\n=====\r\n%s\r\n=====", payload);
+    log_d("Response Payload:\r\n%s", payload.c_str());
 
     // Success at This Point:
     return true;
@@ -273,22 +298,24 @@ bool GatewayClass::synchronize() {
 
 bool GatewayClass::getIntervals(std::vector<interval_t>& inters) {
     // Convert to JSON:
-    JsonObjectConst obj = (*(this->doc)).as<JsonObjectConst>();
+    JsonObjectConst obj = this->doc.as<JsonObjectConst>();
 
     // Parse JSON Document:
     JsonObjectConst settings = obj["settings"].as<JsonObjectConst>();
     if(!settings) {
-        LogFile.log(WARNING,"response does not have key 'settings'");
+        log_w("response does not have key 'settings'");
         return false;
     }
     JsonArrayConst intervals = settings["intervals"].as<JsonArrayConst>();
     if(!intervals) {
-        LogFile.log(WARNING,"settings has no 'intervals' array");
+        log_w("settings has no 'intervals' array");
         return false;
     }
 
     // Parse Intervals:
     for(JsonObjectConst interval: intervals) {
+        interval_t newInterval;
+
         // Check Reserved Space:
         if(inters.size() >= inters.capacity()) {
             LogFile.log(WARNING,"No more memory reserved for itervals ("+std::to_string(inters.capacity())+")");
@@ -301,6 +328,10 @@ bool GatewayClass::getIntervals(std::vector<interval_t>& inters) {
             LogFile.log(WARNING,"interval has no 'start' string");
             return false;
         }
+        if(!TimeManager::fromTimeString(start, newInterval.start)) {
+            LogFile.log(WARNING,"failed to parse start string");
+            return false;
+        }
 
         // Parse Stop:
         const char* stop = interval["stop"].as<const char*>();
@@ -308,20 +339,19 @@ bool GatewayClass::getIntervals(std::vector<interval_t>& inters) {
             LogFile.log(WARNING,"interval has no 'stop' string");
             return false;
         }
+        if(!TimeManager::fromTimeString(stop, newInterval.stop)) {
+            LogFile.log(WARNING,"failed to parse stop string");
+            return false;
+        }
 
         // Parse Weekdays:
-        unsigned char wdays = interval["wdays"].as<unsigned char>();
-        if(!wdays) {
+        newInterval.wday = interval["wdays"].as<unsigned char>();
+        if(!newInterval.wday) {
             LogFile.log(WARNING,"interval has not 'wdays' integer");
             return false;
         }
         
         // Push Interval to Array:
-        interval_t newInterval = {
-            .start = TimeManager::fromString(start),
-            .stop = TimeManager::fromString(stop),
-            .wday = wdays
-        };
         inters.push_back(newInterval);
     }
 
@@ -331,17 +361,17 @@ bool GatewayClass::getIntervals(std::vector<interval_t>& inters) {
 
 bool GatewayClass::getSync(sync_t* buffer) {
     // Convert to JSON:
-    JsonObjectConst obj = (*(this->doc)).as<JsonObjectConst>();
+    JsonObjectConst obj = this->doc.as<JsonObjectConst>();
 
     // Parse JSON Document:
     JsonObjectConst settings = obj["settings"].as<JsonObjectConst>();
     if(!settings) {
-        LogFile.log(WARNING,"response does not have key 'settings'");
+        log_w("response does not have key 'settings'");
         return false;
     }
     JsonObjectConst sync = settings["sync"].as<JsonObjectConst>();
     if(!sync) {
-        LogFile.log(WARNING,"settings has no 'sync' object");
+        log_w("settings has no 'sync' object");
         return false;
     }
 
@@ -420,7 +450,7 @@ bool GatewayClass::requestWeatherData() {
 
     // Parse JSON Data:
     DynamicJsonDocument doc(2048);
-    DeserializationError error = deserializeJson((*(this->doc)), payload);
+    DeserializationError error = deserializeJson(this->doc, payload);
     if(error) {
         LogFile.log(WARNING,"Failed to parse JSON data: "+std::string(error.c_str()));
         return false;
@@ -430,7 +460,7 @@ bool GatewayClass::requestWeatherData() {
 }
 
 int GatewayClass::getPrecipitation() {
-    double rawPrecipitation = (*(this->doc))["daily"]["precipitation_sum"][0].as<double>();
+    double rawPrecipitation = this->doc["daily"]["precipitation_sum"][0].as<double>();
     return (int)rawPrecipitation;
 }
 
