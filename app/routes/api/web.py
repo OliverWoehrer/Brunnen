@@ -15,11 +15,11 @@ from ..web.web import set_last_visit
 web = Blueprint("web", __name__, url_prefix="/web")
 
 # TODO: enable authentication
-# @web.before_request
-# def check_authentication():
-#     username = session.get("username")
-#     if username is None:
-#         raise Unauthorized("Login to continue.")
+@web.before_request
+def check_authentication():
+    username = session.get("username")
+    if username is None:
+        raise Unauthorized("Login to continue.")
 
 @web.route("/sync", methods=["GET"])
 def sync():
@@ -371,3 +371,10 @@ def thresholds():
 def log(response):
     set_last_visit(datetime.now(timezone.utc).replace(microsecond=0))
     return response
+
+@web.errorhandler(Exception)
+def error(e):
+    if isinstance(e, HTTPException): # display HTTP errors
+        return e.description, e.code
+    else: # return unknown errors
+        return str(e), 500
