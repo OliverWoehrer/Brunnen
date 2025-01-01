@@ -15,8 +15,7 @@
 {% block main %}
 <div id="viewcontainer" style="height: 100%;">
     <div id="view" style="height: 100%;">
-        <div id="lineChart_waiting" class="loader w3-margin"></div>
-        <div id="lineChartDiv" style="height: 100%;"></div>
+        <canvas id="lines"></canvas>
     </div>
     <div id="id_range_selector" class="w3-modal">
         <div class="w3-modal-content w3-transparent">
@@ -28,53 +27,35 @@
 
 {% block script %}
 <script src="{{ url_for('static',filename='dashboard.js') }}" type="text/javascript"></script>
-<script src="https://code.jscharting.com/latest/jscharting.js" type="text/javascript"></script> 
-<script src="https://code.jscharting.com/latest/modules/types.js" type="text/javascript"></script>
-<script src="https://code.jscharting.com/latest/modules/toolbar.js" type="text/javascript"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/date-fns/1.30.1/date_fns.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
     // Global Varaiables:
     const WINDOW_SIZE = 48 * 60 * 60 * 1000; // 48 hours
-    let lineChart;
 
     // Run Initalization:
     window.onload = init;
+    window.onresize = init;
+    // const darkModePreference = window.matchMedia("(prefers-color-scheme: dark)");
+    // darkModePreference.onchange = plot;
 
     async function init() {
-        // Set Width & Height for Landscape:
-        if(screen.orientation.type.startsWith("portrait")) {
-            const viewcontainer = document.getElementById("viewcontainer");
-            const rect = viewcontainer.getBoundingClientRect();
-            const view = document.getElementById("view");
-            view.style.width = rect.height+"px";
-            view.style.height = rect.width+"px";
-
-            lineChartDiv = document.getElementById("lineChartDiv");
-            lineChartDiv.style.width = view.style.width;
-            lineChartDiv.style.height = view.style.height;
-        }
-
-        // Plot Empty Chart:
-        lineChart = plotLines("lineChartDiv");
-
         // Rotate to Landscape:
         if(screen.orientation.type.startsWith("portrait")) {
             const viewcontainer = document.getElementById("viewcontainer");
             const rect = viewcontainer.getBoundingClientRect();
-            const view = document.getElementById("view");
             const horizontalOffset = (rect.width/2) - (rect.height/2);
             const verticalOffset = (rect.height/2) - (rect.width/2);
+
+            const view = document.getElementById("view");
             view.style.transform = "translate("+horizontalOffset+"px, "+verticalOffset+"px) rotate(90deg)";
+            view.style.width = rect.height+"px";
+            view.style.height = rect.width+"px";
         }
 
-        // Fetch Latest Data:
-        try {
-            const stop = await fetchLatestTimestamp();
-            const start = new Date(stop.getTime() - WINDOW_SIZE);
-            await updateData(start, stop, lineChart);
-        } catch(error) {
-            window.alert("Could not fetch data: "+error);
-            return;
-        }
+        // Plot Empty Chart:
+        plotLines("lines");
     }
 
     async function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
@@ -86,10 +67,12 @@
         const stop = new Date(""+stopDate+"T"+stopTime+"Z");
         try {
             // plotLines("lineChartDiv");
-            await updateData(start, stop, lineChart);
+            await updateData(start, stop, null, "lines");
         } catch(error) {
             window.alert("Could not fetch data: "+error);
             return;
+        } finally {
+            hideElement('id_range_selector');
         }
     }
 
