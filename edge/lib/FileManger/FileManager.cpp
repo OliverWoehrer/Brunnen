@@ -235,6 +235,7 @@ bool FileManager::copyFile(const char* src, const char* dest, size_t startingLin
         if(byte == '\n') {
             numBytes += line.size();
             line.clear();
+            startingLine--;
         }
     }
 
