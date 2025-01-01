@@ -18,8 +18,8 @@
 #include "Sensors.h"
 
 // Tree API:
-#define TREE_HOST "192.168.1.104"
-#define TREE_PORT 5000
+#define TREE_HOST "app.woehrer-consulting.at" //"192.168.1.104"
+#define TREE_PORT 80 //5000
 #define TREE_PATH "/api/device/brunnen"
 
 // OpenMeteo API:
