@@ -188,7 +188,7 @@ std::string GatewayClass::getResponse() {
 */
 
 bool GatewayClass::insertData(std::vector<sensor_data_t> sensorData) {
-    if(sensorData.capacity() == 0) {
+    if(sensorData.size() == 0) {
         return true;
     }
 
@@ -207,14 +207,11 @@ bool GatewayClass::insertData(std::vector<sensor_data_t> sensorData) {
         a.add(sensdata.level);
     }
 
-    // Set Payload:
-    std::string payload;
-    serializeJson(this->doc, payload);
     return true;
 }
 
 bool GatewayClass::insertLogs(std::vector<log_message_t> logMessages) {
-    if(logMessages.capacity() == 0) {
+    if(logMessages.size() == 0) {
         return true;
     }
     JsonObject logs = this->doc["logs"].to<JsonObject>();
@@ -226,9 +223,6 @@ bool GatewayClass::insertLogs(std::vector<log_message_t> logMessages) {
         a.add(log.tag);
     }
 
-    // Set Payload:
-    std::string payload;
-    serializeJson(this->doc, payload);
     return true;
 }
 
@@ -259,7 +253,8 @@ bool GatewayClass::synchronize() {
     } else {
         serializeJsonPretty(this->doc, payload);
     }
-    log_d("Payload:\r\n%s", payload.c_str());
+    log_v("Payload:\r\n%s", payload.c_str());
+    // log_d("Synchronize with payload size: %d", payload.size());
 
     // Start Connection:
     int httpCode = http.POST((uint8_t*)payload.c_str(), payload.size()); // start connection and send HTTP header
@@ -290,7 +285,7 @@ bool GatewayClass::synchronize() {
         LogFile.log(WARNING,"Failed to parse JSON data: "+msg);
         return false;
     }
-    log_d("Response Payload:\r\n%s", payload.c_str());
+    log_v("Response Payload:\r\n%s", payload.c_str());
 
     // Success at This Point:
     return true;
