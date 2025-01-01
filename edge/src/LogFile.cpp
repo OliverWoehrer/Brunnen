@@ -126,9 +126,7 @@ bool Log::exportLogs(std::vector<log_message_t>& logs) {
     }
 
     // Return Count of Actually Read Lines:
-    if(logs.size() < logs.capacity()) {
-        log_w("Exported %d/%d lines", logs.size(), logs.capacity());
-    }
+    log_d("Exported %d/%d lines", logs.size(), logs.capacity());
     return true;
 }
 
