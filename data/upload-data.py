@@ -10,8 +10,8 @@ import pandas as pd
 
 influx_write_api = None
 
-URL = "http://localhost:8086"
-INFLUX_API_TOKEN = "Ds0mb4m_-wYE_qzXPyxz-q6ctjCfm8QicbjhZIdzMpWjH_RwLwSvauOna_db2weY7rhX5xkpoFRQR-vB7vWEqg=="
+URL = "https://db.woehrer-consulting.at"
+INFLUX_API_TOKEN = "kCL7hzDnV7YBt3DHkxV88FZcGP3fJ7bqmtCX926f89v-MXQ84h1d12Z-FxUwlswPIGbWGGSOwyF6FHq0754Nsg=="
 ORGANIZATION = "Private"
 MEASUREMENT_BUCKET = "Brunnen"
 DATA = "water"
@@ -57,7 +57,7 @@ def convert_to_datetime(date_str):
         return None
 
 # Initalitze Influx Client:
-client = influxdb_client.InfluxDBClient(url=URL, token=INFLUX_API_TOKEN, org=ORGANIZATION)
+client = influxdb_client.InfluxDBClient(url=URL, token=INFLUX_API_TOKEN, org=ORGANIZATION, timeout=40_000)
 if not client.ping():
     raise RuntimeError("Failed to initialize database client. Could not reach database server.")
 
@@ -71,10 +71,8 @@ if not bucket:
     raise RuntimeError(f"Found no bucket named {MEASUREMENT_BUCKET}", org=organization)
 
 # Initalize Argument Parser:
-parser = argparse.ArgumentParser(prog="upload-data.py", description="This script reads input files (CSV format) and uploads them to the influx database.")
+parser = argparse.ArgumentParser(prog="upload-data.py", description="This script reads data files (txt format) and uploads them to the influx database.")
 parser.add_argument("input_directory", help="Relative path to directory containing the input files (CSV format)")
-parser.add_argument("-u", "--upload", action="store_true", help="Upload the data in batches, each 100MB in size")
-parser.add_argument("-e", "--export", action="store_true", help="Export the data to file(s), each 100MB in size")
 args = parser.parse_args()
 
 # Build Input File Paths:
@@ -83,6 +81,7 @@ dir_list = os.listdir(args.input_directory)
 for dir_item in dir_list:
     if dir_item.endswith(".txt"):
         file_paths.append(args.input_directory+dir_item)
+file_paths.sort()
 
 # Iterate All Input Files:
 num = len(file_paths) - 1
