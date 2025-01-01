@@ -55,7 +55,7 @@ bool DataFileClass::store(sensor_data_t data) {
         return false;
     }
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    bool success = writeLine(this->filename.c_str(), buffer);
+    bool success = appendLine(this->filename.c_str(), buffer);
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
     return success;
 }
@@ -98,9 +98,7 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
     }
 
     // Return Count of Actually Read Lines:
-    if(data.size() < data.capacity()) {
-        log_w("Exported %d/%d lines", data.size(), data.capacity());
-    }
+    log_d("Exported %d/%d lines", data.size(), data.capacity());
     return true;
 }
 
@@ -111,7 +109,7 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
  * @param numLines line number of the first line to keep 
  * @return true on success, false otherwise
  */
-bool DataFileClass::shrinkData(size_t numLines) {
+bool DataFileClass::shrinkData(size_t numLines) {    
     bool success;
     if(!this->createFile("/temp.txt")) {
         log_e("Failed to create temporary copy file");
