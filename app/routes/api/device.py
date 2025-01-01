@@ -70,7 +70,7 @@ def brunnen():
 
             # Initalize Dataframe:
             df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
-            df = df.set_index(pd.to_datetime(df.index)) # convert to datetime
+            df = df.set_index(pd.to_datetime(df.index).tz_localize("CET")) # convert to datetime, TODO: fix timezone utc=True
 
             # Write Data Data:
             msg = db.insertData(data=df)
@@ -81,7 +81,7 @@ def brunnen():
             # Initalize Dataframe:
             logs = payload["logs"]
             df = pd.DataFrame.from_dict(logs, orient="index", columns=["message", "level"])
-            df = df.set_index(pd.to_datetime(df.index)) # convert to datetime
+            df = df.set_index(pd.to_datetime(df.index).tz_localize("CET")) # convert to datetime
 
             # Write Logs:
             msg = db.insertLogs(logs=df)
@@ -176,7 +176,7 @@ def brunnen():
             raise BadGateway(("Problem while inserting settings: "+str(msg)))
     
     # Return Updated Settings as JSON Response:
-    (msg,settings) = db.querySettings(start_time=g.last_sync)
+    (msg,settings) = db.querySettings() #start_time=g.last_sync, to return only changed settings
     if settings is None:
         raise BadGateway(("Problem while reading settings for response: "+str(msg)))
     g.last_sync = datetime.now(timezone.utc).replace(microsecond=0)
