@@ -6,13 +6,13 @@ tm getDefault() {
     timeinfo.tm_min = 0;
     timeinfo.tm_min = 0;
     timeinfo.tm_hour = 0;
-    timeinfo.tm_mday = 0;
+    timeinfo.tm_mday = 1;
     timeinfo.tm_mon = 0;
-    timeinfo.tm_year = 0;
-    timeinfo.tm_wday = 0;
+    timeinfo.tm_year = 70;
+    timeinfo.tm_wday = 4;
     timeinfo.tm_yday = 0;
     timeinfo.tm_isdst = 0;
-    return timeinfo;    
+    return timeinfo; // 1970-01-01 00:00:00
 }
 
 /**
@@ -46,7 +46,7 @@ bool TimeManager::begin() {
 tm TimeManager::getTime() {
     struct tm timeinfo;
     if(!getLocalTime(&timeinfo)) {
-        log_w("Getting default time");
+        log_w("Getting default time. This should not happend in regular operation.");
         return getDefault();
     }
     return timeinfo;
