@@ -9,6 +9,8 @@ To start this application, run "python app.py"
 """
 
 import os
+import argparse
+import logging
 import config
 from data import data_client as database
 from routes.app import app
@@ -17,6 +19,18 @@ from routes.app import app
 
 
 if __name__ == "__main__":
+    # Parse Input Argument:
+    parser = argparse.ArgumentParser(description="Brunnen (TreeAPI)")
+    parser.add_argument("--log-level", type=str, choices=["debug", "info", "warning", "error", "critical"], default="info", help="Set the logging level (default: info)")
+    args = parser.parse_args()
+    numeric_level = getattr(logging, args.log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % args.log_level)
+
+    # Setup Logger:
+    logging.basicConfig(level=numeric_level, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger(__name__)
+
     # Initalize Database Client:
     token = os.environ.get("INFLUXDB_TOKEN")
     if not token:
