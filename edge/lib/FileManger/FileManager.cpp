@@ -303,7 +303,7 @@ bool FileManager::renameFile(const char* pathFrom, const char* pathTo) {
  * @return number of bytes
  */
 size_t FileManager::fileSize(const char* path) {
-    // Take MUtex Semaphore:
+    // Take Mutex Semaphore:
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
         log_e("Could not take semaphore");
         return false;
@@ -329,6 +329,52 @@ size_t FileManager::fileSize(const char* path) {
         log_d("Failed to give semaphore");
     }
     return size;
+}
+
+/**
+ * @brief Get how many lines are in the given file. Once there is an error on read, the line number
+ * up until that point is returned
+ * @param path file path to retrive the number from
+ * @return number of lines
+ */
+size_t FileManager::lineCount(const char* path) {
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+
+    File file;
+    size_t count = 0;
+    do { // open scope for critical section
+
+    // Open File:
+    file = this->fs.open(path, FILE_READ);
+    if(!file) {
+        log_e("Could not open %s", path);
+        break;
+    }
+
+    // Read Bytes:
+    while(file.available()) {
+        int byte = file.read();
+        if(byte == -1) {
+            log_e("Read on %s returned with error", path);
+            break;
+        }
+        if(byte == '\n') {
+            count++;
+        }
+    }
+    
+    } while(0); // exit critical section
+    
+    // Clean Up:
+    file.close();
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
+    return count;
 }
 
 /**

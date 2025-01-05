@@ -18,6 +18,7 @@ protected:
     bool copyFile(const char* src, const char* dest, size_t startingLine);
     bool renameFile(const char* pathFrom, const char* pathTo);
     size_t fileSize(const char* path);
+    size_t lineCount(const char* path);
     bool checkFile(const char* path);
 private:
     SemaphoreHandle_t semaphore;
