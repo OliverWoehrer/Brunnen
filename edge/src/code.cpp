@@ -61,7 +61,7 @@ void buttonHandlerTask(void* parameter) {
 
         // Short Button Press:
         if(btnIndicator == SHORT_PRESS) {
-            Button.resetIndicator();
+            Button.resetIndicator(); // reset manually on short press
             LogFile.log(INFO, "toggle user interface");
             if(!UserInterface.toggle()) {
                 LogFile.log(ERROR, "Failed to enable interface");
@@ -69,8 +69,7 @@ void buttonHandlerTask(void* parameter) {
         }
 
         // Long Button Press:
-        if (btnIndicator == LONG_PRESS) {
-            Button.resetIndicator();
+        if(btnIndicator == LONG_PRESS) {
             LogFile.log(INFO, "toggle relais and operating mode");
             Pump.toggle();
         }
@@ -210,7 +209,7 @@ void synchronizationTask(void* parameter) {
 
     // Read Data File:
     std::vector<sensor_data_t> sensorData;
-    sensorData.reserve(20);
+    sensorData.reserve(60);
     if(!DataFile.exportData(sensorData)) { // negative on error
         LogFile.log(ERROR, "Failed to export sensor values");
         break;
@@ -267,10 +266,23 @@ void synchronizationTask(void* parameter) {
     // Update Sync Periods:
     sync_t sync;
     if(Gateway.getSync(&sync)) {
-        networkLoopPeriode = sync.periods[sync.mode] * 1000; // sync loop period in milliseconds
+        log_d("sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
+        unsigned int newLoopPeriode;
+        log_d("Data lines left: %u", DataFile.lineCounter());
+        if(DataFile.lineCounter() > 60) { // lots of data not synced, sync again soon
+            newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
+        } else { // synced most of data, set according to received settings
+            newLoopPeriode = sync.periods[sync.mode] * 1000;
+        }
+        if(newLoopPeriode != networkLoopPeriode) {
+            networkLoopPeriode = newLoopPeriode;
+            log_i("Updated loop periode to %u", networkLoopPeriode);
+        }
     }
 
     } while(0); // Gateway no longer needed, clear
+
+    // TODO: increase networkLoopPeriode after multiple failures
 
     // Clear Gateway:
     Gateway.clear();
@@ -337,19 +349,18 @@ void networkLoop(void* parameter) {
             }
         }
 
+        // Check Heap Size:
+        size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
+        log_d("minimum free heap size: %u byte",freeHeapSize);
 
         // Start Sync Task:
-        ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
         xTaskCreate(synchronizationTask,"synchronizationTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
+        ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for synchronizationTask to finish (get notified)
 
         // Set Sync Periode:
         xFrequency = networkLoopPeriode / portTICK_PERIOD_MS;
         log_d("networkLoop{periode %u sec}", xFrequency/1000);
-        // TODO: check if xFrequency is set correctly
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
-
-        // TODO: remove for loop
-        // vTaskDelete(NULL); // delete task when done, don't forget this!
     }
 }
 
@@ -412,21 +423,19 @@ void setup() {
 
     // Initalize Log File:
     if(!LogFile.begin()) {
-        Serial.printf("Failed to initialize wlan module\r\n");
+        log_e("Failed to initialize wlan module");
         return;
     }
-
-    // Initalize System Time:
     if(!Wlan.init()) {
-        LogFile.log(ERROR, "Failed to initialize wlan module");
+        log_e("Failed to initialize wlan module");
         return;
     }
     if(!Wlan.connect()) {
-        LogFile.log(ERROR, "Could not connect to network");
+        log_e("Could not connect to network");
         return;
     }
     if(!Time.begin()) {
-        LogFile.log(ERROR, "Failed to initialize system time");
+        log_e("Failed to initialize system time");
         return;
     }
     Wlan.disconnect();
@@ -477,7 +486,7 @@ void setup() {
     xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(networkLoop,"networkLoop",DEFAULT_STACK_SIZE,NULL,1,&networkLoopHandle);
-    xTaskNotifyGive(networkLoopHandle); // notfiy sync loop task
+    // xTaskNotifyGive(networkLoopHandle); // notfiy sync loop task
 
     // Finish Setup:
     LogFile.log(INFO, "Device setup.");
