@@ -6,7 +6,6 @@
 #include "TimeManager.h"
 
 // Pin Definitions:
-#define LED_BLUE 2
 #define SENSOR_SWITCH 25
 #define WATER_PRESSURE_SENSOR 32
 #define WATER_LEVEL_SENSOR 33
@@ -27,7 +26,6 @@ public:
     void countEdge();
     int getWaterLevel();
 private:
-    Output::Digital led;
     Output::Digital sensorSwitch;
     Input::Analog waterPressure;
     Input::Analog waterLevel;

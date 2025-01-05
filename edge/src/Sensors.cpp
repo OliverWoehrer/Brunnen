@@ -5,7 +5,7 @@
 /**
  * Constructor initalizes all member sensor objects with the pin number defined in "Sensors.h"
  */
-SensorClass::SensorClass() : led(LED_BLUE), sensorSwitch(SENSOR_SWITCH), waterPressure(WATER_PRESSURE_SENSOR), waterLevel(WATER_LEVEL_SENSOR), waterFlow(WATER_FLOW_SENSOR, SensorClass::edgeCounterISR, RISING) {
+SensorClass::SensorClass() : sensorSwitch(SENSOR_SWITCH), waterPressure(WATER_PRESSURE_SENSOR), waterLevel(WATER_LEVEL_SENSOR), waterFlow(WATER_FLOW_SENSOR, SensorClass::edgeCounterISR, RISING) {
     this->edgeCounter = 0;
     TimeManager::fromDateTimeString("1970-01-01T00:00:00", this->data.timestamp);
     this->data.flow = 0;
@@ -25,12 +25,10 @@ void SensorClass::begin() {
  * water level sensor to ON and weaking it up. Afterwards it checks if the water level sensor is ready (delay of approx.
  * 360ms). The values of all sensors are then read and/or stored in a local variable (sensor readout). Then the water
  * level sensor is being disabled again. The values are all read at the same time to ensure data consistency. Afterwards
- * the sensor values together with the given timestring are written to the (currently active) data file. The index led is
- * also switched on to indicate data sampling.
+ * the sensor values together with the given timestring are written to the (currently active) data file.
  */
 void SensorClass::read() {
     // Enable Sensors:
-    this->led.on();
     this->sensorSwitch.on(); // power on water level sensor
     
     // Wait Sensor Wake Up:
@@ -44,7 +42,6 @@ void SensorClass::read() {
     this->data.level = this->waterLevel.read();
 
     // Disable Sensors:
-    this->led.off();
     this->sensorSwitch.off(); // disable water level sensor again
     
     // Store Sensor Values:
