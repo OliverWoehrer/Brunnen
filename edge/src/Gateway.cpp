@@ -138,7 +138,7 @@ sync_mode_t stringToMode(const char* modeString) {
 
 // General Methods:
 
-GatewayClass::GatewayClass() {
+GatewayClass::GatewayClass() : led(LED_BLUE) {
     this->api_username = "";
     this->api_password = "";
     this->mail_address = "";
@@ -233,11 +233,17 @@ bool GatewayClass::synchronize() {
         return false;
     }
 
-    // Initialize and Make GET Request:
+    this->led.on();
     HTTPClient http;
+    std::string payload;
+    bool success = true;
+    do {
+
+    // Initialize and Make GET Request:
     if(!http.begin(TREE_HOST, TREE_PORT, TREE_PATH)) { // 192.168.1.104
         LogFile.log(WARNING,"Failed to begin request!");
-        return false;
+        success = false;
+        break;
     }
 
     // Set Headers:
@@ -245,9 +251,9 @@ bool GatewayClass::synchronize() {
     http.addHeader("Content-Type", "application/json");
     http.setAuthorization(this->api_username.c_str(), this->api_password.c_str());
     http.setUserAgent("ESP32 Brunnen");
+    http.setTimeout(8000);
 
     // Set Payload:
-    std::string payload;
     if(this->doc.isNull()) {
         payload = "{}";
     } else {
@@ -262,33 +268,40 @@ bool GatewayClass::synchronize() {
     // Check Response:
     if(httpCode < 0) { // httpCode is negative on error
         LogFile.log(WARNING,"Request failed: "+std::string(http.errorToString(httpCode).c_str()));
-        return false;
+        success = false;
+        break;
     }
     if(httpCode != HTTP_CODE_OK) {
         LogFile.log(WARNING,"Response: ["+std::to_string(httpCode)+" "+statusToString(httpCode)+"] "+http.getString().c_str());
-        return false;
+        success = false;
+        break;
     }
     if(http.getSize() > RESPONSE_BUFFER_SIZE) { // check reponse body size
         LogFile.log(WARNING,"Response body too large.");
-        return false;
+        success = false;
+        break;
     }
 
-    // Read HTTP Response Body:
-    payload.clear();
-    payload = http.getString().c_str();
-    http.end(); // clear http object
-
     // Parse JSON Data:
+    payload = http.getString().c_str();
     DeserializationError error = deserializeJson(this->doc, payload);
     if(error) {
         std::string msg = error.c_str();
         LogFile.log(WARNING,"Failed to parse JSON data: "+msg);
-        return false;
+        success = false;
+        break;
     }
-    log_v("Response Payload:\r\n%s", payload.c_str());
+    log_v("Response: %s", response.c_str());
+
+    } while(0);
+
+    // Read HTTP Response Body:
+    payload.clear();
+    http.end(); // clear http object
+    this->led.off();
 
     // Success at This Point:
-    return true;
+    return success;
 }
 
 bool GatewayClass::getIntervals(std::vector<interval_t>& inters) {

@@ -17,6 +17,9 @@
 #include "Pump.h"
 #include "Sensors.h"
 
+// Pin Definitions:
+#define LED_BLUE 2
+
 // Tree API:
 #define TREE_HOST "app.woehrer-consulting.at" //"192.168.1.104"
 #define TREE_PORT 80 //5000
@@ -80,6 +83,9 @@ public:
     bool sendMail(std::string& text);
 
 private:
+    // Hardware:
+    Output::Digital led;
+    
     // General Methods:
     std::string api_username;
     std::string api_password;
