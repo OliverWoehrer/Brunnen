@@ -70,7 +70,7 @@ def brunnen():
 
             # Initalize Dataframe:
             df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
-            df = df.set_index(pd.to_datetime(df.index).tz_localize("CET")) # convert to datetime, TODO: fix timezone utc=True
+            df = df.set_index(pd.to_datetime(df.index).tz_localize("CET")) # convert to datetime
 
             # Write Data Data:
             msg = db.insertData(data=df)
