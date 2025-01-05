@@ -172,6 +172,17 @@ std::string DataFileClass::getFilename() {
 }
 
 /**
+ * @brief Retreive the number of lines in the data file
+ * @return line counter
+ */
+size_t DataFileClass::lineCounter() {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    size_t count = this->lineCount(this->filename.c_str());
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    return count;
+}
+
+/**
  * Tries to parse sensor data from the given line (CSV format) into the sensor data.
  * @param line string holding the CSV line in format TIME,FLOW,PRESSURE,LEVEL
  * @param data sensor data struct to be filled with parsed values

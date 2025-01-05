@@ -28,6 +28,7 @@ public:
     bool clear();
     bool remove();
     std::string getFilename();
+    size_t lineCounter();
 private:
     std::string filename; // "/data_YYYY-MM-DD.txt"
     SemaphoreHandle_t semaphore;
