@@ -185,9 +185,9 @@ bool Log::clear() {
  */
 size_t Log::size() {
     xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-    bool success = this->fileSize(this->filename.c_str());
+    size_t size = this->fileSize(this->filename.c_str());
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
-    return success;
+    return size;
 }
 
 /**
