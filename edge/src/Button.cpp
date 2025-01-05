@@ -39,22 +39,25 @@ void ButtonClass::interrupt() {
 void ButtonClass::sample() {
     if(this->pin.read()) { // button is pressed
         this->cnt++;
-        if(this->cnt < 30) { // check if no long press
-            return; // return early if not long pressed
+        if(this->cnt >= 30 && this->indicator == NO_PRESS) { // check if logn press and no indicator (=no recent button press) 
+            this->indicator = LONG_PRESS;
+            xTaskResumeFromISR(this->task);
+        } // button not pressed long enough or recent button press
+    
+    } else { // button not pressed anymore (-> don't sample any longer)
+        if(0 < this->cnt && this->cnt < 30) { // check if short press
+            this->indicator = SHORT_PRESS;
+            xTaskResumeFromISR(this->task);
+        } else { // not pressed long enough or previously long press (already indicated above)
+            this->indicator = NO_PRESS; // either way: no press anymore
         }
-    } // at this point button is not pressed anymore or long pressed (-> don't sample any longer)
-
-    if(this->cnt > 0) {
-        this->indicator = this->cnt < 30 ? SHORT_PRESS : LONG_PRESS;
-        xTaskResumeFromISR(this->task);
-    } // else: button not pressed long enough
+                
+        // Disable Periodic Sampling:
+        timerDetachInterrupt(this->timer); // disable periodic sampling
+        this->pin.enable(); // re-enable interrupt on button
         
-    // Disable Periodic Sampling:
-    timerDetachInterrupt(this->timer);
-    this->cnt = 0;
-
-    // Re-Enable Interrupt on Button:
-    this->pin.enable();
+        this->cnt = 0;
+    }
 }
 
 /**
