@@ -139,22 +139,21 @@ class InfluxDataClient():
 
     def queryLatestTimestamp(self) -> (str,datetime):
         """
-        This function querys the latest data available in water meaurements and returns its
+        This function querys the latest data and logs available in MEASUREMENT_BUCKET and returns its
         timestamp.
         
         :return: Tuple(error_message: str, timestamp: datetime)
             error_message: "success" on success, errror message from database otherwise
-            timestamp: holds the time of latest data on success, None otherwise
+            timestamp: holds the time of latest data point on success, None otherwise
         """
 
         stop_time = datetime.now(timezone.utc).replace(microsecond=0)
         query = """
             from(bucket: "{bucket}")
             |> range(start: 0, stop: {stop})
-            |> filter(fn: (r) => r._measurement == "{meas}")
+            |> filter(fn: (r) => r["_measurement"] == "{logs}" or r["_measurement"] == "{meas}")
             |> last()
-            |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
-        """.format(bucket=MEASUREMENT_BUCKET, stop=stop_time.strftime(DATETIME_FORMAT), meas=DATA) # stop_time.strftime(DATETIME_FORMAT)
+        """.format(bucket=MEASUREMENT_BUCKET, stop=stop_time.strftime(DATETIME_FORMAT), logs=LOGS, meas=DATA) # stop_time.strftime(DATETIME_FORMAT)
         try:
             tables = self._query_api.query(query)
         except InfluxDBError as e:
@@ -165,7 +164,7 @@ class InfluxDataClient():
             values = tables.to_values(columns=["_time", "_field", "_value"])
             df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
             df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
-            ts = df.index[0].to_pydatetime() # convert from pandas datetime to python datetime
+            ts = df.index.max().to_pydatetime() # convert from pandas datetime to python datetime
             return ("success", ts)
 
     def deleteData(self, start_time: datetime, stop_time: datetime) -> str:
