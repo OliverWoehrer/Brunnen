@@ -245,13 +245,13 @@ void synchronizationTask(void* parameter) {
     
     // Shrink Data File:
     if(!DataFile.shrinkData(sensorData.size() + 1)) {
-        LogFile.log(ERROR, "Failed to shrink data file");
+        LogFile.log(WARNING, "Failed to shrink data file");
         break;
     }
 
     // Shrink Log File:
     if(!LogFile.shrinkLogs(logMessages.size() + 1)) {
-        LogFile.log(ERROR, "Failed to shrink log file");
+        LogFile.log(WARNING, "Failed to shrink log file");
         break;
     }
 
@@ -266,10 +266,11 @@ void synchronizationTask(void* parameter) {
     // Update Sync Periods:
     sync_t sync;
     if(Gateway.getSync(&sync)) {
-        log_d("sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
         unsigned int newLoopPeriode;
-        log_d("Data lines left: %u", DataFile.lineCounter());
-        if(DataFile.lineCounter() > 60) { // lots of data not synced, sync again soon
+        size_t count = DataFile.lineCounter();
+        log_d("sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
+        log_d("Data lines left: %u", count);        
+        if(count > 60) { // lots of data not synced, sync again soon
             newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
         } else { // synced most of data, set according to received settings
             newLoopPeriode = sync.periods[sync.mode] * 1000;
