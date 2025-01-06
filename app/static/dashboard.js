@@ -86,37 +86,19 @@ async function updateData(start, stop, gauges, lineCanvasId) {
     }
     // datasets = generateData();
     
-    // Extract Datasets:
-    let labels = [""];
-    let flowSet = [0];
-    let pressureSet = [0];
-    let levelSet = [0];
-    if("Time" in datasets) {
-        labels = datasets["Time"];
-    }
-    if("Flow" in datasets) {
-        flowSet = datasets["Flow"];
-    }
-    if("Pressure" in datasets) {
-        pressureSet = datasets["Pressure"];
-    }
-    if("Level" in datasets) {
-        levelSet = datasets["Level"];
-    }
-
     // Update Gauges Chart(s):
     if(gauges) {
         const values = {
-            "Flow": flowSet[flowSet.length - 1],
-            "Pressure": pressureSet[pressureSet.length - 1],
-            "Level": levelSet[levelSet.length - 1]
+            "Flow": datasets["Flow"].length ? datasets["Flow"].at(-1) : 0,
+            "Pressure": datasets["Pressure"].length ? datasets["Pressure"].at(-1) : 0,
+            "Level": datasets["Level"].length ? datasets["Level"].at(-1) : 0
         }
         updateGauges(gauges, values);
     }
 
     // Update Lines:
     if(lineCanvasId) {
-        updateLines(lineCanvasId, labels, flowSet, pressureSet, levelSet);
+        updateLines(lineCanvasId, datasets["Time"], datasets["Flow"], datasets["Pressure"], datasets["Level"]);
     }
 }
 
@@ -216,7 +198,7 @@ async function fetchData(start, stop) {
     }
     const data = await response.json();
     if(isEmpty(data)) {
-        throw Error("No data returned.");
+        return { "Time": [], "Flow": [], "Pressure": [], "Level": [] };
     }
 
     // Parse Datasets from Response:
@@ -351,9 +333,14 @@ function updateGauges(gauges, values) {
         let myChart = Chart.getChart(gauges[gauge]);
         if(typeof myChart === "undefined") {
             console.log("Could not find chart with from "+gauge);
-            return;
+            continue;
         }
-        myChart.data.datasets[0].data = [values[gauge].toFixed(1), MAX_LIMITS[gauge]-values[gauge]];
+        let v = values[gauge];
+        if(typeof v === "undefined") {
+            console.log("Dont have values for chart "+gauge);
+            continue;
+        }
+        myChart.data.datasets[0].data = [v.toFixed(1), MAX_LIMITS[gauge]-values[gauge]];
         myChart.update();
     }
 }
@@ -469,9 +456,13 @@ function updateLines(canvasID, labels, flowSet, pressureSet, levelSet) {
 
     // Build Canvas Title:
     labels = myChart.data.labels;
-    const firstLabel = labels[0]; 
-    const lastLabel = labels[labels.length - 1];
-    myChart.options.plugins.title.text = toLocalDateTime(firstLabel)+" - "+toLocalDateTime(lastLabel);
+    if(labels.length) {
+        const firstLabel = labels[0]; 
+        const lastLabel = labels[labels.length - 1];
+        myChart.options.plugins.title.text = toLocalDateTime(firstLabel)+" - "+toLocalDateTime(lastLabel);
+    } else {
+        myChart.options.plugins.title.text = "No data received!";
+    }
 
     // Update:
     myChart.update();
