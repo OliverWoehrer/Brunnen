@@ -136,11 +136,11 @@
     }
 
     async function update() {
-        let latestDataTimestamp;
+        let latestTimestamp;
         
         // Fetch Timestamp:
         try {
-            latestDataTimestamp = await fetchLatestTimestamp();
+            latestTimestamp = await fetchLatestTimestamp();
         } catch(error) {
             window.alert("Could not fetch latest timestamp: "+error);
             clearInterval(periodicUpdate);
@@ -148,14 +148,15 @@
         }
 
         if(lastUpdateTimstamp == null) {
-            lastUpdateTimstamp = new Date(latestDataTimestamp);
-            lastUpdateTimstamp.setMinutes(lastUpdateTimstamp.getMinutes() - 2);
+            lastUpdateTimstamp = new Date(latestTimestamp);
+            lastUpdateTimstamp.setMinutes(lastUpdateTimstamp.getMinutes() - 5);
         }
         
         // Fetch Logs and Data:
-        if(latestDataTimestamp > lastUpdateTimstamp) {
+        if(latestTimestamp > lastUpdateTimstamp) {
             const start = lastUpdateTimstamp;
-            const stop = latestDataTimestamp;
+            const stop = latestTimestamp;
+            stop.setSeconds(stop.getSeconds() + 1); // increment slightly to get latest data points as well
             try {
                 await updateLogs(start, stop, LOGS_TABLE_ID);
                 await updateData(start, stop, GAUGES_CANVAS_ID, LINES_CANVAS_ID);
@@ -164,7 +165,7 @@
                 clearInterval(periodicUpdate);
                 return;
             }
-            lastUpdateTimstamp = latestDataTimestamp;
+            lastUpdateTimstamp = latestTimestamp;
         }
     }
     
