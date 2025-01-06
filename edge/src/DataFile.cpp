@@ -31,13 +31,20 @@ bool DataFileClass::begin() {
  * @return 
  */
 bool DataFileClass::init(std::string filename) {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     this->filename = filename;
     bool success = true;
     if(!checkFile(this->filename.c_str())) { // check if file exisits
         success = writeLine(this->filename.c_str(), "Timestamp,Flow,Pressure,Level"); // write header on new file
     }
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     return success;
 }
 
@@ -54,9 +61,16 @@ bool DataFileClass::store(sensor_data_t data) {
         log_e("Failed to build line from sensor data");
         return false;
     }
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     bool success = appendLine(this->filename.c_str(), buffer);
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     return success;
 }
 
@@ -70,9 +84,16 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
     // Read Data File:
     std::vector<std::string> lines;
     lines.reserve(data.capacity());
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     bool success = this->readLines(this->filename.c_str(), lines);
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     if(!success) {
         log_e("Failed to read lines from file");
         return false;
@@ -115,23 +136,44 @@ bool DataFileClass::shrinkData(size_t numLines) {
         log_e("Failed to create temporary copy file");
         return false;
     }
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     success = this->copyFile(this->filename.c_str(), "/temp.txt", numLines);
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     if(!success) {
         log_e("Failed to copy content");
         return false;
     }
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     success = this->deleteFile(this->filename.c_str());
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     if(!success) {
         log_e("Failed to remove log file");
         return false;
     }
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     success = this->renameFile("/temp.txt", this->filename.c_str());
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     if(!success) {
         log_e("Failed to rename temporary file to log file");
         return false;
@@ -144,9 +186,16 @@ bool DataFileClass::shrinkData(size_t numLines) {
  * @return true on success, false otherwise
  */
 bool DataFileClass::clear() {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     bool success = this->clearFile(this->filename.c_str());
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     return success;
 }
 
@@ -156,10 +205,17 @@ bool DataFileClass::clear() {
  * @return true on success, false otherwise
  */
 bool DataFileClass::remove() {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     bool success = this->deleteFile(this->filename.c_str());
     this->filename = "";
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     return success;
 }
 
@@ -176,9 +232,16 @@ std::string DataFileClass::getFilename() {
  * @return line counter
  */
 size_t DataFileClass::lineCounter() {
-    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
     size_t count = this->lineCount(this->filename.c_str());
-    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
     return count;
 }
 
