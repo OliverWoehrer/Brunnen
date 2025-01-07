@@ -163,7 +163,7 @@ class InfluxDataClient():
                 return ("Did not find measurements", None)
             values = tables.to_values(columns=["_time", "_field", "_value"])
             df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
-            df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
+            df = df.set_index("Timestamp")
             ts = df.index.max().to_pydatetime() # convert from pandas datetime to python datetime
             return ("success", ts)
 
