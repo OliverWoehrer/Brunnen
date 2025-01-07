@@ -69,7 +69,7 @@
             // plotLines("lineChartDiv");
             await updateData(start, stop, null, "lines");
         } catch(error) {
-            window.alert("Could not fetch data: "+error);
+            window.alert("Could not update data: "+error);
             return;
         } finally {
             hideElement('id_range_selector');
