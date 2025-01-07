@@ -93,12 +93,20 @@ async function updateData(start, stop, gauges, lineCanvasId) {
             "Pressure": datasets["Pressure"].length ? datasets["Pressure"].at(-1) : 0,
             "Level": datasets["Level"].length ? datasets["Level"].at(-1) : 0
         }
-        updateGauges(gauges, values);
+        try {
+            updateGauges(gauges, values);
+        } catch(error) {
+            throw Error("Failed to update gauges: "+error);
+        }
     }
 
     // Update Lines:
     if(lineCanvasId) {
-        updateLines(lineCanvasId, datasets["Time"], datasets["Flow"], datasets["Pressure"], datasets["Level"]);
+        try {
+            updateLines(lineCanvasId, datasets["Time"], datasets["Flow"], datasets["Pressure"], datasets["Level"]);
+        } catch(error) {
+            throw Error("Failed to update line chart: "+error);
+        }
     }
 }
 
@@ -341,7 +349,11 @@ function updateGauges(gauges, values) {
             continue;
         }
         myChart.data.datasets[0].data = [v.toFixed(1), MAX_LIMITS[gauge]-values[gauge]];
-        myChart.update();
+        try {
+            myChart.update();
+        } catch(error) {
+            throw Error("Failed to update "+gauge+" gauge: "+error);
+        }
     }
 }
 
@@ -388,7 +400,7 @@ function plotLines(canvasID) {
                 x: {
                     type: 'time',
                     time: {
-                        unit: 'second',
+                        // unit: 'second', let ChartJS determine unit automatically
                         tooltipFormat:'yyyy-MM-dd HH:mm:ss',
                         displayFormats: {
                             second: 'HH:mm:ss',
@@ -465,7 +477,11 @@ function updateLines(canvasID, labels, flowSet, pressureSet, levelSet) {
     }
 
     // Update:
-    myChart.update();
+    try {
+        myChart.update();
+    } catch(error) {
+        throw Error("Failed to update chart: "+error);
+    }
 }
 
 
