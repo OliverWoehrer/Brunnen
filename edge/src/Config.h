@@ -31,6 +31,11 @@ public:
     std::string loadMailAddress();
     void storeMailPassword(const char* pw);
     std::string loadMailPassword();
+
+    void storeAPIHost(const char* name);
+    std::string loadAPIHost();
+    void storeAPIPort(size_t port);
+    size_t loadAPIPort();
     void storeAPIUsername(const char* name);
     std::string loadAPIUsername();
     void storeAPIPassword(const char* pw);

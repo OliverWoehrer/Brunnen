@@ -56,9 +56,10 @@ void ConfigClass::storePumpIntervals(std::vector<interval_t>& intervals) {
     for(; i < intervals.size(); i++) {
         this->storePumpInterval(intervals[i], i);
     }
-    for(; i < intervals.capacity(); i++) {
-        this->deletePumpInterval(i);
-    }
+    // TODO: remove old pump intervals:
+    // for(; i < intervals.capacity(); i++) {
+    //     this->deletePumpInterval(i);
+    // }
 }
 
 /**
@@ -310,6 +311,44 @@ std::string ConfigClass::loadMailPassword() {
     
     // Return Password:
     return buffer;
+}
+
+void ConfigClass::storeAPIHost(const char* host) {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.putString("host", host);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+}
+
+std::string ConfigClass::loadAPIHost() {
+    // Read From Memory:
+    char buffer[50]; // max. host length
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, true);
+    this->preferences.getString("host", buffer, 50);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    
+    // Return Password:
+    return buffer;
+}
+
+void ConfigClass::storeAPIPort(size_t port) {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.putUInt("port", port);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+}
+
+size_t ConfigClass::loadAPIPort() {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, true);
+    size_t port = (size_t)this->preferences.getUInt("port", 80);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    return port;
 }
 
 /**
