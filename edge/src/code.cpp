@@ -243,6 +243,9 @@ void synchronizationTask(void* parameter) {
         break;
     }
 
+    // Clear Error Led: sync'ed any error logs
+    LogFile.acknowledge();
+    
     // Shrink Data File:
     if(!DataFile.shrinkData(sensorData.size() + 1)) {
         LogFile.log(WARNING, "Failed to shrink data file");
