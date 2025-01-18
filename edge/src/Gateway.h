@@ -21,8 +21,6 @@
 #define LED_BLUE 2
 
 // Tree API:
-#define TREE_HOST "app.woehrer-consulting.at" //"192.168.1.104"
-#define TREE_PORT 80 //5000
 #define TREE_PATH "/api/device/brunnen"
 
 // OpenMeteo API:
@@ -63,7 +61,7 @@ class GatewayClass {
 public:
     // General Methods:
     GatewayClass();
-    void begin();
+    void load();
     void clear();
     std::string getResponse();
     
@@ -87,6 +85,8 @@ private:
     Output::Digital led;
     
     // General Methods:
+    std::string api_host;
+    size_t api_port;
     std::string api_username;
     std::string api_password;
     std::string mail_address;
