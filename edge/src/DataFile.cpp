@@ -175,7 +175,7 @@ bool DataFileClass::shrinkData(size_t numLines) {
         return false;
     }
     if(!success) {
-        log_e("Failed to rename temporary file to log file");
+        log_e("Failed to rename temporary file to data file");
         return false;
     }
     return true;
