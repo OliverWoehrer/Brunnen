@@ -71,22 +71,25 @@ bool Log::log(log_mode_t mode, std::string&& msg) {
         break;
     }
 
-    Serial.printf("[%s] %s\r\n", prefix.c_str(), msg.c_str());
     std::string timestamp = Time.toString();
-    if(timestamp.size()) { // write buffer to log file if timestamp is available
-        xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
-        File file = this->fs.open(this->filename.c_str(), FILE_APPEND);
-        xSemaphoreGive(this->semaphore); // give back mutex semaphore
-        if(!file) {
-            log_e("Failed to open log file");
-            return false;
-        }
-        size_t size = file.printf("%s [%s] %s\r\n", timestamp.c_str(), prefix.c_str(), msg.c_str());
-        file.flush();
-        file.close();
-        if(size == 0) {
-            log_e("Failed to printf log file");
-        }
+    if(timestamp.size() == 0) { // invalid timestamp, only print to serial
+        Serial.printf("[%s] %s\r\n", prefix.c_str(), msg.c_str());
+        return true;
+    }
+    Serial.printf("%s [%s] %s\r\n", timestamp.c_str(), prefix.c_str(), msg.c_str());
+
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    File file = this->fs.open(this->filename.c_str(), FILE_APPEND);
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    if(!file) {
+        log_e("Failed to open log file");
+        return false;
+    }
+    size_t size = file.printf("%s [%s] %s\r\n", timestamp.c_str(), prefix.c_str(), msg.c_str());
+    file.flush();
+    file.close();
+    if(size == 0) {
+        log_e("Failed to printf log file");
     }
     return true;
 }
