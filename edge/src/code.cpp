@@ -242,7 +242,7 @@ void synchronizationTask(void* parameter) {
         LogFile.log(ERROR, "Failed to synchronize.");
         break;
     }
-    
+
     // Shrink Data File:
     if(!DataFile.shrinkData(sensorData.size() + 1)) {
         LogFile.log(WARNING, "Failed to shrink data file");
@@ -282,8 +282,6 @@ void synchronizationTask(void* parameter) {
     }
 
     } while(0); // Gateway no longer needed, clear
-
-    // TODO: increase networkLoopPeriode after multiple failures
 
     // Clear Gateway:
     Gateway.clear();
@@ -475,7 +473,7 @@ void setup() {
     Pump.setThreshold(0);
 
     // Initialize Gateway:
-    Gateway.begin();
+    Gateway.load();
 
     // Initialize Web Server User Interface:
     if(!UserInterface.enable()) {
