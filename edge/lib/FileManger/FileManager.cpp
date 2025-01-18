@@ -224,12 +224,25 @@ bool FileManager::copyFile(const char* src, const char* dest, size_t startingLin
     // Set Curser to n-th Line (=lineNumber):
     size_t numBytes = 0;
     std::string line = "";
+    int retries = 3; // maximum number of retreies
     while(srcFile.available() && startingLine > 0) {
         char byte = srcFile.read();
         if(byte == -1) {
-            log_e("Read on %s returned with error", src);
-            success = false;
-            break;
+            size_t position = numBytes + line.size(); // get curser poisiton (byte number it failed to read)
+            log_w("Read on %s [byte %u] returned with error", src, position);
+            if(retries == 0) { // no more retries
+                log_e("Failed to read %s [byte %u] after multiple retries", src, position);
+                success = false;
+                break;
+            }
+            log_d("Resetting file curser on %s to %u before retry", src, numBytes);
+            if(!srcFile.seek(numBytes)) {
+                log_e("Failed to set file curser on %s to %u", src, numBytes);
+                success = false;
+                break;
+            }
+            retries--;
+            continue; // skip rest of the loop and retry
         }
         line.append(1, byte);
         if(byte == '\n') {
@@ -263,13 +276,24 @@ bool FileManager::copyFile(const char* src, const char* dest, size_t startingLin
         uint8_t bytes[100] = ""; // copy in chunks of 100 bytes
         size_t num = srcFile.read(bytes, 100);
         if(num < 0) {
-            log_e("Read on %s returned with error", src);
+            log_e("Read on %s returned with error [%u bytes]", src, num);
             success = false;
             break;
         }
-        size_t num2 = destFile.write(bytes, num);
-        if(num != num2) {
-            log_e("Write on %s returned with error", dest);
+        
+        size_t retries = 2;
+        while(retries > 0) {
+            size_t num2 = destFile.write(bytes, num);
+            if(num != num2) { // check if all bytes from buffer were written
+                log_w("Write on %s failed [%u/%u bytes]", dest, num2, num);
+                retries--;
+                log_d("There are %u retries left", retries);
+                continue; // skip rest of the loop and retry
+            }
+            break;
+        }
+        if(retries == 0) { // use up all retries
+            log_e("Failed to write %s after multiple retries", src);
             success = false;
             break;
         }
