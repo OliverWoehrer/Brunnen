@@ -1,6 +1,7 @@
 #include "UserInterface.h"
 #include <SPIFFS.h>
 #include <Update.h>
+#include "SD.h"
 #include "Config.h"
 #include "DataFile.h"
 #include "Gateway.h"
@@ -97,6 +98,10 @@ String processor(const String& var) {
         return String(EMAIL_SENDER_ACCOUNT);
     } else if (var == "MAIL_PASSWORD") {
         return String(Config.loadMailPassword().c_str());
+    } else if(var == "API_HOST") {
+        return String(Config.loadAPIHost().c_str());
+    } else if(var == "API_PORT") {
+        return String(Config.loadAPIPort());
     } else if(var == "API_USERNAME") {
         return String(Config.loadAPIUsername().c_str());
     } else if(var == "API_PASSWORD") {
@@ -256,6 +261,24 @@ void POST_account(AsyncWebServerRequest *req) {
         req->send(400, "text/plain", "missing mail password");
     }
 
+    // Check Host Parameter:
+    String apiHost;
+    if (req->hasParam("api_host", true)) {
+        AsyncWebParameter* p = req->getParam("api_host",true,false);
+        apiHost = p->value();
+    } else { // invalid request
+        req->send(400, "text/plain", "missing api host");
+    }
+
+    // Check Port Parameter:
+    size_t apiPort = 80;
+    if (req->hasParam("api_port", true)) {
+        AsyncWebParameter* p = req->getParam("api_port",true,false);
+        apiPort = (size_t)p->value().toInt();
+    } else { // invalid request
+        req->send(400, "text/plain", "missing api port");
+    }
+
     // Check Username Parameter:
     String apiUsername;
     if (req->hasParam("api_username", true)) {
@@ -276,10 +299,12 @@ void POST_account(AsyncWebServerRequest *req) {
 
     Config.storeMailAddress(address.c_str());
     Config.storeMailPassword(password.c_str());
+    Config.storeAPIHost(apiHost.c_str());
+    Config.storeAPIPort(apiPort);
     Config.storeAPIUsername(apiUsername.c_str());
     Config.storeAPIPassword(apiPassword.c_str());
-    Gateway.begin();
-    LogFile.log(INFO, "Updated account info.");
+    Gateway.load();
+    LogFile.log(INFO, "Updated credentials");
 
     // Send Response After Success:
     req->send(SPIFFS, "/account.html", String(), false, processor);
@@ -370,6 +395,7 @@ UserInterfaceClass::UserInterfaceClass() : led(LED_GREEN), server(UI_PORT) {
     server.on("/fileimage", HTTP_GET, GET_fileimage);
     server.on("/fileimage", HTTP_POST, POST_fileimage, uploadFileimage);
     server.serveStatic("/", SPIFFS, "/");
+    // server.serveStatic("/sd/", SD, "/"); TODO: serve files from SD card
     // server.onFileUpload(upload);
     server.onNotFound(notFound);
 }
