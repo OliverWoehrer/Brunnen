@@ -1,7 +1,7 @@
 """
 This module implements the functions to handle routes of "/api/ui"
 """
-from flask import Blueprint, session, render_template, redirect, url_for, request, flash
+from flask import Blueprint, session, render_template, redirect, url_for, request, flash, current_app
 from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import HTTPException, BadRequest, UnprocessableEntity, BadGateway, Unauthorized, Forbidden
 from datetime import datetime, timedelta, timezone
@@ -374,6 +374,8 @@ def log(response):
 @web.errorhandler(Exception)
 def error(e):
     if isinstance(e, HTTPException): # display HTTP errors
+        current_app.logger.error(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
         return e.description, e.code
     else: # return unknown errors
+        current_app.logger.error(f"{e}:\r\n{e.__traceback__}")
         return str(e), 500

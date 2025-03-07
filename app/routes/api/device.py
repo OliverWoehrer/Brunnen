@@ -1,9 +1,10 @@
 """
 This module implements the functions to handle routes of "/device"
 """
-from flask import Blueprint, g, request
+from flask import Blueprint, g, request, current_app
 from werkzeug.exceptions import HTTPException, BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway, Unauthorized
 from datetime import datetime, timedelta, timezone
+import traceback
 import time
 import json
 import pandas as pd
@@ -190,8 +191,10 @@ def log(response):
     return response
 
 @device.errorhandler(Exception)
-def error(e):
+def error(e: Exception):
     if isinstance(e, HTTPException): # display HTTP errors
+        current_app.logger.exception(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
         return e.description, e.code
     else: # return unknown errors
+        current_app.logger.exception(f"{e}:\r\n{e.__traceback__}")
         return str(e), 500
