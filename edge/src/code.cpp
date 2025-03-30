@@ -248,13 +248,13 @@ void synchronizationTask(void* parameter) {
     LogFile.acknowledge();
     
     // Shrink Data File:
-    if(!DataFile.shrinkData(sensorData.size() + 1)) {
+    if(!DataFile.shrinkData(sensorData.size())) {
         LogFile.log(WARNING, "Failed to shrink data file");
         break;
     }
 
     // Shrink Log File:
-    if(!LogFile.shrinkLogs(logMessages.size() + 1)) {
+    if(!LogFile.shrinkLogs(logMessages.size())) {
         LogFile.log(WARNING, "Failed to shrink log file");
         break;
     }
