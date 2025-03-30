@@ -10,12 +10,12 @@ FileManager::FileManager(fs::FS& fs) : fs(fs) {
 }
 
 /**
- * @brief Reads lines from the file at the given path into the buffer without whitespaces. Only entire
- * lines are read (ending with a LF character).
+ * @brief Reads lines from the file at the given path into the buffer without whitespaces. Only
+ * entire lines are read. A line is terminated with a LF character. Check 'lines.size()'
+ * afterwards to see how many lines were actually read.
  * @param path name of the file to read (e.g "/log.txt")
  * @param lines buffer to be filled. Needs to be allocated with reserve(), so 'lines.capacity()' works
- * @return number of lines read into the buffer, -1 on failure, 0 if the buffer is to small or no
- * LF character was found
+ * @return true on success, false on failure
  */
 bool FileManager::readLines(const char* path, std::vector<std::string>& lines) {
     // Get Mutex Semaphore:
@@ -64,7 +64,7 @@ bool FileManager::readLines(const char* path, std::vector<std::string>& lines) {
 }
 
 /**
- * @brief Write the line to the file at the given path. Adds <CR><LF> at the end
+ * @brief Write the line to the file at the given path. Adds <CR><LF> at the end.
  * @param path file path to write to
  * @param line line to write to this file
  * @return true on success, false otherwise
@@ -402,10 +402,40 @@ size_t FileManager::lineCount(const char* path) {
 }
 
 /**
- * Checks if the file exisits.
+ * Checks if the file exisits and tries to open it
  * @param path file path to check
  * @return true on success, false otherwise
  */
 bool FileManager::checkFile(const char* path) {
-    return this->fs.exists(path);
+    // Check File Existance:
+    if(!this->fs.exists(path)) {
+        return false; // file does not exist
+    }
+
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+
+    // Try to Open File:
+    File file;
+    bool success = false;
+    do { // open scope for critical section
+        file = this->fs.open(path, FILE_READ);
+        if(!file) {
+            log_e("Could not open existing file %s", path);
+            break;
+        }
+        success = true;
+    } while(0); // exit critical section
+    file.close(); // clean up after critical section
+
+    // Give Mutex Semaphore Back:
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+    }
+
+    // Return Result:
+    return success;
 }
