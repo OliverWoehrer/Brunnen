@@ -1,6 +1,7 @@
 #ifndef DATA_FILE_H
 #define DATA_FILE_H
 
+#include <deque>
 #include "FileManager.h"
 #include "SD.h"
 #include "Sensors.h"
@@ -31,8 +32,10 @@ public:
     size_t lineCounter();
 private:
     std::string filename; // "/data_YYYY-MM-DD.txt"
+    std::deque<sensor_data_t> cache;
     SemaphoreHandle_t semaphore;
     bool parseCSVLine(const char line[], sensor_data_t& data);
+    bool shrinkCache(size_t num);
 };
 
 extern DataFileClass DataFile;

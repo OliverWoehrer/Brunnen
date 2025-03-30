@@ -1,6 +1,7 @@
 #include "DataFile.h"
 
-#define MUTEX_TIMEOUT (2*1000)/portTICK_PERIOD_MS // 2000 ms
+#define MUTEX_TIMEOUT (1*1000)/portTICK_PERIOD_MS // in milliseconds
+#define MAX_CACHE_SIZE 120
 
 /**
  * Constructor initalizes the file system (external SD card)
@@ -36,11 +37,24 @@ bool DataFileClass::init(std::string filename) {
         log_e("Could not take semaphore");
         return false;
     }
+    
+    // Write Header To File:
     this->filename = filename;
-    bool success = true;
-    if(!checkFile(this->filename.c_str())) { // check if file exisits
-        success = writeLine(this->filename.c_str(), "Timestamp,Flow,Pressure,Level"); // write header on new file
-    }
+    bool success = false;
+    do { // open scope for critical section
+        if(!checkFile(this->filename.c_str())) { // check if file works; try to re-create file, if broken
+            log_w("Data file broken or not found");
+            deleteFile(this->filename.c_str());
+            if(!createFile(this->filename.c_str())) {
+                log_e("Could not create new data file");
+                break;
+            }
+            success = writeLine(this->filename.c_str(), "Timestamp,Flow,Pressure,Level"); // write header on new file
+        }
+        success = true;
+    } while (0); // exit critical section
+
+    // Give Mutex Semaphore Back:
     if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
         log_d("Failed to give semaphore");
         return false;
@@ -55,23 +69,74 @@ bool DataFileClass::init(std::string filename) {
  * @return true on success, false otherwise
  */
 bool DataFileClass::store(sensor_data_t data) {
-    char buffer[DATA_STRING_LENGTH]; // format: "TIME,FLOW,PRESSURE,LEVEL<CR><LF>"
-    size_t bytes = sprintf(buffer, "%s,%d,%d,%d", TimeManager::toString(data.timestamp).c_str(), data.flow, data.pressure, data.level);
-    if(bytes == 0) {
-        log_e("Failed to build line from sensor data");
+    if(this->cache.size() >= MAX_CACHE_SIZE) { // check if cache is full
+        log_e("Failed to store sensor data because cache is full");
         return false;
     }
+
+    // Store Sensor Data:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+    this->cache.push_back(data);
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
+
+    // Check Cache Size:
+    if(this->cache.size() < MAX_CACHE_SIZE - 2) { // check if cache needs to be flushed
+        return true; // no data reallocation needed, return early   
+    }
+
+    log_d("cache is (nearly) full [size = %u], copy data to file", this->cache.size());
+    
     // Take Mutex Semaphore:
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
         log_e("Could not take semaphore");
         return false;
     }
-    bool success = appendLine(this->filename.c_str(), buffer);
+
+    // Copy Data From Cache to File:
+    bool success = true;
+    for(sensor_data_t data : this->cache) {
+        char buffer[DATA_STRING_LENGTH]; // format: "TIME,FLOW,PRESSURE,LEVEL<CR><LF>"
+        size_t bytes = sprintf(buffer, "%s,%d,%d,%d", TimeManager::toString(data.timestamp).c_str(), data.flow, data.pressure, data.level);
+        if(bytes == 0) {
+            log_e("Failed to build line from sensor data");
+            success = false;
+            break; // exit early on error
+        }
+        if(!appendLine(this->filename.c_str(), buffer)) {
+            log_e("Failed to append line to data file");
+            success = false;
+            break; // exit early on error
+        }
+    }
+
+    // Give Mutex Semaphore Back:
     if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
         log_d("Failed to give semaphore");
         return false;
     }
-    return success;
+
+    if(!success) {
+        log_e("Failed to copy data from cache to file");
+        return false;
+    }
+
+    log_d("data copied to file, shrink cache");
+
+
+    // Clear Moved Data From Cache:
+    if(!shrinkCache(this->cache.size())) {
+        log_e("Failed to shrink cache");
+        return false;
+    }
+
+    log_d("cache shrunk [size = %u]", this->cache.size());
+    return true;
 }
 
 /**
@@ -81,40 +146,54 @@ bool DataFileClass::store(sensor_data_t data) {
  * @return number of lines that could succesfully be parsed, -1 on error
  */
 bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
-    // Read Data File:
-    std::vector<std::string> lines;
-    lines.reserve(data.capacity());
-    // Take Mutex Semaphore:
-    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
-        log_e("Could not take semaphore");
-        return false;
-    }
-    bool success = this->readLines(this->filename.c_str(), lines);
-    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
-        log_d("Failed to give semaphore");
-        return false;
-    }
-    if(!success) {
-        log_e("Failed to read lines from file");
-        return false;
-    }
+    if(this->lineCount(this->filename.c_str()) == 0) { // check if file is empty
+        log_d("Export from cache (cache size = %u elements)",this->cache.size());
 
-    /*std::vector<std::string> lines = {
-        "Timestamp,Flow,Pressure,Level",
-        "2024-03-31T14:32:19,0,920,2541",
-        "2024-03-31T14:32:20,0,930,2539",
-        "2024-03-31T14:32:21,0,926,2539",
-        "2024-03-31T14:32:22,0,926,2575",
-        "2024-03-31T14:32:23,0,923,2544",
-        "2024-03-31T14:32:24,0,926,2549",
-        "2024-03-31T14:32:25,0,929,2545"
-    };*/
+        // Read From Cache:
+        auto iter = this->cache.begin(); // get cache iterator
+        auto end = std::next(iter, std::min(this->cache.size(), data.capacity())); // advance by maximum of 'capacity' steps
 
-    // Parse CSV Lines:
-    for(std::string line : lines) {
-        sensor_data_t d;
-        if(parseCSVLine(line.c_str(), d)) {
-            data.push_back(d);
+        // Copy From Cache to Buffer:
+        if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+            log_e("Could not take semaphore");
+            return false;
+        }
+        for (; iter != end; ++iter) { // iterate at most the available size of data buffer
+            sensor_data_t element = (*iter);
+            data.push_back(element);
+        }
+        if(!xSemaphoreGive(this->semaphore)) { // give mutex semaphore back
+            log_d("Failed to give semaphore");
+            return false;
+        }
+    } else {
+        log_d("Export from file (file size = %u lines)", this->lineCount(this->filename.c_str()));
+
+        // Read From File:
+        std::vector<std::string> lines;
+        lines.reserve(data.capacity());
+        
+        // Read Data File:
+        if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+            log_e("Could not take semaphore");
+            return false;
+        }
+        bool success = this->readLines(this->filename.c_str(), lines);
+        if(!xSemaphoreGive(this->semaphore)) { // give mutex semaphore back
+            log_d("Failed to give semaphore");
+            return false;
+        }
+        if(!success) {
+            log_e("Failed to read lines from file");
+            return false;
+        }
+
+        // Parse CSV Lines:
+        for(std::string line : lines) {
+            sensor_data_t d;
+            if(parseCSVLine(line.c_str(), d)) {
+                data.push_back(d);
+            }
         }
     }
 
@@ -124,19 +203,28 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
 }
 
 /**
- * Strips the first numLines-1 lines of the active data file. This is done by copying lines,
+ * Strips the first 'numLines' lines of the active data file. This is done by copying lines,
  * into a new file and deleting the old one. The first line after shrinking, will be line number
- * 'numLines'
+ * 'numLines'. If there is no data in the file, the cache is cleared instead, following the same
+ * principels.
  * @param numLines line number of the first line to keep 
  * @return true on success, false otherwise
  */
-bool DataFileClass::shrinkData(size_t numLines) {    
+bool DataFileClass::shrinkData(size_t numLines) {
+    log_d("shrink by %u lines", numLines);
+
+    if(this->lineCount(this->filename.c_str()) == 0) { // check if file is empty
+        return shrinkCache(numLines); // file already empty, shrink cache instead
+    } // else: shrink non-empty file 
+
+    // Create Temporary File:
     bool success;
     if(!this->createFile("/temp.txt")) {
         log_e("Failed to create temporary copy file");
         return false;
     }
-    // Take Mutex Semaphore:
+
+    // Copy Data to Temporary File:
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
         log_e("Could not take semaphore");
         return false;
@@ -150,7 +238,8 @@ bool DataFileClass::shrinkData(size_t numLines) {
         log_e("Failed to copy content");
         return false;
     }
-    // Take Mutex Semaphore:
+
+    // Remove Data File:
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
         log_e("Could not take semaphore");
         return false;
@@ -164,7 +253,8 @@ bool DataFileClass::shrinkData(size_t numLines) {
         log_e("Failed to remove log file");
         return false;
     }
-    // Take Mutex Semaphore:
+
+    // Rename Temporary File:
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
         log_e("Could not take semaphore");
         return false;
@@ -178,6 +268,7 @@ bool DataFileClass::shrinkData(size_t numLines) {
         log_e("Failed to rename temporary file to data file");
         return false;
     }
+
     return true;
 }
 
@@ -289,6 +380,37 @@ bool DataFileClass::parseCSVLine(const char line[], sensor_data_t& data) {
 
     // Return Success:
     return true;
+}
+
+/**
+ * @brief Removes the given numbers of elements from the front of the cache.
+ * @param num number of elements to remove
+ * @return 
+ */
+bool DataFileClass::shrinkCache(size_t num) {
+    // Take Mutex Semaphore:
+    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+        log_e("Could not take semaphore");
+        return false;
+    }
+
+    bool success = true;
+    for(size_t i = 0; i < num; i++) {
+        if(this->cache.empty()) {
+            log_e("Unexpected state: Cache already empty after shrinking element %u/%u", i, num);
+            success = false;
+            break;
+        }
+        this->cache.pop_front();
+    }
+
+    // Give Mutex Semaphore Back:
+    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+        log_d("Failed to give semaphore");
+        return false;
+    }
+
+    return success;
 }
 
 DataFileClass DataFile = DataFileClass();
