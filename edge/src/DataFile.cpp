@@ -328,7 +328,9 @@ size_t DataFileClass::lineCounter() {
         log_e("Could not take semaphore");
         return false;
     }
-    size_t count = this->lineCount(this->filename.c_str());
+    size_t count = 0; // total count = line count from file + cache size
+    count += this->lineCount(this->filename.c_str());
+    count += this->cache.size();
     if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
         log_d("Failed to give semaphore");
         return false;
