@@ -273,8 +273,8 @@ void synchronizationTask(void* parameter) {
     if(Gateway.getSync(&sync)) {
         unsigned int newLoopPeriode;
         size_t count = DataFile.lineCounter();
-        log_d("sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
-        log_d("Data lines left: %u", count);        
+        log_d("target periode sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
+        log_d("Data points left: %u", count);        
         if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
             newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
         } else { // synced most of data, set according to received settings
@@ -363,7 +363,7 @@ void networkLoop(void* parameter) {
 
         // Set Sync Periode:
         xFrequency = networkLoopPeriode / portTICK_PERIOD_MS;
-        log_d("networkLoop{periode %u sec}", xFrequency/1000);
+        log_d("loop periode %u sec", xFrequency/1000);
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
     }
 }
