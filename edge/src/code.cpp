@@ -34,6 +34,7 @@
 #define SYNCHRONIZATION_PERIOD (1000 * 20)
 #define SERVICE_PERIOD (1000 * 60) // loop period in ms, once per minute
 #define MEASUREMENT_PERIOD 1000 // loop period in ms, once per second
+#define BATCH_SIZE 60 // number of data points to be synced at once
 
 //===============================================================================================
 // SCHEDULED TASKS
@@ -209,8 +210,8 @@ void synchronizationTask(void* parameter) {
 
     // Read Data File:
     std::vector<sensor_data_t> sensorData;
-    sensorData.reserve(60);
-    if(!DataFile.exportData(sensorData)) { // negative on error
+    sensorData.reserve(BATCH_SIZE);
+    if(!DataFile.exportData(sensorData)) {
         LogFile.log(ERROR, "Failed to export sensor values");
         break;
     }
@@ -218,7 +219,7 @@ void synchronizationTask(void* parameter) {
     // Read Log File:
     std::vector<log_message_t> logMessages;
     logMessages.reserve(20);
-    if(!LogFile.exportLogs(logMessages)) { // negative on error
+    if(!LogFile.exportLogs(logMessages)) {
         LogFile.log(ERROR, "Failed to export log messages");
         break;
     }
@@ -267,13 +268,14 @@ void synchronizationTask(void* parameter) {
     }
 
     // Update Sync Periods:
+    // -> based on how much data is left to sync and what the web application asks
     sync_t sync;
     if(Gateway.getSync(&sync)) {
         unsigned int newLoopPeriode;
         size_t count = DataFile.lineCounter();
         log_d("sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
         log_d("Data lines left: %u", count);        
-        if(count > 60) { // lots of data not synced, sync again soon
+        if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
             newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
         } else { // synced most of data, set according to received settings
             newLoopPeriode = sync.periods[sync.mode] * 1000;
