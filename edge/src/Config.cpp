@@ -56,10 +56,7 @@ void ConfigClass::storePumpIntervals(std::vector<interval_t>& intervals) {
     for(; i < intervals.size(); i++) {
         this->storePumpInterval(intervals[i], i);
     }
-    // TODO: remove old pump intervals:
-    // for(; i < intervals.capacity(); i++) {
-    //     this->deletePumpInterval(i);
-    // }
+    // TODO: remove old pump intervals
 }
 
 /**
@@ -330,7 +327,7 @@ std::string ConfigClass::loadAPIHost() {
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
     
-    // Return Password:
+    // Return Host Name:
     return buffer;
 }
 
@@ -349,6 +346,27 @@ size_t ConfigClass::loadAPIPort() {
     this->preferences.end();
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
     return port;
+}
+
+void ConfigClass::storeAPIPath(const char* path) {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.putString("path", path);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+}
+
+std::string ConfigClass::loadAPIPath() {
+    // Read From Memory:
+    char buffer[100]; // max. path length
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, true);
+    this->preferences.getString("path", buffer, 100);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+    
+    // Return Path:
+    return buffer;
 }
 
 /**

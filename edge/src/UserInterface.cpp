@@ -102,6 +102,8 @@ String processor(const String& var) {
         return String(Config.loadAPIHost().c_str());
     } else if(var == "API_PORT") {
         return String(Config.loadAPIPort());
+    } else if(var == "API_PATH") {
+        return String(Config.loadAPIPath().c_str());
     } else if(var == "API_USERNAME") {
         return String(Config.loadAPIUsername().c_str());
     } else if(var == "API_PASSWORD") {
@@ -279,6 +281,15 @@ void POST_account(AsyncWebServerRequest *req) {
         req->send(400, "text/plain", "missing api port");
     }
 
+    // Check Path Parameter:
+    String apiPath;
+    if(req->hasParam("api_path", true)) {
+        AsyncWebParameter* p = req->getParam("api_path",true,false);
+        apiPath = p->value();
+    } else { // invalid request
+        req->send(400, "text/plain", "missing api path");
+    }
+
     // Check Username Parameter:
     String apiUsername;
     if (req->hasParam("api_username", true)) {
@@ -301,6 +312,7 @@ void POST_account(AsyncWebServerRequest *req) {
     Config.storeMailPassword(password.c_str());
     Config.storeAPIHost(apiHost.c_str());
     Config.storeAPIPort(apiPort);
+    Config.storeAPIPath(apiPath.c_str());
     Config.storeAPIUsername(apiUsername.c_str());
     Config.storeAPIPassword(apiPassword.c_str());
     Gateway.load();

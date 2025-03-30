@@ -20,9 +20,6 @@
 // Pin Definitions:
 #define LED_BLUE 2
 
-// Tree API:
-#define TREE_PATH "/api/device/brunnen"
-
 // OpenMeteo API:
 #define RESPONSE_BUFFER_SIZE 1024
 #define OM_HOST "api.open-meteo.com"
@@ -87,6 +84,7 @@ private:
     // General Methods:
     std::string api_host;
     size_t api_port;
+    std::string api_path;
     std::string api_username;
     std::string api_password;
     std::string mail_address;

@@ -13,25 +13,29 @@
         <a href="/">Homepage</a> <a href="/interval">Intervals</a> <a href="/log">Log</a> <a>Account</a> <a href="/update">Update</a>
     </header>
     <main>
-        <h2>Credentials</h2>
+        <h1>Gateway</h1>
         <form action="/account" method="post">
-            <h3>E-Mail</h3>
+            <h2>E-Mail</h2>
             <label for="mail_address">E-Mail Address</label>
             <input type="text" name="mail_address" value="%MAIL_ADDRESS%"><br>
             <label for="mail_password">E-Mail Password</label>
             <input type="text" name="mail_password" value="%MAIL_PASSWORD%"><br>
 
-            <h3>API Endpoint</h3>
+            <h2>API Endpoint</h2>
             <label for="api_host">API Host</label>
             <input type="text" name="api_host" value="%API_HOST%"><br>
             <label for="api_port">API Port</label>
             <input type="text" name="api_port" value="%API_PORT%"><br>
+            <label for="api_host">API Path</label>
+            <input type="text" name="api_path" value="%API_PATH%"><br>
+
+            <h2>API Credentials</h2>
             <label for="api_username">API Username</label>
             <input type="text" name="api_username" value="%API_USERNAME%"><br>
             <label for="api_password">API Password</label>
             <input type="text" name="api_password" value="%API_PASSWORD%"><br>
 
-            <input type="submit" value="Update Account Info">
+            <input type="submit" value="Update Gateway Info">
         </form>
     </main>
 

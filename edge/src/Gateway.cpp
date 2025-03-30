@@ -149,6 +149,7 @@ GatewayClass::GatewayClass() : led(LED_BLUE) {
 void GatewayClass::load() {
     this->api_host = Config.loadAPIHost();
     this->api_port = Config.loadAPIPort();
+    this->api_path = Config.loadAPIPath();
     this->api_username = Config.loadAPIUsername();
     this->api_password = Config.loadAPIPassword();
     this->mail_address = EMAIL_RECIPIENT;
@@ -242,7 +243,7 @@ bool GatewayClass::synchronize() {
     do {
 
     // Initialize and Make GET Request:
-    if(!http.begin(this->api_host.c_str(), this->api_port, TREE_PATH)) {
+    if(!http.begin(this->api_host.c_str(), this->api_port, this->api_path.c_str())) {
         LogFile.log(WARNING,"Failed to begin request!");
         success = false;
         break;
