@@ -410,7 +410,7 @@ function plotLines(canvasID) {
                         }
                     },
                     grid: {
-                        color: backgroundColor
+                        color: neutralColor
                     },
                     ticks: {
                         autoSkip: true,
@@ -419,7 +419,7 @@ function plotLines(canvasID) {
                 },
                 y: {
                     grid: {
-                        color: backgroundColor
+                        color: neutralColor
                     },
                 },
             }
