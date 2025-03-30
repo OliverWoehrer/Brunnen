@@ -36,8 +36,13 @@ bool Log::begin() {
         log_e("Unable to mount SPIFFS");
         return false;
     }
-    if(!this->checkFile(this->filename.c_str())) {
-        this->createFile(this->filename.c_str());
+    if(!this->checkFile(this->filename.c_str())) { // check if file works; try to re-create file, if broken
+        log_w("Log file broken or not found");
+        deleteFile(this->filename.c_str());
+        if(!createFile(this->filename.c_str())) {
+            log_e("Could not create new log file");
+            return false;
+        }
         log_d("Created new log file");
     }
     return true;
@@ -82,8 +87,22 @@ bool Log::log(log_mode_t mode, std::string&& msg) {
     File file = this->fs.open(this->filename.c_str(), FILE_APPEND);
     xSemaphoreGive(this->semaphore); // give back mutex semaphore
     if(!file) {
-        log_e("Failed to open log file");
-        return false;
+        log_w("Could not open file");
+        if(!begin()) { // attempt to fix file
+            log_e("Could not fix file");
+            return false;
+        }
+        log_i("Open file after attempt to fix it");
+
+        // Open Again:
+        xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+        file = this->fs.open(this->filename.c_str(), FILE_APPEND);
+        xSemaphoreGive(this->semaphore); // give back mutex semaphore
+        if(!file) {
+            log_e("Failed to open file after attempt to fix it");
+            return false;
+        }
+        // Assumption: File works after attempt to fix it. Continue normally to write message to file.
     }
     size_t size = file.printf("%s [%s] %s\r\n", timestamp.c_str(), prefix.c_str(), msg.c_str());
     file.flush();
