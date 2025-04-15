@@ -2,7 +2,7 @@
 This module implements the functions to handle routes of "/device"
 """
 from flask import Blueprint, g, request, current_app
-from werkzeug.exceptions import HTTPException, BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway, Unauthorized
+from werkzeug.exceptions import HTTPException, BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, InternalServerError, BadGateway, Unauthorized
 from datetime import datetime, timedelta, timezone
 import traceback
 import time
@@ -66,17 +66,23 @@ def brunnen():
                 raise UnprocessableEntity("Missing 'values' field.")
             for row in data["values"]:
                 if len(data["columns"]) is not len(data["values"][row]):
-                    raise UnprocessableEntity("Number of given columns and actual value columns does not match.")
+                    raise UnprocessableEntity(f"Number of given columns and actual values in row '{row}' does not match.")
                 break
 
             # Initalize Dataframe:
-            df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
-            df = df.set_index(pd.to_datetime(df.index).tz_localize("CET")) # convert to datetime
+            try:
+                df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
+                df.reset_index(inplace=True)
+                df = df[df["index"] != ''] # filter rows with faulty timestamps
+                df.set_index("index", inplace=True)
+                df.set_index(pd.to_datetime(df.index, format="%Y-%m-%dT%H:%M:%S").tz_localize("CET"), inplace=True) # convert to datetime
+            except Exception as e:
+                raise InternalServerError(f"Could not convert data: {str(e)}")
 
             # Write Data Data:
             msg = db.insertData(data=df)
             if msg:
-                raise BadGateway(("Problem while inserting data: "+str(msg)))
+                raise BadGateway(f"Problem while inserting data: {msg}")
         
         if "logs" in payload:
             # Initalize Dataframe:
@@ -193,8 +199,9 @@ def log(response):
 @device.errorhandler(Exception)
 def error(e: Exception):
     if isinstance(e, HTTPException): # display HTTP errors
-        current_app.logger.exception(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
+        # TODO: use logger
+        # current_app.logger.exception(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
         return e.description, e.code
     else: # return unknown errors
-        current_app.logger.exception(f"{e}:\r\n{e.__traceback__}")
+        # current_app.logger.exception(f"{e}:\r\n{e.__traceback__}")
         return str(e), 500
