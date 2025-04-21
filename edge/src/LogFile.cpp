@@ -76,6 +76,11 @@ bool Log::log(log_mode_t mode, std::string&& msg) {
         break;
     }
 
+    // Remove Control Characters:
+    auto isControlCharacter = [](unsigned char c){ return std::isspace(c) && c != ' '; }; // is whitespace but not space character
+    auto newEnd = std::remove_if(msg.begin(), msg.end(), isControlCharacter); // rearanges control chracters to the end of string
+    msg.erase(newEnd, msg.end());
+
     std::string timestamp = Time.toString();
     if(timestamp.size() == 0) { // invalid timestamp, only print to serial
         Serial.printf("[%s] %s\r\n", prefix.c_str(), msg.c_str());
@@ -104,11 +109,21 @@ bool Log::log(log_mode_t mode, std::string&& msg) {
         }
         // Assumption: File works after attempt to fix it. Continue normally to write message to file.
     }
+    if(SPIFFS.totalBytes() - SPIFFS.usedBytes() < 500) { // less then 500 bytes free
+        log_e("Cannot write log file because onboard filesystem is (nearly) full");
+        return false;
+    }
+
+    // Write to Log File:
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
     size_t size = file.printf("%s [%s] %s\r\n", timestamp.c_str(), prefix.c_str(), msg.c_str());
     file.flush();
     file.close();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+
     if(size == 0) {
         log_e("Failed to printf log file");
+        return false;
     }
     return true;
 }
