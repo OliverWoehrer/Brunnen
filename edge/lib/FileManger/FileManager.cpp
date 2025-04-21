@@ -159,7 +159,7 @@ bool FileManager::createFile(const char* path) {
     do { // open scope for critical section
 
     // Open File:
-    file = this->fs.open(path, FILE_WRITE);
+    file = this->fs.open(path, FILE_WRITE, true);
     if(!file) {
         log_e("Could not open file %s", path);
         break;
