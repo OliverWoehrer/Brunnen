@@ -490,7 +490,6 @@ void setup() {
     xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(networkLoop,"networkLoop",DEFAULT_STACK_SIZE,NULL,1,&networkLoopHandle);
-    // xTaskNotifyGive(networkLoopHandle); // notfiy sync loop task
 
     // Finish Setup:
     LogFile.log(INFO, "Device setup.");
