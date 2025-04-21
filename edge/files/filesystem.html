@@ -1,0 +1,205 @@
+<!DOCTYPE HTML>
+<html lang="en">
+<head>
+    <title>Brunnen IoT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        section {
+            border-top: solid;
+            padding-bottom: 32px;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">Home</a> <a href="/filesystem">Filesystem</a>
+    </nav>
+    <header>
+        <h1>Filesystem</h1>
+    </header>
+    <main>
+        <!-- Usage -->
+        <section>
+            <h2>Usage</h2>
+            <p>
+                Internal filesystem (SPIFFS) used %USED_SPIFFS% of %TOTAL_SPIFFS%<br>
+                External filesystem (SD card) used %USED_SD% of %TOTAL_SD%
+            </p>
+        </section>
+        <!-- Files -->
+        <section>
+            <h2>Files</h2>
+            <div style="overflow-x:auto;">
+                <h3>List <button onclick="updateFilesList()">Reload</button></h3>
+                <table id="fileslist" style="text-align: left;"></table>
+            </div>
+            <p id="status"></p>
+            <div>
+                <h3>Upload</h3>
+                <form id="upload_form" enctype="multipart/form-data" method="post">
+                    <select name="system" id="systemselect">
+                        <option value="SPIFFS">Internal System - SPIFFS</option>
+                        <option value="SD">External System - SD Card</option>
+                    </select><br>
+                    <input type="file" id="fileupload" name="name" value="TEST" onchange="uploadFile('upload_form','/api/upload')"><br>
+                    <input type="hidden" name="action" value="upload">
+                    <progress id="progressBar" value="0" max="100" style="width:300px;"></progress>
+                    <h3 id="status"></h3>
+                    <p id="loaded_n_total"></p>
+                </form>
+            </div>
+        </section>
+        <!-- Update -->
+        <section>
+            <h2>Firmware Update</h2>
+            <form method='POST' action='/api/update' enctype='multipart/form-data'>
+                upload firware .bin file<br>
+                <input type='file' name='name'><br>
+                <input type='submit' value='Update'>
+            </form>
+        </section>
+    </main>
+    <script>
+        window.onload = function () {
+            updateFilesList();
+        }
+
+        function status(text) {
+            document.getElementById("status").innerHTML = text;
+        }
+
+        async function updateFilesList() {
+            // Fetch Files List:
+            let response;
+            try {
+                response = await fetch("/api/listfiles", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+                if(!response.ok) {
+                    const res = await response.text();
+                    throw Error("Server responded: "+res);
+                }
+            } catch(error) {
+                status("Failed to fetch files list: "+error);
+            }
+
+            // Parse Response:
+            try {
+                response = await response.json();
+            } catch(error) {
+                status("Failed to parse files list: "+error);
+            }
+
+            // Update DOM:
+            const COLUMNS = ["System", "Name", "Size"]
+            let filesTable = document.getElementById("fileslist");
+            if(filesTable === "undefined") {
+                console.error("Could not find table");
+            }
+            filesTable.innerHTML = ""; // clear existing content
+            try {
+                appendToTable(filesTable, COLUMNS, response["files"]);
+            } catch(error) {
+                status("Error while updating files list: "+error);
+            }
+        }
+        
+        function appendToTable(tableElem, columnsList, dataList) {
+            // Insert Header Cells:
+            if(tableElem.rows.length == 0) { // only insert header into empty table
+                let row = tableElem.insertRow(0);
+                for(let i = 0; i < columnsList.length; i++) {
+                    let cell = row.insertCell(i);
+                    cell.outerHTML = "<th>"+columnsList[i]+"</th>";
+                }
+            }
+
+            // Insert Table Rows:
+            for(const data of dataList) {
+                let row = tableElem.insertRow(1);
+                row.insertCell(-1).innerHTML = data["system"];
+                row.insertCell(-1).innerHTML = data["name"];
+                row.insertCell(-1).innerHTML = data["size"];
+                row.insertCell(-1).innerHTML = "<button onclick=\"actionButton('"+data["system"]+"' ,'"+data["name"]+"', 'download')\">Download</button>";
+                row.insertCell(-1).innerHTML = "<button onclick=\"actionButton('"+data["system"]+"' ,'"+data["name"]+"', 'delete')\">Delete</button>";
+            }
+        }
+
+        async function actionButton(systemname, filename, action) {
+            // Built Query String:
+            const QUERY_PARAMS = new URLSearchParams({
+                system: systemname,
+                name: encodeURIComponent(filename),
+                action: action
+            });
+            const PATH = "/api/file?"+QUERY_PARAMS;
+
+            // Set Config:
+            let config = { method: "GET" };
+            if(action == "download") {
+                config = { method: "GET" };
+            }
+            if(action == "delete") {
+                config = { method: "DELETE" };
+            }
+
+            // Send Request:
+            status("sending request to server...");
+            let response;
+            try {
+                response = await fetch(PATH, config);
+                if(!response.ok) {
+                    const res = await response.text();
+                    throw Error("Server responded: "+res);
+                }
+            } catch(error) {
+                throw Error("Failed to send request: "+error);
+            }
+            
+            // Parse Response:
+            const txt = await response.text();
+            status(txt);
+            if(action == "download") {
+                status("downloaded");
+                window.open(PATH,"_blank");
+            }
+            updateFilesList();
+        }
+        
+        function uploadFile(form_id, api_path) {
+            const form_element = document.getElementById(form_id);
+            let formdata = new FormData(form_element);
+            let ajax = new XMLHttpRequest();
+            ajax.upload.addEventListener("progress", progressHandler, false);
+            ajax.addEventListener("load", completeHandler, false);
+            ajax.addEventListener("error", errorHandler, false);
+            ajax.addEventListener("abort", abortHandler, false);
+            ajax.open("POST", api_path);
+            ajax.send(formdata);
+        }
+
+        function progressHandler(event) {
+            const percent = Math.ceil((event.loaded / event.total) * 100);
+            document.getElementById("progressBar").value = percent;
+            if(percent < 100) {
+                status("Uploading "+event.total+" bytes... "+percent+"p");
+                //status("Please wait, writing file to filesystem");
+            }
+        }
+        function completeHandler(event) {
+            status("Upload Complete");
+            document.getElementById("progressBar").value = 0;
+            updateFilesList();
+        }
+        function errorHandler(event) {
+            status("upload failed");
+        }
+        function abortHandler(event) {
+            status("aborted");
+        }
+    </script>
+</body>
+</html>

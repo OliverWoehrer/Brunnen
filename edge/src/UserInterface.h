@@ -7,6 +7,11 @@
 #define LED_GREEN 16
 #define UI_PORT 80
 
+typedef struct {
+    uint8_t *buffer;
+    size_t len;
+} upload_context_t;
+
 class UserInterfaceClass {
 public:
     UserInterfaceClass();
@@ -16,7 +21,7 @@ public:
 private:
     Output::Digital led;
     AsyncWebServer server; // server object on port 80
-    bool state;
+    bool state; // user interface enabled? (true=enabled, false=disabled)
 };
 
 extern UserInterfaceClass UserInterface;
