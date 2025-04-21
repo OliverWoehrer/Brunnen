@@ -90,17 +90,23 @@ bool DataFileClass::store(sensor_data_t data) {
         return true; // no data reallocation needed, return early   
     }
 
-    log_d("cache is (nearly) full [size = %u], copy data to file", this->cache.size());
-    
-    // Take Mutex Semaphore:
+    log_d("cache is (nearly) full [size = %u], copy data to file", this->cache.size()); 
+
+    // Copy Data From Cache to Local Buffer:
+    std::vector<sensor_data_t> cacheCopy; // local copy of cache for critical section
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
         log_e("Could not take semaphore");
+        return false;
+    }
+    cacheCopy.assign(this->cache.begin(), this->cache.end());
+    if (!xSemaphoreGive(this->semaphore)) {
+        log_d("Failed to give semaphore (copy)");
         return false;
     }
 
     // Copy Data From Cache to File:
     bool success = true;
-    for(sensor_data_t data : this->cache) {
+    for(const sensor_data_t& data : cacheCopy) {
         char buffer[DATA_STRING_LENGTH]; // format: "TIME,FLOW,PRESSURE,LEVEL<CR><LF>"
         size_t bytes = sprintf(buffer, "%s,%d,%d,%d", TimeManager::toString(data.timestamp).c_str(), data.flow, data.pressure, data.level);
         if(bytes == 0) {
@@ -115,12 +121,6 @@ bool DataFileClass::store(sensor_data_t data) {
         }
     }
 
-    // Give Mutex Semaphore Back:
-    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
-        log_d("Failed to give semaphore");
-        return false;
-    }
-
     if(!success) {
         log_e("Failed to copy data from cache to file");
         return false;
@@ -128,9 +128,8 @@ bool DataFileClass::store(sensor_data_t data) {
 
     log_d("data copied to file, shrink cache");
 
-
     // Clear Moved Data From Cache:
-    if(!shrinkCache(this->cache.size())) {
+    if(!shrinkCache(cacheCopy.size())) { // shrink by the number of items just written
         log_e("Failed to shrink cache");
         return false;
     }
@@ -146,7 +145,8 @@ bool DataFileClass::store(sensor_data_t data) {
  * @return number of lines that could succesfully be parsed, -1 on error
  */
 bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
-    if(this->lineCount(this->filename.c_str()) == 0) { // check if file is empty
+    size_t fSize = this->fileSize(this->filename.c_str());
+    if(fSize < 5) { // check if file is empty
         log_d("Export from cache (cache size = %u elements)",this->cache.size());
 
         // Read From Cache:
@@ -167,7 +167,7 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
             return false;
         }
     } else {
-        log_d("Export from file (file size = %u lines)", this->lineCount(this->filename.c_str()));
+        log_d("Export from file (file size = %u bytes)", fSize);
 
         // Read From File:
         std::vector<std::string> lines;
@@ -213,7 +213,7 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
 bool DataFileClass::shrinkData(size_t numLines) {
     log_d("shrink by %u lines", numLines);
 
-    if(this->lineCount(this->filename.c_str()) == 0) { // check if file is empty
+    if(this->fileSize(this->filename.c_str()) < 5) { // check if file is empty
         return shrinkCache(numLines); // file already empty, shrink cache instead
     } // else: shrink non-empty file 
 
