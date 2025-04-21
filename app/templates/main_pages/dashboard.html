@@ -44,7 +44,7 @@
                 <h2 class="w3-left">Live</h2>
             </div>
             <div class="w3-cell w3-cell-top w3-right-align">
-                {{ buttons.link_primary("Coming soon", "#") }}
+                <span id="latest_sync"></span>
             </div>
         </header>
         <main class="w3-cell-row">
@@ -136,26 +136,33 @@
     }
 
     async function update() {
-        let latestTimestamp;
+        let latestDataTimestamp;
+        let latestSyncTimestamp;
         
         // Fetch Timestamp:
         try {
-            latestTimestamp = await fetchLatestTimestamp();
+            const ts = await fetchLatestTimestamps();
+            latestSyncTimestamp = ts["last_sync"];
+            latestDataTimestamp = ts["last_data"];
         } catch(error) {
             window.alert("Could not fetch latest timestamp: "+error);
             clearInterval(periodicUpdate);
             return;
         }
 
+        // Update User Interface:
+        const latest_sync = document.getElementById("latest_sync");
+        latest_sync.innerHTML = toLocalDateTime(latestSyncTimestamp.getTime()); // format: YYYY-MM-DD HH:MM:SS
+
         if(lastUpdateTimstamp == null) {
-            lastUpdateTimstamp = new Date(latestTimestamp);
+            lastUpdateTimstamp = new Date(latestDataTimestamp);
             lastUpdateTimstamp.setMinutes(lastUpdateTimstamp.getMinutes() - 5);
         }
         
         // Fetch Logs and Data:
-        if(latestTimestamp > lastUpdateTimstamp) {
+        if(latestDataTimestamp > lastUpdateTimstamp) {
             const start = lastUpdateTimstamp;
-            const stop = latestTimestamp;
+            const stop = latestDataTimestamp;
             stop.setSeconds(stop.getSeconds() + 1); // increment slightly to get latest data points as well
             try {
                 await updateLogs(start, stop, LOGS_TABLE_ID);
@@ -165,7 +172,7 @@
                 clearInterval(periodicUpdate);
                 return;
             }
-            lastUpdateTimstamp = latestTimestamp;
+            lastUpdateTimstamp = latestDataTimestamp;
         }
     }
     

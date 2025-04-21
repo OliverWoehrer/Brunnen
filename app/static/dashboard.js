@@ -118,10 +118,11 @@ async function updateData(start, stop, gauges, lineCanvasId) {
 //===============================================
 
 /**
- * Make an asynchronious request to the backend for the timestamp of the latetest data.
+ * Make an asynchronious request to the backend for the timestamp of the latetest sync time and
+ * latest data synced.
  * @returns an async promise for the request
  */
-async function fetchLatestTimestamp() {
+async function fetchLatestTimestamps() {
     let response;
     try {
         response = await fetch("/api/web/sync", {
@@ -138,8 +139,11 @@ async function fetchLatestTimestamp() {
 
     try {
         const res = await response.json();
-        const lastSync = res["last_sync"];
-        return new Date(lastSync);
+        const ret = {
+            "last_sync": new Date(res["last_sync"]),
+            "last_data": new Date(res["last_data"])
+        }
+        return ret;
     } catch(error) {
         throw Error("Failed to parse timestamp: "+error);
     }

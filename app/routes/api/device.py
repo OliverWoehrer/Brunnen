@@ -205,3 +205,7 @@ def error(e: Exception):
     else: # return unknown errors
         # current_app.logger.exception(f"{e}:\r\n{e.__traceback__}")
         return str(e), 500
+
+def get_last_sync() -> datetime:
+    global last_sync
+    return last_sync

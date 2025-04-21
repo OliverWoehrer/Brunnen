@@ -43,7 +43,8 @@
 
     async function init() {
         try {
-            const stop = await fetchLatestTimestamp();
+            const ts = await fetchLatestTimestamps();
+            const stop = ts["last_data"];
             const start = new Date(stop.getTime() - WINDOW_SIZE);
             await updateLogs(start, stop, "logs_table");
         } catch(error) {

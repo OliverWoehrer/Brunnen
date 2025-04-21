@@ -9,6 +9,7 @@ import json
 import re
 import config
 from data import data_client as db
+from .device import get_last_sync
 from ..web.web import set_last_visit
 
 # Register Blueprint Hierarchy:
@@ -28,7 +29,11 @@ def sync():
         raise BadGateway(("Problem while reading latest sync: "+msg))
     
     # Return JSON Response:
-    payload = { "last_sync": int(datetime.timestamp(timestamp)*1000) }
+    last_sync = get_last_sync()
+    payload = {
+        "last_sync": int(datetime.timestamp(last_sync)*1000),
+        "last_data": int(datetime.timestamp(timestamp)*1000)
+    }
     return payload, 200
 
 @web.route("/logs", methods=["GET"])
