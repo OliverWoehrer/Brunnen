@@ -54,7 +54,7 @@ tm TimeManager::getTime() {
 
 /**
  * @brief Converts timeinfo of 'this' to ISO format string
- * @return string in the format YYYY-MM-DDTHH:MM:SS
+ * @return string in the format YYYY-MM-DDTHH:MM:SS, empty on failure
  */
 std::string TimeManager::toString() {
     tm timeinfo = this->getTime();
