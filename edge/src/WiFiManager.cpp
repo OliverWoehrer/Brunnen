@@ -4,7 +4,7 @@
  * @brief Default constructor initalizes the credentials
  */
 WifiManager::WifiManager() {
-    this->credentials = { .ssid = WIFI_SSID_HOME, .password = WIFI_PASSWORD_HOME };
+    this->credentials = { .ssid = WIFI_SSID, .password = WIFI_PASSWORD };
 }
 
 /**

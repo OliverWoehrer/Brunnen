@@ -5,12 +5,12 @@
 #include <vector>
 
 // Network Credentials:
-#define WIFI_SSID_HOME "RadlerfreieWohnung_2.4G"
-#define WIFI_PASSWORD_HOME "radlerraus"
-#define WIFI_SSID_MOBILE "hotcon"
-#define WIFI_PASSWORD_MOBILE "1gutespasswort"
-#define WIFI_SSID_FIELD "TP-Link_BCDC"
-#define WIFI_PASSWORD_FIELD "69001192"
+#ifndef WIFI_SSID
+#define WIFI_SSID "DEFAULT_WIFI_NAME"
+#endif
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD "DEFAULT_WIFI_PASSWORD"
+#endif
 
 typedef struct {
     std::string ssid;
