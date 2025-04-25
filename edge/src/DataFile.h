@@ -18,20 +18,17 @@
 #define FILE_NAME_LENGTH 25
 #define DATA_STRING_LENGTH 40
 
-class DataFileClass : FileManager {
+class DataFileClass {
 public:
-    DataFileClass();
+    DataFileClass(const std::string& filename);
     bool begin();
-    bool init(std::string filename);
     bool store(sensor_data_t data);
     bool exportData(std::vector<sensor_data_t>& data);
-    bool shrinkData(size_t numLines);
+    bool shrink(size_t num);
     bool clear();
-    bool remove();
-    std::string getFilename();
-    size_t lineCounter();
+    size_t itemCount();
 private:
-    std::string filename; // "/data_YYYY-MM-DD.txt"
+    FileManager file;
     std::deque<sensor_data_t> cache;
     SemaphoreHandle_t semaphore;
     bool parseCSVLine(const char line[], sensor_data_t& data);

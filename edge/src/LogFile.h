@@ -19,19 +19,18 @@ typedef struct {
     std::string tag;
 } log_message_t;
 
-class Log : FileManager {
+class Log {
 public:
-    Log(const char* filename);
+    Log(const std::string& filename);
     bool begin();
     bool log(log_mode_t mode, std::string&& msg);
     bool exportLogs(std::vector<log_message_t>& logs);
-    bool shrinkLogs(size_t numLines);
+    bool shrink(size_t num);
     bool clear(void);
-    size_t size(void);
     void acknowledge();
 private:
+    FileManager file;
     Output::Digital led;
-    std::string filename;
     SemaphoreHandle_t semaphore;
 
     bool parseLogLine(const char line[], log_message_t& msg);

@@ -118,84 +118,6 @@ void requestWeatherDataTask(void* parameter) {
     vTaskDelete(NULL); // delete task when done, don't forget this!
 }
 
-/**
- * This function implements the sendMailTask and sends a mail with the appropriate files (data
- * files and log file) to the recipient defined in gw.h. The task is created in the function
- * implementing the heapWatcherTask and notifies the heapWatcherTask that it has finished
- * before it gets deleted again afterwards.
- * @param parameter Pointer to a parameter struct (unused for now)
- * @note This function allocates a lot of heap memory for web requests, see heapWatcherTask for
- * details
- */
-void sendMailTask(void* parameter) {
-    do {
-    std::string text;
-
-    // Append Info Message to Gateway Text:
-    int rain = Gateway.getPrecipitation();
-    text = text + "To my knowledge it is about to rain "+std::to_string(rain)+" mm today. ";
-
-    // Check the Amount of Predicted Precipitation:
-    if (rain >= Config.loadRainThresholdLevel()) {
-        text = text + "That's enough rain, I will pause pump operation for now. ";
-    } else {
-        text = text + "That's too little rain, I will resume pump operation for now. ";
-    }
-
-    // Attach Current Data File:
-    Gateway.attachFile(DataFile.getFilename());
-    
-    // Attach Old Data File(s) (=Jobs):
-    const size_t jobLength = Config.loadJobLength();
-    for(size_t i = 0; i < jobLength; i++) {
-        std::string jobName = Config.loadJob(i);
-        if(!Gateway.attachFile(jobName)) {
-            LogFile.log(ERROR, "Failed to attach file ("+jobName+")");
-            break;
-        }
-    }
-
-    // Keep LogFile From Growing:
-    if(LogFile.size() > 5000) {
-        LogFile.shrinkLogs(10);
-    }
-
-    // Send Data:
-    LogFile.log(INFO, "Sending Mail");
-    if(!Gateway.sendMail(text)) { // error occured while sending mail
-        LogFile.log(ERROR, "Failed to send Email, adding file to job list.");
-        std::string fName = DataFile.getFilename();
-        Config.storeJob(fName.c_str(), jobLength);
-        Config.storeJobLength(jobLength+1);
-        break;
-    }
-
-    DataFile.remove();
-    for (unsigned int i=0; i < jobLength; i++) {
-        std::string jobName = Config.loadJob(i);
-        DataFile.init(jobName);
-        DataFile.remove();
-        Config.deleteJob(i);
-    }
-    Config.storeJobLength(0);
-    
-    //Set up new data file:
-    std::string filename = "/data_"+Time.toDateString()+".txt";
-    if(!DataFile.init(filename)) {
-        LogFile.log(ERROR, "Failed to initialize file system (SD-Card)");
-        break;
-    }
-
-    } while(0);
-
-    // Clear Gateway:
-    Gateway.clear();
-
-    // Exit This Task:
-    xTaskNotify(networkLoopHandle,1,eSetValueWithOverwrite); // notfiy heap watcher task by setting notification value to 1
-    vTaskDelete(NULL); // delete task when done, don't forget this!
-}
-
 void synchronizationTask(void* parameter) {
     // Initalize Task:
     log_d("Created synchronizationTask on Core %d", xPortGetCoreID());
@@ -248,13 +170,13 @@ void synchronizationTask(void* parameter) {
     LogFile.acknowledge();
     
     // Shrink Data File:
-    if(!DataFile.shrinkData(sensorData.size())) {
+    if(!DataFile.shrink(sensorData.size())) {
         LogFile.log(WARNING, "Failed to shrink data file");
         break;
     }
 
     // Shrink Log File:
-    if(!LogFile.shrinkLogs(logMessages.size())) {
+    if(!LogFile.shrink(logMessages.size())) {
         LogFile.log(WARNING, "Failed to shrink log file");
         break;
     }
@@ -272,9 +194,9 @@ void synchronizationTask(void* parameter) {
     sync_t sync;
     if(Gateway.getSync(&sync)) {
         unsigned int newLoopPeriode;
-        size_t count = DataFile.lineCounter();
+        size_t count = DataFile.itemCount();
         log_d("target periode sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
-        log_d("Data points left: %u", count);        
+        log_d("Data items left: %u", count);        
         if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
             newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
         } else { // synced most of data, set according to received settings
@@ -446,11 +368,6 @@ void setup() {
 
     // Initalize Data File:
     if(!DataFile.begin()) {
-        LogFile.log(ERROR, "Failed to setup filesystem for data file");
-        return;
-    }
-    std::string filename = "/data_"+Time.toDateString()+".txt";
-    if(!DataFile.init(filename)) {
         LogFile.log(ERROR, "Failed to initialize data file");
         return;
     }
