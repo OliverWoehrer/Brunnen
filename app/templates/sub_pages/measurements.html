@@ -19,7 +19,7 @@
     </div>
     <div id="id_range_selector" class="w3-modal">
         <div class="w3-modal-content w3-transparent">
-            {{ picker.datetime("parseDateTime") }}
+            {{ picker.html("parseDateTime") }}
         </div>
     </div>
 </div>
@@ -41,6 +41,17 @@
     // darkModePreference.onchange = plot;
 
     async function init() {
+        // Get Timestamps:
+        try {
+            const ts = await fetchLatestTimestamps();
+            const stop = ts["last_data"];
+            const start = new Date(stop.getTime() - WINDOW_SIZE);
+            initPicker(start, stop);
+        } catch(error) {
+            window.alert("Could not fetch logs: "+error);
+            return;
+        }
+
         // Rotate to Landscape:
         if(screen.orientation.type.startsWith("portrait")) {
             const viewcontainer = document.getElementById("viewcontainer");
@@ -59,15 +70,10 @@
     }
 
     async function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
-        const startDate = document.getElementById(startDateID).value;
-        const startTime = document.getElementById(startTimeID).value;
-        const stopDate = document.getElementById(stopDateID).value;
-        const stopTime = document.getElementById(stopTimeID).value;
-        const start = new Date(""+startDate+"T"+startTime+"Z");
-        const stop = new Date(""+stopDate+"T"+stopTime+"Z");
+        const [start, stop] = getRange();
         try {
             // plotLines("lineChartDiv");
-            await updateData(start, stop, null, "lines");
+            await updateData(start, stop, null, "lines", append=false);
         } catch(error) {
             window.alert("Could not update data: "+error);
             return;
@@ -77,4 +83,5 @@
     }
 
 </script>
+{{ picker.javascript() }}
 {% endblock %}
