@@ -82,6 +82,15 @@ th {
 /***************************************/
 /* Individual Styles: */
 /***************************************/
+.card {
+    padding: 8px 16px!important;
+}
+@media (max-width: 992px) {
+    .card {
+        padding: 8px 0px!important;
+    }
+}
+
 .myLoader {
     height: 45px;
 }

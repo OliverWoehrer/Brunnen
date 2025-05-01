@@ -2,7 +2,7 @@
     {% if caller is defined %}
     {% set content=caller() %}
     {% endif %}
-    <div class="w3-padding {{ classes }}" style="{{ stylings }}">
+    <div class="w3-padding card {{ classes }}" style="{{ stylings }}">
         <div class="w3-card color-neutral w3-round-xlarge w3-padding" style="height: 100%;">
             {{ content }}
         </div>
