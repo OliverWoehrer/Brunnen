@@ -47,13 +47,18 @@ const UNITS = {
  * @param {Date} start erliest date-time of logs to fetch
  * @param {Date} stop latest date-time of logs to fetch
  * @param {String} tableID id of the table element
+ * @param {Boolean} append if true new content will be appended to existing table content, if false
+ * existing table content will be overwritten
  */
-async function updateLogs(start, stop, tableID) {
+async function updateLogs(start, stop, tableID, append=true) {
     const {columns, data} = await fetchLogs(start, stop);
     const tableElem = document.getElementById(tableID);
     if(typeof tableElem === "undefined") {
         console.warn("Could not get element by '"+tableID+"'");
         return;
+    }
+    if(!append) {
+        tableElem.innerHTML = "";
     }
     appendToTable(tableElem, columns, data);
 }
@@ -64,8 +69,10 @@ async function updateLogs(start, stop, tableID) {
  * @param {Date} stop latest date-time of logs to fetch
  * @param {JSON} gauges element id of gauges canvas
  * @param {String} lineCanvasId element if of lines canvas
+ * @param {Boolean} append if true new content will be appended to existing table content, if false
+ * existing table content will be overwritten
  */
-async function updateData(start, stop, gauges, lineCanvasId) {
+async function updateData(start, stop, gauges, lineCanvasId, append=true) {
     // Fetch Data:
     let datasets = await fetchData(start, stop);
 
@@ -103,7 +110,7 @@ async function updateData(start, stop, gauges, lineCanvasId) {
     // Update Lines:
     if(lineCanvasId) {
         try {
-            updateLines(lineCanvasId, datasets["Time"], datasets["Flow"], datasets["Pressure"], datasets["Level"]);
+            updateLines(lineCanvasId, datasets["Time"], datasets["Flow"], datasets["Pressure"], datasets["Level"], append);
         } catch(error) {
             throw Error("Failed to update line chart: "+error);
         }
@@ -284,8 +291,8 @@ function plotGauges(gauges) {
             },
             options: {
                 maintainAspectRatio: false,
-                rotation: 270,
-                circumference: 180,
+                rotation: 30 + 180,
+                circumference: 300,
                 cutout: "90%",
                 plugins: {
                     legend: { display: false },
@@ -299,16 +306,22 @@ function plotGauges(gauges) {
             plugins: [
                 {
                     id: 'customLabels',
-                    beforeDraw: (chart) => { // custom plugin for label
-                        chart.ctx.font = 'bold 12px Arial';
-                        chart.ctx.textAlign = 'center';
-                        chart.ctx.textBaseline = 'middle';
-                    
+                    afterRender: (chart) => { // custom plugin for label
+                        // Get Font Size:
+                        const dpr = window.devicePixelRatio || 1;
+                        const width = chart.ctx.canvas.width / dpr;
+                        const height = chart.ctx.canvas.height / dpr;
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const size = Math.floor(width / 6);
+                        
                         // Draw labels
-                        const centerX = chart.ctx.canvas.width / 2;
-                        const centerY = chart.ctx.canvas.height / 2;
                         chart.ctx.fillStyle = neutralTextColor;
                         chart.ctx.fillText(chart.data.datasets[0].data[0]+" "+UNITS[chart.data.labels[0]], centerX, centerY);
+                        chart.ctx.font = 'bold '+size+'px Arial';
+                        chart.ctx.textAlign = 'center';
+                        chart.ctx.textBaseline = 'middle';
+                        //console.log("size = "+size+"px");
                     },
                 }
             ]
@@ -454,8 +467,10 @@ function plotLines(canvasID) {
  * @param {Array} flowSet dataset of new flow values 
  * @param {Array} pressureSet dataset of new pressure values
  * @param {Array} levelSet dataset of new level values
+ * @param {Boolean} append if true new content will be appended to existing table content, if false
+ * existing table content will be overwritten
  */
-function updateLines(canvasID, labels, flowSet, pressureSet, levelSet) {
+function updateLines(canvasID, labels, flowSet, pressureSet, levelSet, append=true) {
     // Convert Labels:
     // labels = labels.map(function(label) { return toLocalDateTime(label); });
     
@@ -464,6 +479,12 @@ function updateLines(canvasID, labels, flowSet, pressureSet, levelSet) {
     if(typeof myChart === "undefined") {
         console.log("Could not find chart with from "+canvasID);
         return;
+    }
+    if(!append) {
+        myChart.data.labels = [];
+        myChart.data.datasets[0].data = [];
+        myChart.data.datasets[1].data = [];
+        myChart.data.datasets[2].data = [];
     }
     myChart.data.labels.push.apply(myChart.data.labels, labels);
     myChart.data.datasets[0].data.push.apply(myChart.data.datasets[0].data, flowSet);
