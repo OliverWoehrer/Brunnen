@@ -44,30 +44,30 @@ bool DataFileClass::begin() {
  * @return true on success, false otherwise
  */
 bool DataFileClass::store(sensor_data_t data) {
-    // Check If Cache Is Full:
-    if(this->cache.size() >= MAX_CACHE_SIZE) {
-        log_e("Failed to store sensor data because cache is full");
-        return false;
-    }
-
     // Store Sensor Data:
-    if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
-        log_e("Could not take semaphore");
-        return false;
-    }
-    this->cache.push_back(data);
-    if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
-        log_d("Failed to give semaphore");
-        return false;
+    size_t cacheSize = this->cache.size();
+    if(cacheSize < MAX_CACHE_SIZE) { // check if cache is not full
+        if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
+            log_e("Could not take semaphore");
+            return false;
+        }
+        this->cache.push_back(data);
+        if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
+            log_d("Failed to give semaphore");
+            return false;
+        }
+    } else {
+        log_e("Failed to store sensor data because cache is full");
     }
 
     // Check Cache Size:
-    if(this->cache.size() < MAX_CACHE_SIZE - 2) { // check if cache needs to be flushed
-        return true; // no data reallocation needed, return early   
+    if(cacheSize < MAX_CACHE_SIZE - 2) {
+        return true; // cache is not full, no data reallocation needed   
     }
 
-    // [at this point we need to reallocate data from cache to file storage]
-    log_d("cache is (nearly) full [size = %u], copy data to file", this->cache.size()); 
+    // [INFO]
+    // At this point we need to reallocate data from cache (RAM) to disk file
+    log_d("cache is (nearly) full [size = %u], copy data to file", cacheSize); 
 
     // Make Local Copy of Cache:
     std::vector<sensor_data_t> cacheCopy; // local copy of cache for critical section
@@ -119,7 +119,7 @@ bool DataFileClass::store(sensor_data_t data) {
  * most 'data.capacity()' items are exported.
  * @param data buffer to be filled. Needs to be allocated with reserve(), so 'data.capacity()'
  * works
- * @return number of items that could succesfully be parsed, -1 on error
+ * @return true on success, false otherwise
  */
 bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
     size_t fSize = this->file.size();
@@ -134,6 +134,14 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
             return false;
         }
 
+        // Sanity Check:
+        if(lines.size() == 0) {
+            log_w("No lines read from disk file, despite the file is not empty");
+            log_i("Resetting corrupted disk file");
+            this->file.reset();
+            return false;
+        }
+
         // Parse CSV Lines:
         for(std::string line : lines) {
             sensor_data_t d;
@@ -141,6 +149,7 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
                 data.push_back(d);
             }
         }
+        log_d("Parsed %d/%d lines from disk", data.size(), lines.size());
     } else {
         log_d("Export from cache (cache size = %u elements)",this->cache.size());
 
@@ -228,7 +237,6 @@ size_t DataFileClass::itemCount() {
 
     // Item Count of Disk File:
     counter += this->file.lineCount();
-
 
     // Item Count of Cache:
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
