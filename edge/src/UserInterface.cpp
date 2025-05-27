@@ -85,10 +85,10 @@ String processor(const String& var) {
         return String(Config.loadRainThresholdLevel());
     }
     if (var == "MAIL_ADDRESS") {
-        return String(EMAIL_SENDER_ACCOUNT);
+        return String("not used");
     }
     if (var == "MAIL_PASSWORD") {
-        return String(Config.loadMailPassword().c_str());
+        return String("not used");
     }
     if(var == "API_HOST") {
         return String(Config.loadAPIHost().c_str());
@@ -422,7 +422,7 @@ void _api_listfiles(AsyncWebServerRequest *req) {
     root = SPIFFS.open("/");
     if(!root) {
         log_e("Failed to open SPIFFS root");
-        req->send(500, "text/plain", "Failed to open SPIFFS root");
+        req->send(502, "text/plain", "Failed to open SPIFFS root");
     }
 
     //JsonArray spiffs = doc["spiffs"].to<JsonArray>();
@@ -439,22 +439,20 @@ void _api_listfiles(AsyncWebServerRequest *req) {
 
     // Scan SD:
     root = SD.open("/");
-    if(!root) {
-        log_e("Failed to open SD root");
-        req->send(500, "text/plain", "Failed to open SD root");
+    if(root) {
+        //JsonArray sd = doc["sd"].to<JsonArray>();
+        foundfile = root.openNextFile();
+        while(foundfile) {
+            JsonObject file = files.createNestedObject();
+            file["system"] = "SD";
+            file["name"] = (char*)foundfile.name(); // cast to "char*" instead of "const char*" to initiate deep copy
+            file["size"] = readableSize(foundfile.size());
+            foundfile = root.openNextFile(); // iterate next
+        }
+        root.close();
+        foundfile.close();
     }
 
-    //JsonArray sd = doc["sd"].to<JsonArray>();
-    foundfile = root.openNextFile();
-    while(foundfile) {
-        JsonObject file = files.createNestedObject();
-        file["system"] = "SD";
-        file["name"] = (char*)foundfile.name(); // cast to "char*" instead of "const char*" to initiate deep copy
-        file["size"] = readableSize(foundfile.size());
-        foundfile = root.openNextFile(); // iterate next
-    }
-    root.close();
-    foundfile.close();
 
     // Set Payload:
     if(doc.isNull()) {
