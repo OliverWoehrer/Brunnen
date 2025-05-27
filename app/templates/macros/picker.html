@@ -112,8 +112,8 @@
         const startTime = document.getElementById("start_time").value;
         const stopDate = document.getElementById("stop_date").value;
         const stopTime = document.getElementById("stop_time").value;
-        const start = new Date(""+startDate+"T"+startTime+"Z");
-        const stop = new Date(""+stopDate+"T"+stopTime+"Z");
+        const start = new Date(""+startDate+"T"+startTime);
+        const stop = new Date(""+stopDate+"T"+stopTime);
         return [start,stop];
     }
 
