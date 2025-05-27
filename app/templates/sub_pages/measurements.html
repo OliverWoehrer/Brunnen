@@ -9,7 +9,7 @@
 {% set heading = "Measurements" %}
 
 {% block action %}
-{{ buttons.button_secondary("Select Range", "showElement('id_range_selector'); initTabs();") }}
+{{ buttons.button_secondary("Load Data", "showElement('id_range_selector'); initTabs();") }}
 {% endblock %}
 
 {% block main %}
@@ -41,19 +41,8 @@
     // darkModePreference.onchange = plot;
 
     async function init() {
-        // Get Timestamps:
-        try {
-            const ts = await fetchLatestTimestamps();
-            const stop = ts["last_data"];
-            const start = new Date(stop.getTime() - WINDOW_SIZE);
-            initPicker(start, stop);
-        } catch(error) {
-            window.alert("Could not fetch logs: "+error);
-            return;
-        }
-
         // Rotate to Landscape:
-        if(screen.orientation.type.startsWith("portrait")) {
+        if(false) { // if(screen.orientation.type.startsWith("portrait"))
             const viewcontainer = document.getElementById("viewcontainer");
             const rect = viewcontainer.getBoundingClientRect();
             const horizontalOffset = (rect.width/2) - (rect.height/2);
@@ -67,6 +56,17 @@
 
         // Plot Empty Chart:
         plotLines("lines");
+
+        // Get Timestamps:
+        try {
+            const ts = await fetchLatestTimestamps();
+            const stop = ts["last_data"];
+            const start = new Date(stop.getTime() - WINDOW_SIZE);
+            initPicker(start, stop);
+        } catch(error) {
+            window.alert("Could not fetch data: "+error);
+            return;
+        }
     }
 
     async function parseDateTime(startDateID, startTimeID, stopDateID, stopTimeID) {
