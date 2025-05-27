@@ -52,8 +52,7 @@
     function initPicker(start, stop) {
         defaultStart = start;
         defaultStop = stop;
-        const ws = 24 * 60 * 60 * 1000; // 24 hours
-        setRange(new Date(stop.getTime() - ws), stop);
+        setRange(start, stop);
     }
 
     /**
