@@ -158,6 +158,7 @@ async function fetchLatestTimestamps() {
 
 /**
  * Make an asynchronious request to the backend to request log messages between start and stop.
+ * The logs are sorted in a descending order
  * @param {Date} start earliest date-time of logs to fetch
  * @param {Date} stop latest date-time of logs to fetch
  * @returns object of column names and actual logs: { columns: [...], data: [...] }
@@ -186,7 +187,14 @@ async function fetchLogs(start, stop) {
     if(isEmpty(logs)) {
         return { columns: [], data: [] };
     }
-    return { columns: logs["columns"], data: logs["data"] };
+
+    function sortByDate(a, b) {
+        // obj a = [ UNIX_TIMESTAMP, TAG, MESSAGE ]
+        if (a[0] < b[0]) return -1;
+        if (a[0] > b[0]) return +1;
+        return 0;
+    }
+    return { columns: logs["columns"], data: logs["data"].sort(sortByDate) };
 }
 
 /**
