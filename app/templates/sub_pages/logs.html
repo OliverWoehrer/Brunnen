@@ -9,7 +9,7 @@
 {% set heading = "Logs" %}
 
 {% block action %}
-{{ buttons.button_secondary("Select Range", "showElement('id_range_selector'); initTabs();") }}
+{{ buttons.button_secondary("Load Logs", "showElement('id_range_selector'); initTabs();") }}
 {% endblock %}
 
 {% block main %}
@@ -41,7 +41,6 @@
             const ts = await fetchLatestTimestamps();
             const stop = ts["last_data"];
             const start = new Date(stop.getTime() - WINDOW_SIZE);
-            await updateLogs(start, stop, "logs_table");
             initPicker(start, stop);
         } catch(error) {
             window.alert("Could not fetch logs: "+error);
