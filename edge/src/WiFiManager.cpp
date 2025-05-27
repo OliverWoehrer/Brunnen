@@ -14,7 +14,16 @@ WifiManager::WifiManager() {
  * @return true on success, false otherwise
  */
 bool WifiManager::init() {
-    return WiFi.mode(WIFI_STA);
+    if(!WiFi.mode(WIFI_STA)) {
+        log_e("Failed to set WiFi mode to 'station' mode");
+        return false;
+    }
+    if(!WiFi.disconnect()) {
+        log_w("Failed to disconnect");
+        return false;
+    }
+
+    return true;
 }
 
 /**
