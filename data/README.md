@@ -69,7 +69,7 @@ This bucket holds all data of the pump device. The following measurements are re
 }
 
 "software": {
-    "version": Integer(<number>)
+    "version": String(<YYYY-MM-DDTHH:MM:SS>)
 }
 
 "thresholds": {
