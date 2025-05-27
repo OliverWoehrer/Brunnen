@@ -41,7 +41,6 @@
 //===============================================================================================
 TaskHandle_t buttonHandlerHandle = NULL;
 TaskHandle_t networkLoopHandle = NULL;
-unsigned int networkLoopPeriode = SYNCHRONIZATION_PERIOD;
 
 /**
  * This function implements the buttonHandlerTask with an (blocking) infinite loop and gets
@@ -81,212 +80,126 @@ void buttonHandlerTask(void* parameter) {
 }
 
 /**
- * This function implements the requestWeatherDataTask and requests weather data from the well
- * known OpenWeatherAPI for the location of the coordinates defined in gw.h. The task is created
- * in the function implementing the heapWatcherTask and notifies the heapWatcherTask that it has
- * finished before it gets deleted again afterwards.
+ * This function implements the synchronizationTask and periodically connects to the backend to
+ * synchronize data and settings. It is implemented as a periodic loop with a variable periode
+ * length, depending on the amount of data to synchronize. The periode length is recommended by the
+ * server in its response, but not mandatory. Recommended periode lengths are followed if there is no
+ * data left to sync. If there is still data left to synchronize, the periode is kept at a few
+ * seconds to sync again.
  * @param parameter Pointer to a parameter struct (unused for now)
- * @note This function allocates a lot of heap memory for web requests, see heapWatcherTask for
- * details.
+ * @note Loops roughly every couple of seconds or once an hour
  */
-void requestWeatherDataTask(void* parameter) {
-    do { // loop allows to use "break" statement to exit earlyü
-
-    // Send Request to OpenMeteoAPI:
-    LogFile.log(INFO, "Requesting weather data from OpenMeteo API");
-    if(!Gateway.requestWeatherData()) {
-        std::string errorMsg = Gateway.getResponse(); // response is error on fail
-        LogFile.log(ERROR, "Failed to request weather data: "+errorMsg);
-        Pump.resumeSchedule(); // unknown weather, resume schedule just in case
-        break;
-    }
-
-    int rain = Gateway.getPrecipitation();
-    LogFile.log(INFO, "Rain today is "+std::to_string(rain)+" mm");
-    if(rain >= Config.loadRainThresholdLevel()) {
-        LogFile.log(INFO, "Too much rain ("+std::to_string(rain)+" mm), pause pump operation.");
-        Pump.pauseSchedule();
-    } else {
-        LogFile.log(INFO, "Too little rain ("+std::to_string(rain)+" mm), resume pump operation");
-        Pump.resumeSchedule();
-    }
-
-    } while(0); // single-iteration-loop
-
-    // Exit This Task:
-    xTaskNotify(networkLoopHandle,1,eSetValueWithOverwrite); // notfiy heap watcher task by setting notification value to 1
-    vTaskDelete(NULL); // delete task when done, don't forget this!
-}
-
 void synchronizationTask(void* parameter) {
     // Initalize Task:
-    log_d("Created synchronizationTask on Core %d", xPortGetCoreID());
-
-    do { // wrap task control in loop, use "break" to exit early
-
-    // Connect to WiFi:
-    if(!Wlan.connect()) {
-        LogFile.log(ERROR, "Cannot connect to network.");
-        break;
-    }
-
-    // Read Data File:
-    std::vector<sensor_data_t> sensorData;
-    sensorData.reserve(BATCH_SIZE);
-    if(!DataFile.exportData(sensorData)) {
-        LogFile.log(ERROR, "Failed to export sensor values");
-        break;
-    }
-
-    // Read Log File:
-    std::vector<log_message_t> logMessages;
-    logMessages.reserve(20);
-    if(!LogFile.exportLogs(logMessages)) {
-        LogFile.log(ERROR, "Failed to export log messages");
-        break;
-    }
-
-    do { // wrap Gateway in loop, use "break" to exit early
-
-    // Append Data to JSON:
-    if(!Gateway.insertData(sensorData)) {
-        LogFile.log(ERROR, "Failed to insert data");
-        break;
-    }
-
-    // Append Logs to JSON:
-    if(!Gateway.insertLogs(logMessages)) {
-        LogFile.log(ERROR, "Failed to insert logs");
-        break;
-    }
-
-    // Send Sync Request:
-    if(!Gateway.synchronize()) {
-        LogFile.log(ERROR, "Failed to synchronize.");
-        break;
-    }
-
-    // Clear Error Led: sync'ed any error logs
-    LogFile.acknowledge();
-    
-    // Shrink Data File:
-    if(!DataFile.shrink(sensorData.size())) {
-        LogFile.log(WARNING, "Failed to shrink data file");
-        break;
-    }
-
-    // Shrink Log File:
-    if(!LogFile.shrink(logMessages.size())) {
-        LogFile.log(WARNING, "Failed to shrink log file");
-        break;
-    }
-
-    // Update Intervals:
-    std::vector<interval_t> intervals;
-    intervals.reserve(MAX_INTERVALLS);
-    if(Gateway.getIntervals(intervals)) {
-        Pump.scheduleIntervals(intervals);
-        Config.storePumpIntervals(intervals);
-    }
-
-    // Update Sync Periods:
-    // -> based on how much data is left to sync and what the web application asks
-    sync_t sync;
-    if(Gateway.getSync(&sync)) {
-        unsigned int newLoopPeriode;
-        size_t count = DataFile.itemCount();
-        log_d("target periode sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
-        log_d("Data items left: %u", count);        
-        if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
-            newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
-        } else { // synced most of data, set according to received settings
-            newLoopPeriode = sync.periods[sync.mode] * 1000;
-        }
-        if(newLoopPeriode != networkLoopPeriode) {
-            networkLoopPeriode = newLoopPeriode;
-            log_i("Updated loop periode to %u", networkLoopPeriode);
-        }
-    }
-
-    } while(0); // Gateway no longer needed, clear
-
-    // Clear Gateway:
-    Gateway.clear();
-
-    } while(0); // single-iteration-loop
-
-    // Exit This Task:
-    xTaskNotifyGive(networkLoopHandle); // notfiy sync loop task
-    vTaskDelete(NULL); // delete task when done, don't forget this!
-}
-
-/**
- * Often network interaction requires a lot of heap memory. This function implements the a
- * heap-watcher that makes sure not two heap-heavy tasks run at the same time. It is implemented
- * as a loop with a variable loop-periode length defined by TRANSMISSION_PERIODE (currently once per hour). Every two hours the
- * sendMailTask gets created and a mail is send. Once a day (between 00:00 - 01:00) the
- * requestWeatherDataTask is created and new data is requested.
- * 
- * This task makes sure that no two heap-heavy task run at the same time. The heap management is
- * done by deciding which heap-heavy task may run and creating a mutex for heap usage. To
- * implement this behaviour the heapWatcherTask makes use of its nofication parameter at index 0
- * (=default), which gets either set to 1 (heap may be used by heap-heavy tasks) or set to 0
- * (heap a already used by a heap-heavy task). This is similar to a semaphore guarding shared
- * memory, see FreeRTOS documentation for details on this.
- * 
- * Before any of the heap-heavy tasks gets created this function/tasks waits at ulTaskNotifyTake()
- * blocking wait for the notifcation parameter to be set again, e.g. heap usage is allowed. To
- * prevent a deadlock here it is important that the heap-heavy tasks do notify this task before
- * they finish and get deleted, to signal that they no longer require the heap usage.
- * @param parameter Pointer to a parameter struct (unused for now)
- * @note Loops evey hour
- */
-void networkLoop(void* parameter) {
-    // Initalize Task:
-    TickType_t xFrequency = SYNCHRONIZATION_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
+    unsigned int networkLoopPeriode = SYNCHRONIZATION_PERIOD; // loop periode in milliseconds
     size_t lastFreeHeapSize = -1; // unsigned -1 = unsigned max value
-    int inspection = -1; // hour of last inspection
     
     // Periodic Loop:
-    log_d("Created networkLoop{periode %u sec} on Core %d", xFrequency/1000,xPortGetCoreID());
     while (1) {
-        // Get Hour:
-        tm timeinfo = Time.getTime();
-        if(timeinfo.tm_hour != inspection) { // check if no recent inspection
-            // Hour of Inspection:
-            inspection = timeinfo.tm_hour;
+        // Clear Gateway:
+        Gateway.clear(); // clear any previous data
 
-            if(timeinfo.tm_hour == 0) { // inspection only at midnight
-                // Check Heap Size:
-                size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
-                if(freeHeapSize < lastFreeHeapSize) {
-                    LogFile.log(DEBUG, "Largest region currently free in heap at "+std::to_string(freeHeapSize)+" bytes.");
-                    lastFreeHeapSize = freeHeapSize;
-                }
-                
-                // Create Task for Requesting Weather:
-                // ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
-                // xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
-            
-                // Create Task for Sending Mail:
-                // ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
-                // xTaskCreate(sendMailTask,"sendMailTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
-            }
-        }
+        // Set Sync Periode:
+        log_d("loop periode %u sec", networkLoopPeriode/1000);
+        TickType_t xFrequency = networkLoopPeriode / portTICK_PERIOD_MS;
+        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
 
         // Check Heap Size:
         size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
-        log_d("minimum free heap size: %u byte",freeHeapSize);
+        if(freeHeapSize < lastFreeHeapSize) {
+            LogFile.log(DEBUG, "Largest region currently free in heap at "+std::to_string(freeHeapSize)+" bytes.");
+            lastFreeHeapSize = freeHeapSize;
+        }
 
-        // Start Sync Task:
-        xTaskCreate(synchronizationTask,"synchronizationTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
-        ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for synchronizationTask to finish (get notified)
+        // Connect to WiFi:
+        if(!Wlan.connect()) {
+            LogFile.log(ERROR, "Cannot connect to network.");
+            continue;
+        }
 
-        // Set Sync Periode:
-        xFrequency = networkLoopPeriode / portTICK_PERIOD_MS;
-        log_d("loop periode %u sec", xFrequency/1000);
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
+        // Read Data File:
+        std::vector<sensor_data_t> sensorData;
+        sensorData.reserve(BATCH_SIZE);
+        if(!DataFile.exportData(sensorData)) {
+            LogFile.log(ERROR, "Failed to export sensor values");
+            continue;
+        }
+
+        // Sanity Check:
+        if(sensorData.size() == 0) { // check if any data got exported
+            LogFile.log(WARNING, "No data exported");
+            LogFile.log(INFO, "Resetting data file"); // reset file to fix possible broken file
+            DataFile.clear();
+        }
+
+        // Read Log File:
+        std::vector<log_message_t> logMessages;
+        logMessages.reserve(20);
+        if(!LogFile.exportLogs(logMessages)) {
+            LogFile.log(ERROR, "Failed to export log messages");
+            continue;
+        }
+
+        // Append Data to JSON:
+        if(!Gateway.insertData(sensorData)) {
+            LogFile.log(ERROR, "Failed to insert data");
+            continue;
+        }
+
+        // Append Logs to JSON:
+        if(!Gateway.insertLogs(logMessages)) {
+            LogFile.log(ERROR, "Failed to insert logs");
+            continue;
+        }
+
+        // Send Sync Request:
+        if(!Gateway.synchronize()) {
+            LogFile.log(ERROR, "Failed to synchronize.");
+            continue;
+        }
+
+        // Clear Error Led: sync'ed any error logs
+        LogFile.acknowledge();
+        
+        // Shrink Data File:
+        if(!DataFile.shrink(sensorData.size())) {
+            LogFile.log(WARNING, "Failed to shrink data file");
+            continue;
+        }
+
+        // Shrink Log File:
+        if(!LogFile.shrink(logMessages.size())) {
+            LogFile.log(WARNING, "Failed to shrink log file");
+            continue;
+        }
+
+        // Update Intervals:
+        std::vector<interval_t> intervals;
+        intervals.reserve(MAX_INTERVALLS);
+        if(Gateway.getIntervals(intervals)) {
+            Pump.scheduleIntervals(intervals);
+            Config.storePumpIntervals(intervals);
+        }
+
+        // Update Sync Periods:
+        // -> based on how much data is left to sync and what the web application asks
+        sync_t sync;
+        if(Gateway.getSync(&sync)) {
+            unsigned int newLoopPeriode;
+            size_t count = DataFile.itemCount();
+            log_d("target periode sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
+            log_d("Data items left: %u", count);        
+            if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
+                newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
+            } else { // synced most of data, set according to received settings
+                newLoopPeriode = sync.periods[sync.mode] * 1000;
+            }
+            if(newLoopPeriode != networkLoopPeriode) {
+                networkLoopPeriode = newLoopPeriode;
+                log_i("Updated loop periode to %u", networkLoopPeriode);
+            }
+        }
     }
 }
 
@@ -369,7 +282,6 @@ void setup() {
     // Initalize Data File:
     if(!DataFile.begin()) {
         LogFile.log(ERROR, "Failed to initialize data file");
-        return;
     }
     
     // Enable Button Handler:
@@ -406,7 +318,7 @@ void setup() {
     // Create and Start Scheduled Tasks:
     xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
-    xTaskCreate(networkLoop,"networkLoop",DEFAULT_STACK_SIZE,NULL,1,&networkLoopHandle);
+    xTaskCreate(networkLoop,"networkLoop",2*DEFAULT_STACK_SIZE,NULL,0,&networkLoopHandle); // priority 0 (same as idle task) to prevent idle task from starvation
 
     // Finish Setup:
     LogFile.log(INFO, "Device setup.");

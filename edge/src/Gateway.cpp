@@ -141,8 +141,6 @@ sync_mode_t stringToMode(const char* modeString) {
 GatewayClass::GatewayClass() : led(LED_BLUE) {
     this->api_username = "";
     this->api_password = "";
-    this->mail_address = "";
-    this->mail_password = "";
     this->doc = JsonDocument();
 }
 
@@ -152,8 +150,6 @@ void GatewayClass::load() {
     this->api_path = Config.loadAPIPath();
     this->api_username = Config.loadAPIUsername();
     this->api_password = Config.loadAPIPassword();
-    this->mail_address = EMAIL_RECIPIENT;
-    this->mail_password = Config.loadMailPassword();
 }
 
 void GatewayClass::clear() {
@@ -184,7 +180,7 @@ std::string GatewayClass::getResponse() {
             "state": false
         },
         "software": {
-            "version": 4
+            "version": "2024-09-10T00:00:00"
         }
     }
 }
@@ -413,164 +409,6 @@ bool GatewayClass::getSync(sync_t* buffer) {
     buffer->periods[MEDIUM] = medium_periode;
     buffer->periods[LONG] = long_periode;
     buffer->mode = stringToMode(sync_mode);
-    return true;
-}
-
-// OpenMeteo API:
-
-/**
- * Request weather data for today over an api call. In case of an error use getResponse() to read
- * the error message.
- * @return true if the request was successful, false otherwise
- */
-bool GatewayClass::requestWeatherData() {
-    // Connect to WiFi:
-    if(!Wlan.connect()) {
-        LogFile.log(ERROR, "Cannot request weather data without network connection");
-        return false;
-    }
-
-    // Build String for Request URL:
-    std::string date = Time.toDateString();
-    if(date.size() == 0) {
-        LogFile.log(ERROR, "Failed to get date string");
-        return false;
-    }
-
-    std::string path = OM_PATH+std::string("?latitude=")+LATITUDE+std::string("&longitude=")+LONGITUDE+"&timezone=auto&daily=precipitation_sum&start_date="+date+"&end_date="+date;
-
-    // Initialize and Make GET Request:
-    HTTPClient http;
-    if (!http.begin(OM_HOST, 80, path.c_str())) {
-        LogFile.log(WARNING,"Failed to begin request!");
-        return false;
-    }
-    int httpCode = http.GET(); // start connection and send HTTP header
-    if(httpCode != HTTP_CODE_OK) { // httpCode will be negative on error
-        LogFile.log(WARNING,"GET request failed! "+std::string(http.errorToString(httpCode).c_str()));
-        return false;
-    }
-    if (http.getSize() > RESPONSE_BUFFER_SIZE) { // check reponse body size
-        LogFile.log(WARNING,"Response body too large.");
-        return false;
-    }
-
-    // Read HTTP Response Body:
-    std::string payload = http.getString().c_str();
-    http.end(); // clear http object
-
-    // Parse JSON Data:
-    DynamicJsonDocument doc(2048);
-    DeserializationError error = deserializeJson(this->doc, payload);
-    if(error) {
-        LogFile.log(WARNING,"Failed to parse JSON data: "+std::string(error.c_str()));
-        return false;
-    }
-
-    return true;
-}
-
-int GatewayClass::getPrecipitation() {
-    double rawPrecipitation = this->doc["daily"]["precipitation_sum"][0].as<double>();
-    return (int)rawPrecipitation;
-}
-
-// E-Mail:
-ESP_Mail_Session session;
-SMTPSession smtp;
-SMTP_Message message;
-
-bool GatewayClass::attachFile(const std::string filename) {
-    //Attach File Data:
-    SMTP_Attachment att; // declare attachment data objects
-    att.descr.filename = filename;
-    att.descr.mime = F("text/plain");
-    att.file.path = filename;
-    att.file.storage_type = esp_mail_file_storage_type_sd;
-    // att.descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
-    message.addAttachment(att);
-    return true;
-}
-
-void smtpCallback(SMTP_Status status) {
-    log_d("%s",status.info());
-
-    if(status.success()){
-        struct tm dt;
-        for (size_t i = 0; i < smtp.sendingResult.size(); i++){
-            SMTP_Result result = smtp.sendingResult.getItem(i);
-            time_t ts = (time_t)result.timestamp;
-            localtime_r(&ts, &dt);
-
-            ESP_MAIL_PRINTF("Message No: %d\n", i + 1);
-            ESP_MAIL_PRINTF("Status: %s\n", result.completed ? "success" : "failed");
-            ESP_MAIL_PRINTF("Date/Time: %d/%d/%d %d:%d:%d\n", dt.tm_year + 1900, dt.tm_mon + 1, dt.tm_mday, dt.tm_hour, dt.tm_min, dt.tm_sec);
-            ESP_MAIL_PRINTF("Recipient: %s\n", result.recipients.c_str() );
-            ESP_MAIL_PRINTF("Subject: %s\n", result.subject.c_str());
-        }
-    }
-}
-
-bool GatewayClass::sendMail(std::string& text) {
-    if(!Wlan.connect()) {
-        LogFile.log(WARNING, "Cannot send mail without network connection.");
-        return false;
-    }
-
-    // [INFO] Disable Google Security for less secure apps: https://myaccount.google.com/lesssecureapps?pli=1
-
-    //Attach Log File:
-    SMTP_Attachment att; // declare attachment data objects
-    att.descr.filename = F("/log.txt");
-    att.descr.mime = F("text/plain");
-    att.file.path = F("/log.txt");
-    att.file.storage_type = esp_mail_file_storage_type_flash;
-    // att.descr.transfer_encoding = Content_Transfer_Encoding::enc_base64;
-    message.addAttachment(att);
-    
-    //Set E-Mail credentials:
-    message.sender.name = "ESP32";
-    message.sender.email = EMAIL_SENDER_ACCOUNT;
-    message.subject = EMAIL_SUBJECT;
-    message.addRecipient("Oliver Wohrer", this->mail_address.c_str());
-    // message.addCc("Peter Wohrer", );
-    message.text.content = text;
-
-    // Session Settings:
-    session.server.host_name = SMTP_SERVER;
-    session.server.port = SMTP_SERVER_PORT;
-    session.login.email = this->mail_address;
-    session.login.password = this->mail_password;
-    session.login.user_domain = ""; //F("gmail.com");
-
-    session.time.ntp_server = NTP_SERVER;
-    session.time.gmt_offset = GMT_TIME_ZONE;
-    session.time.day_light_offset = DAYLIGHT_OFFSET;
-
-    //Make Connection to SMTP Server:
-    smtp.debug(0);
-    smtp.callback(smtpCallback);
-    if (!smtp.connect(&session)) {
-        LogFile.log(WARNING,"Failed to establish STMP session, "+std::string(smtp.errorReason().c_str()));
-        message.clear();
-        smtp.closeSession();
-        smtp.sendingResult.clear();
-        return false;
-    }
-
-    //Start Sending the Email and Close the Session:
-    if(!MailClient.sendMail(&smtp, &message, true)) {
-        LogFile.log(WARNING,"Error sending Email: "+std::string(smtp.errorReason().c_str()));
-        message.clear();
-        smtp.closeSession();
-        smtp.sendingResult.clear();
-        return false;
-    }
-
-    //Clean up Mail Data:
-    message.clear();
-    smtp.closeSession();
-    smtp.sendingResult.clear();
     return true;
 }
 

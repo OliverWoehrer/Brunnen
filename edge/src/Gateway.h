@@ -20,23 +20,8 @@
 // Pin Definitions:
 #define LED_BLUE 2
 
-// OpenMeteo API:
+// TreeAPI:
 #define RESPONSE_BUFFER_SIZE 1024
-#define OM_HOST "api.open-meteo.com"
-#define OM_PATH "/v1/forecast"
-#define LATITUDE "48.11"
-#define LONGITUDE "16.39"
-#define PARAMETER "precipitation_sum"
-#define TIME_ZONE_MODE "auto"
-
-// Mail Client:
-#define EMAIL_SENDER_ACCOUNT "iot.baumgasse@gmail.com"
-#define SMTP_SERVER "smtp.gmail.com"
-#define SMTP_SERVER_PORT 587
-#define EMAIL_RECIPIENT "oliver.woehrer@gmail.com"
-#define EMAIL_SUBJECT "ESP32 Mail with Attachment"
-#define MAIL_TEXT_LENGTH 1024
-#define ERROR_TEXT_LENGTH 512
 
 // NTP Server:
 #define NTP_SERVER "pool.ntp.org"
@@ -69,14 +54,6 @@ public:
     bool getIntervals(std::vector<interval_t>& intervals);
     bool getSync(sync_t* sync);
 
-    // OpenMeteo API:
-    bool requestWeatherData();
-    int getPrecipitation();
-
-    // E-Mail:
-    bool attachFile(const std::string filename);
-    bool sendMail(std::string& text);
-
 private:
     // Hardware:
     Output::Digital led;
@@ -87,8 +64,6 @@ private:
     std::string api_path;
     std::string api_username;
     std::string api_password;
-    std::string mail_address;
-    std::string mail_password;
     std::string response;
 
     // Requests:
