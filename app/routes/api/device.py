@@ -4,13 +4,15 @@ This module implements the functions to handle routes of "/device"
 from flask import Blueprint, g, request, current_app
 from werkzeug.exceptions import HTTPException, BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, InternalServerError, BadGateway, Unauthorized
 from datetime import datetime, timedelta, timezone
-import traceback
-import time
 import json
+import logging
 import pandas as pd
 from data import data_client as db
 import config
 from ..web.web import get_last_visit
+
+# Logger:
+logger = logging.getLogger(__name__)
 
 # Global Variables:
 last_sync = datetime.now(timezone.utc).replace(microsecond=0)
@@ -188,7 +190,8 @@ def brunnen():
         raise BadGateway(("Problem while reading settings for response: "+str(msg)))
     g.last_sync = datetime.now(timezone.utc).replace(microsecond=0)
     payload = {} if not settings else { "settings": settings }
-    return payload, 200
+    response = json.dumps(payload) # print to valid json string
+    return response, 200
 
 @device.after_request
 def log(response):
@@ -199,11 +202,10 @@ def log(response):
 @device.errorhandler(Exception)
 def error(e: Exception):
     if isinstance(e, HTTPException): # display HTTP errors
-        # TODO: use logger
-        # current_app.logger.exception(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
+        logger.exception(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
         return e.description, e.code
     else: # return unknown errors
-        # current_app.logger.exception(f"{e}:\r\n{e.__traceback__}")
+        logger.exception(f"{e}:\r\n{e.__traceback__}")
         return str(e), 500
 
 def get_last_sync() -> datetime:
