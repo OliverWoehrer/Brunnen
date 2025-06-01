@@ -289,8 +289,8 @@ class InfluxDataClient():
             "pump": {
                 "state": false
             },
-            "software": {
-                "version": 4
+            "firmware": {
+                "version": "2025-05-30T14:40:34"
             }
         }
 
@@ -300,7 +300,7 @@ class InfluxDataClient():
         """
         data = {}
         cols = []
-        SUPPORTED_SETTINGS = ["sync","intervals","pump","thresholds","software"]
+        SUPPORTED_SETTINGS = ["sync","intervals","pump","thresholds","firmware"]
         for key in settings:
             if key in SUPPORTED_SETTINGS: # check if each setting is known
                 data[key] = json.dumps(settings[key])
@@ -353,7 +353,7 @@ class InfluxDataClient():
             return ("Did not find settings", {})
         
         # Check Available Fields:
-        SUPPORTED_FIELDS = ["sync","intervals","pump","software","thresholds"]
+        SUPPORTED_FIELDS = ["sync","intervals","pump","firmware","thresholds"]
         available_fields = []
         for key in SUPPORTED_FIELDS:
             if key in df.columns:

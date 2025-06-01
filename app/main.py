@@ -46,6 +46,9 @@ if __name__ == "__main__":
     if not key:
         raise RuntimeError("Failed to load APP_KEY environment variable.")
     app.secret_key = key
+    if not os.path.exists("./files"):
+        os.makedirs("./files")
+    app.config['files'] = "./files"
 
     # Start App at Desired Port:
     port = config.readPort()
