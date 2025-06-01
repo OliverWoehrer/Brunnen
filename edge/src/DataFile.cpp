@@ -6,7 +6,7 @@
 /**
  * Constructor initalizes the file system (external SD card)
  */
-DataFileClass::DataFileClass(const std::string& filename) : file(SD, filename) {
+DataFileClass::DataFileClass(const std::string& filename) : file(SPIFFS, filename) {
     this->semaphore = xSemaphoreCreateMutex();
     if(semaphore == NULL) {
         log_e("Not enough heap to use data file semaphore");
@@ -18,9 +18,8 @@ DataFileClass::DataFileClass(const std::string& filename) : file(SD, filename) {
  * @return true on success, false otherwise
  */
 bool DataFileClass::begin() {
-    // Mount SD Card:
-    if(!SD.begin(SPI_CD)) {
-        log_e("Failed to mount SD card");
+    if(!SPIFFS.begin(true)) {
+        log_e("Unable to mount SPIFFS");
         return false;
     }
 
@@ -186,18 +185,18 @@ bool DataFileClass::exportData(std::vector<sensor_data_t>& data) {
  * @note Use this method after you successfully exported items with 'exportData()'
  */
 bool DataFileClass::shrink(size_t num) {
-    log_d("shrink by %u lines", num);
-
     if(this->file.size()) { // check if file is not empty
+        log_d("shrink disk file by %u lines", num);
         if(!this->file.shrink(num)) {
             log_e("Failed to shrink data file");
             return false;
         }
-    } // else: file already empty, shrink cache instead
-
-    if(!shrinkCache(num)) {
-        log_e("Failed to shrink cache");
-        return false;
+    } else { // file already empty, shrink cache instead
+        log_d("shrink cache by %u items", num);
+        if(!shrinkCache(num)) {
+            log_e("Failed to shrink cache");
+            return false;
+        }
     }
 
     return true;
