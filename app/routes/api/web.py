@@ -1,11 +1,12 @@
 """
 This module implements the functions to handle routes of "/api/ui"
 """
-from flask import Blueprint, session, render_template, redirect, url_for, request, flash, current_app
+from flask import Blueprint, session, render_template, redirect, send_file, request, flash, current_app
 from werkzeug.security import generate_password_hash
-from werkzeug.exceptions import HTTPException, BadRequest, UnprocessableEntity, BadGateway, Unauthorized, Forbidden
+from werkzeug.exceptions import HTTPException, BadRequest, UnprocessableEntity, BadGateway, Unauthorized, Forbidden, InternalServerError
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, timezone
-import json
+import hashlib
 import re
 import config
 from data import data_client as db
@@ -370,6 +371,62 @@ def thresholds():
 
         # Return JSON Response:
         return redirect(request.referrer)
+
+@web.route("/firmware", methods=["GET","POST"])
+def firmware():
+    if request.method == "GET":
+        filepath = f"{current_app.config["files"]}/firmware.bin"
+        file = open(filepath, mode="rb")
+        if file is None:
+            raise InternalServerError("Failed to open file")
+        return send_file(file, as_attachment=True, download_name="firmware.bin", mimetype="application/octet-stream")
+
+    if request.method == "POST":
+        # Parse File Upload:
+        file = request.files['my_firmware']
+        if file is None:
+            raise BadRequest("Missing firmware file.")
+        filename = file.filename
+        if filename == '':
+            raise UnprocessableEntity("No selected firmware file.")
+        if filename.rsplit('.', 1)[1].lower() != "bin":
+            raise BadRequest(f"Unexpected file extension. Expected '.bin' but got '{filename}'")
+    
+        # Save Firmware File:
+        filename = secure_filename(filename) # convert to ASCII friendly format
+        try:
+            file.save(f"{current_app.config["files"]}/firmware.bin")
+        except Exception as e:
+            raise InternalServerError(f"Could not save uploaded file ({e})")
+
+        # Read Firmware Version From Database:
+        (msg,settings) = db.querySettings()
+        if settings is None:
+            raise BadGateway(("Problem while reading settings: "+msg))
+        firmware = settings.get("firmware", config.readBrunnenSettings("firmware"))
+
+        # Update Firmware Version:
+        DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+        firmware["version"] = timestamp.strftime(DATETIME_FORMAT)
+
+        # Write Update Settings to Database:
+        updatedSettings = { "firmware": firmware }
+        msg = db.insertSettings(updatedSettings)
+        if msg:
+            raise BadGateway(("Problem while writing settings: "+msg))
+
+        # Return JSON Response:
+        return redirect(request.referrer)
+
+@web.route("/firmwarestatus", methods=["GET"])
+def firmwarestatus():
+    # Read Firmware Version From Database:
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    firmware = settings.get("firmware", config.readBrunnenSettings("firmware"))
+    return firmware
 
 @web.after_request
 def log(response):
