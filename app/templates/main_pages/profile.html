@@ -39,13 +39,13 @@
     {% call cards.white(classes="panel") %}
     <div class="app">
         <header class="w3-row">
-                <div class="w3-col l3 m3 s3">
-                    <img srcset="{{url_for('static',filename='portrait.png')}}" class="w3-image w3-circle w3-padding" style="width: 100%;">
-                </div>
-                <div class="w3-col l9 m9 s9">
-                    <span class="w3-xxlarge" style="font-weight: bold;">{{ session["username"] }}</span><br>
-                    <span class="w3-large">{{ session["group"] }}</span>
-                </div>
+            <div class="w3-col l3 m3 s3">
+                <img srcset="{{url_for('static',filename='portrait.png')}}" class="w3-image w3-circle w3-padding" style="width: 100%;">
+            </div>
+            <div class="w3-col l9 m9 s9">
+                <span class="w3-xxlarge" style="font-weight: bold;">{{ session["username"] }}</span><br>
+                <span class="w3-large">{{ session["group"] }}</span>
+            </div>
         </header>
         <main>
         </main>
