@@ -427,4 +427,36 @@ std::string ConfigClass::loadAPIPassword() {
     return buffer;
 }
 
+/**
+ * Takes the name of the firmware version and stores it into flash memory
+ * @param version name of the firmware version
+ */
+void ConfigClass::storeFirmwareVersion(const char* version) {
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, false);
+    this->preferences.putString("fw_version", version);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+}
+
+/**
+ * Loads the firmware version from flash memory
+ * @return name of the current firmeware version
+ */
+std::string ConfigClass::loadFirmwareVersion() {
+    // Read From Memory:
+    char buffer[50]; // max. password length
+    xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT); // blocking wait
+    this->preferences.begin(CONFIG_NAME, true);
+    size_t len = this->preferences.getString("fw_version", buffer, 50);
+    this->preferences.end();
+    xSemaphoreGive(this->semaphore); // give back mutex semaphore
+
+    // Return Key:
+    if(!len) {
+        return "1970-01-01T00:00:00";
+    }
+    return buffer;
+}
+
 ConfigClass Config = ConfigClass();

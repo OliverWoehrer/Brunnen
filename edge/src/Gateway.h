@@ -50,9 +50,12 @@ public:
     // Tree API:
     bool insertData(std::vector<sensor_data_t> sensorData);
     bool insertLogs(std::vector<log_message_t> logMessages);
+    bool insertFirmwareVersion(std::string &version);
     bool synchronize();
     bool getIntervals(std::vector<interval_t>& intervals);
     bool getSync(sync_t* sync);
+    bool getFirmware(std::string &firmware);
+    bool downloadFirmware();
 
 private:
     // Hardware:

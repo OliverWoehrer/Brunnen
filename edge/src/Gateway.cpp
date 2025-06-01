@@ -1,5 +1,8 @@
 #include "Gateway.h"
+#include "Config.h"
 #include <ArduinoJson.h>
+#include <Update.h>
+#include <MD5Builder.h>  // For MD5 checksum
 
 const char* statusToString(int statusCode) {
     switch (statusCode) {
@@ -179,7 +182,7 @@ std::string GatewayClass::getResponse() {
         "pump": {
             "state": false
         },
-        "software": {
+        "firmware": {
             "version": "2024-09-10T00:00:00"
         }
     }
@@ -222,6 +225,14 @@ bool GatewayClass::insertLogs(std::vector<log_message_t> logMessages) {
         a.add(log.tag);
     }
 
+    return true;
+}
+
+bool GatewayClass::insertFirmwareVersion(std::string &version) {
+    JsonObject settings = this->doc["settings"].to<JsonObject>();
+    JsonObject firmware = settings["firmware"].to<JsonObject>();
+    firmware["version"] = version.c_str();
+    
     return true;
 }
 
@@ -409,6 +420,158 @@ bool GatewayClass::getSync(sync_t* buffer) {
     buffer->periods[MEDIUM] = medium_periode;
     buffer->periods[LONG] = long_periode;
     buffer->mode = stringToMode(sync_mode);
+    return true;
+}
+
+bool GatewayClass::getFirmware(std::string &fw) {
+    // Convert to JSON:
+    JsonObjectConst obj = this->doc.as<JsonObjectConst>();
+
+    // Parse JSON Document:
+    JsonObjectConst settings = obj["settings"].as<JsonObjectConst>();
+    if(!settings) {
+        log_w("response does not have key 'settings'");
+        return false;
+    }
+    JsonObjectConst firmware = settings["firmware"].as<JsonObjectConst>();
+    if(!firmware) {
+        log_w("settings has no 'firmware' object");
+        return false;
+    }
+
+    // Parse Firmware Version:
+    const char* version = firmware["version"].as<const char*>();
+    if(!version) {
+        LogFile.log(WARNING,"firmware does not have 'version' key");
+        return false;
+    }
+
+    // Copy Strings into Buffer:
+    fw = version;
+
+    return true;
+}
+
+bool GatewayClass::downloadFirmware() {
+    LogFile.log(INFO, "Downloading firmware");
+    
+    // Connect to WiFi:
+    if(!Wlan.connect()) {
+        LogFile.log(WARNING, "Cannot fetch firmware without network connection");
+        return false;
+    }
+    
+    // Initialize Request:
+    HTTPClient http;
+    std::string path = this->api_path + "/firmware";
+    if(!http.begin(this->api_host.c_str(), this->api_port, path.c_str())) {
+        LogFile.log(WARNING,"Failed to begin request!");
+        return false;
+    }
+
+    // Set Headers:
+    http.addHeader("Accept", "application/octet-stream");
+    http.setAuthorization(this->api_username.c_str(), this->api_password.c_str());
+    http.setUserAgent("ESP32 Brunnen");
+    http.setTimeout(8000);
+
+    // Collect Response Headers:
+    const char* headerKeys[] = {"X-Firmware-Version", "X-File-Checksum"};
+    size_t numberOfHeaders = sizeof(headerKeys) / sizeof(headerKeys[0]);
+    http.collectHeaders(headerKeys, numberOfHeaders); // set headers to collect in the response
+
+    // Start Connection:
+    this->led.on();
+    int httpCode = http.GET(); // start connection and send HTTP header
+    this->led.off();
+
+    // Check Response:
+    if(httpCode < 0) { // httpCode is negative on error
+        LogFile.log(WARNING,"Request failed: "+std::string(http.errorToString(httpCode).c_str()));
+        return false;
+    }
+    if(httpCode != HTTP_CODE_OK) {
+        LogFile.log(WARNING,"Response: ["+std::to_string(httpCode)+" "+statusToString(httpCode)+"] "+http.getString().c_str());
+        return false;
+    }
+    int contentLength = http.getSize();
+    if(contentLength < 0) {
+        LogFile.log(WARNING, "Response has invalid size ('Content-Length' not set by server)");
+        return false;
+    }
+
+    // Check Version:
+    if(!http.hasHeader("X-Firmware-Version")) {
+        LogFile.log(ERROR, "Server did not include firmware version into response");
+        return false;
+    }
+    String newVersion = http.header("X-Firmware-Version");
+    String oldVersion = Config.loadFirmwareVersion().c_str();
+    if(newVersion.equalsIgnoreCase(oldVersion)) {
+        LogFile.log(INFO, "Firmware already up to date, updating anyway");
+    }
+
+    // Start the Update Process:
+    if(!Update.begin(contentLength, U_FLASH)) { // U_FLASH for flashing the application, U_SPIFFS for updating SPIFFS
+        LogFile.log(WARNING, Update.errorString());
+        LogFile.log(ERROR, "Not enough space to begin update or invalid size");
+        return false;
+    }
+
+    // Get the stream for the downloaded file
+    log_d("Downloading firmware...");
+    WiFiClient& client = http.getStream();
+    size_t writtenBytes = 0;
+    uint8_t buff[1024];
+    MD5Builder md5;
+    md5.begin();
+    while(client.available() && writtenBytes < contentLength) {
+        size_t readBytes = client.readBytes(buff, sizeof(buff));
+        if(readBytes == 0) {
+            log_d("Failed to read bytes");
+            continue;
+        }
+        md5.add(buff, readBytes); // Add to MD5 calculation
+        if(Update.write(buff, readBytes) != readBytes) {
+            Update.end(false); // End update with error
+            LogFile.log(WARNING, Update.errorString());
+            LogFile.log(ERROR, "Error writing firmware to flash.");
+            return false;
+        }
+        writtenBytes += readBytes;
+    }
+
+    log_d("Downloaded %u / %u bytes", writtenBytes, contentLength);
+
+    // Calculate MD5 Checksum:
+    md5.calculate();
+    String calculatedChecksum = md5.toString();
+    log_d("Calculated MD5 checksum: %s", calculatedChecksum.c_str());
+
+    // Check Checksum:
+    if(!http.hasHeader("X-File-Checksum")) {
+        LogFile.log(ERROR, "Cannot verify checksum. Response header 'X-File-Checksum' missing");
+        return false;
+    }
+    String expectedChecksum = http.header("X-File-Checksum");
+    log_d("Expected MD5 checksum: %s", expectedChecksum.c_str());
+    if(!calculatedChecksum.equalsIgnoreCase(expectedChecksum)) {
+        LogFile.log(ERROR, "Checksum verification failed!");
+        Update.end(false); // End update with error
+        return false;
+    }
+
+    // Finalize Update:
+    if(!Update.end(true)) { // true to set the size to the current progress
+        LogFile.log(WARNING, Update.errorString());
+        LogFile.log(ERROR, "Failed to finalize firmware update");
+        return false;
+    }
+
+    // Store Firmware Version:
+    Config.storeFirmwareVersion(newVersion.c_str());
+    
+    LogFile.log(INFO, "Firmware download successfully");
     return true;
 }
 

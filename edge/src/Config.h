@@ -42,6 +42,9 @@ public:
     std::string loadAPIUsername();
     void storeAPIPassword(const char* pw);
     std::string loadAPIPassword();
+
+    void storeFirmwareVersion(const char* version);
+    std::string loadFirmwareVersion();
 private:
     Preferences preferences;
     SemaphoreHandle_t semaphore;

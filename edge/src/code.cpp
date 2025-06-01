@@ -40,7 +40,7 @@
 // SCHEDULED TASKS
 //===============================================================================================
 TaskHandle_t buttonHandlerHandle = NULL;
-TaskHandle_t networkLoopHandle = NULL;
+TaskHandle_t syncLoopHandle = NULL;
 
 /**
  * This function implements the buttonHandlerTask with an (blocking) infinite loop and gets
@@ -76,6 +76,31 @@ void buttonHandlerTask(void* parameter) {
     }
 
     // Delete Task When Done:
+    vTaskDelete(NULL); // delete task when done, don't forget this!
+}
+
+void updaterTask(void* parameter) {
+    do {
+        std::string available_version;
+        if(!Gateway.getFirmware(available_version)) {
+            LogFile.log(WARNING, "Failed to extract firmware version");
+            break;
+        }
+
+        // Fetch Firmware File:
+        if(!Gateway.downloadFirmware()) {
+            LogFile.log(ERROR, "Failed to download firmware");
+            break;
+        }
+
+        // Finalize Update:
+        LogFile.log(INFO, "Installing firmware. Rebooting...");
+        delay(3000);
+        ESP.restart();
+    } while(0);
+
+    // Exit This Task:
+    xTaskNotifyGive(syncLoopHandle); // notfiy sync loop task
     vTaskDelete(NULL); // delete task when done, don't forget this!
 }
 
@@ -118,38 +143,39 @@ void synchronizationTask(void* parameter) {
             continue;
         }
 
-        // Read Data File:
+        // Append Data to JSON:
         std::vector<sensor_data_t> sensorData;
         sensorData.reserve(BATCH_SIZE);
         if(!DataFile.exportData(sensorData)) {
             LogFile.log(ERROR, "Failed to export sensor values");
             continue;
         }
-
-        // Sanity Check:
         if(sensorData.size() == 0) { // check if any data got exported
             LogFile.log(WARNING, "No data exported");
             LogFile.log(INFO, "Resetting data file"); // reset file to fix possible broken file
             DataFile.clear();
         }
-
-        // Read Log File:
-        std::vector<log_message_t> logMessages;
-        logMessages.reserve(20);
-        if(!LogFile.exportLogs(logMessages)) {
-            LogFile.log(ERROR, "Failed to export log messages");
-            continue;
-        }
-
-        // Append Data to JSON:
         if(!Gateway.insertData(sensorData)) {
             LogFile.log(ERROR, "Failed to insert data");
             continue;
         }
 
         // Append Logs to JSON:
+        std::vector<log_message_t> logMessages;
+        logMessages.reserve(20);
+        if(!LogFile.exportLogs(logMessages)) {
+            LogFile.log(ERROR, "Failed to export log messages");
+            continue;
+        }
         if(!Gateway.insertLogs(logMessages)) {
             LogFile.log(ERROR, "Failed to insert logs");
+            continue;
+        }
+
+        // Append Firmware Version to JSON:
+        std::string version = Config.loadFirmwareVersion();
+        if(!Gateway.insertFirmwareVersion(version)) {
+            LogFile.log(ERROR, "Failed to insert firmware version");
             continue;
         }
 
@@ -161,18 +187,6 @@ void synchronizationTask(void* parameter) {
 
         // Clear Error Led: sync'ed any error logs
         LogFile.acknowledge();
-        
-        // Shrink Data File:
-        if(!DataFile.shrink(sensorData.size())) {
-            LogFile.log(WARNING, "Failed to shrink data file");
-            continue;
-        }
-
-        // Shrink Log File:
-        if(!LogFile.shrink(logMessages.size())) {
-            LogFile.log(WARNING, "Failed to shrink log file");
-            continue;
-        }
 
         // Update Intervals:
         std::vector<interval_t> intervals;
@@ -199,6 +213,34 @@ void synchronizationTask(void* parameter) {
                 networkLoopPeriode = newLoopPeriode;
                 log_i("Updated loop periode to %u", networkLoopPeriode);
             }
+        }
+
+        // Check for new Firmware Version:
+        std::string available_version;
+        if(Gateway.getFirmware(available_version)) {
+            std::string deployed_version = Config.loadFirmwareVersion();
+            log_d("Firmware versions -> Available: %s Deployed: %s",available_version.c_str(), deployed_version.c_str());
+            if(deployed_version != available_version) {
+                LogFile.log(INFO, "New firmware version available");
+                
+                // Start Updater Task:
+                xTaskCreate(updaterTask,"updaterTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
+                
+                // Wait For Updater to Finish:
+                ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
+            }
+        }
+
+        // Shrink Data File:
+        if(!DataFile.shrink(sensorData.size())) {
+            LogFile.log(WARNING, "Failed to shrink data file");
+            continue;
+        }
+
+        // Shrink Log File:
+        if(!LogFile.shrink(logMessages.size())) {
+            LogFile.log(WARNING, "Failed to shrink log file");
+            continue;
         }
     }
 }
@@ -318,7 +360,7 @@ void setup() {
     // Create and Start Scheduled Tasks:
     xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
-    xTaskCreate(networkLoop,"networkLoop",2*DEFAULT_STACK_SIZE,NULL,0,&networkLoopHandle); // priority 0 (same as idle task) to prevent idle task from starvation
+    xTaskCreate(synchronizationTask,"synchronizationLoop",2*DEFAULT_STACK_SIZE,NULL,0,&syncLoopHandle); // priority 0 (same as idle task) to prevent idle task from starvation
 
     // Finish Setup:
     LogFile.log(INFO, "Device setup.");
