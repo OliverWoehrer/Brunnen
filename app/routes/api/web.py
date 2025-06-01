@@ -375,7 +375,7 @@ def thresholds():
 @web.route("/firmware", methods=["GET","POST"])
 def firmware():
     if request.method == "GET":
-        filepath = f"{current_app.config["files"]}/firmware.bin"
+        filepath = current_app.config["files"] + "/firmware.bin"
         file = open(filepath, mode="rb")
         if file is None:
             raise InternalServerError("Failed to open file")
@@ -395,7 +395,7 @@ def firmware():
         # Save Firmware File:
         filename = secure_filename(filename) # convert to ASCII friendly format
         try:
-            file.save(f"{current_app.config["files"]}/firmware.bin")
+            file.save(f"{current_app.config['files']}/firmware.bin")
         except Exception as e:
             raise InternalServerError(f"Could not save uploaded file ({e})")
 

@@ -200,7 +200,7 @@ def brunnen():
 @device.route("/brunnen/firmware", methods=["GET"])
 def brunnenupdate():
     # Open Firmware File:
-    filepath = f"{current_app.config["files"]}/firmware.bin"
+    filepath = current_app.config["files"] + "/firmware.bin"
     if not os.path.exists(filepath):
         raise InternalServerError("File 'firmware.bin' not found")
     file = open(filepath, mode="rb")
