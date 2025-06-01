@@ -1,10 +1,13 @@
 """
 This module implements the functions to handle routes of "/device"
 """
-from flask import Blueprint, g, request, current_app
+from flask import Blueprint, g, request, current_app, send_file, send_from_directory
 from werkzeug.exceptions import HTTPException, BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, InternalServerError, BadGateway, Unauthorized
 from datetime import datetime, timedelta, timezone
+from io import BytesIO
+import os
 import json
+import hashlib
 import logging
 import pandas as pd
 from data import data_client as db
@@ -51,7 +54,7 @@ def check_credentials():
         raise Unauthorized("Wrong credentials.")
 
 @device.route("/brunnen", methods=["GET", "POST", "DELETE"])
-def brunnen():    
+def brunnen():
     if request.method == "GET":
         g.last_sync = datetime(1970,1,1)
 		
@@ -105,7 +108,8 @@ def brunnen():
                     settings[key] = payload["settings"][key]
             
             # Write Settings:
-            msg = db.insertSettings(settings=settings)
+            if settings != {}:
+                msg = db.insertSettings(settings=settings)
             if msg:
                 raise BadGateway(("Problem while inserting settings: "+str(msg)))
 
@@ -192,6 +196,33 @@ def brunnen():
     payload = {} if not settings else { "settings": settings }
     response = json.dumps(payload) # print to valid json string
     return response, 200
+
+@device.route("/brunnen/firmware", methods=["GET"])
+def brunnenupdate():
+    # Open Firmware File:
+    filepath = f"{current_app.config["files"]}/firmware.bin"
+    if not os.path.exists(filepath):
+        raise InternalServerError("File 'firmware.bin' not found")
+    file = open(filepath, mode="rb")
+    if file is None:
+        raise InternalServerError("Failed to open file")
+    data = file.read()
+    
+    # Create Response:
+    response = send_file(BytesIO(data), as_attachment=True, download_name="firmware.bin", mimetype="application/octet-stream")
+
+    # Calculate Checksum:
+    checksum = hashlib.md5(data).hexdigest()
+    response.headers["X-File-Checksum"] = checksum # add custom header
+
+    # Read Firmware Version From Database:
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    firmware = settings.get("firmware", config.readBrunnenSettings("firmware"))
+    response.headers["X-Firmware-Version"] = firmware["version"] # add custom header
+
+    return response
 
 @device.after_request
 def log(response):
