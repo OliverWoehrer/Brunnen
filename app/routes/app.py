@@ -14,6 +14,9 @@ app = Flask(__name__, template_folder="../templates", static_folder="../static")
 app.register_blueprint(api)
 app.register_blueprint(web)
 
+import werkzeug
+werkzeug.serving._log_add_style = False # set to True for colored log messages
+
 @app.before_request
 def refresh_session_livetime():
     # app.permanent_session_lifetime = timedelta(minutes=10)

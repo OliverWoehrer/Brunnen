@@ -1,21 +1,27 @@
 """
 This module implements the functions to handle routes of "/device"
 """
-from flask import Blueprint, g, request
-from werkzeug.exceptions import BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, BadGateway, Unauthorized
+from flask import Blueprint, g, request, current_app, send_file, send_from_directory
+from werkzeug.exceptions import HTTPException, BadRequest, Forbidden, NotFound, MethodNotAllowed, UnprocessableEntity, InternalServerError, BadGateway, Unauthorized
 from datetime import datetime, timedelta, timezone
-import time
+from io import BytesIO
+import os
 import json
+import hashlib
+import logging
 import pandas as pd
 from data import data_client as db
 import config
 from ..web.web import get_last_visit
 
+# Logger:
+logger = logging.getLogger(__name__)
+
 # Global Variables:
 last_sync = datetime.now(timezone.utc).replace(microsecond=0)
 daytime = config.readBrunnenDaytime()
-daytime_start = time.strptime(daytime.get("start","08:00:00"), "%H:%M:%S")
-daytime_stop = time.strptime(daytime.get("stop","20:00:00"), "%H:%M:%S")
+daytime_start = datetime.strptime(daytime.get("start","08:00:00"), "%H:%M:%S").replace(tzinfo=timezone.utc).timetz()
+daytime_stop = datetime.strptime(daytime.get("stop","20:00:00"), "%H:%M:%S").replace(tzinfo=timezone.utc).timetz()
 
 # Register Blueprint Hierarchy:
 device = Blueprint("device", __name__, url_prefix="/device")
@@ -48,32 +54,10 @@ def check_credentials():
         raise Unauthorized("Wrong credentials.")
 
 @device.route("/brunnen", methods=["GET", "POST", "DELETE"])
-def brunnen():    
-    # Parse Start Parameter:
-    start_param = request.args.get("start")
-    if start_param is None:
-        raise UnprocessableEntity("Missing parameter 'start'.")
-    try:
-        start = datetime.fromisoformat(start_param)
-    except ValueError as e:
-        raise BadRequest(("Problem while parsing parameter 'start': "+str(e)))
-    
-    # Parse Stop Parameter:
-    stop_param = request.args.get("stop")
-    if stop_param is None:
-        raise UnprocessableEntity("Missing parameter 'stop'.")
-    try:
-        stop = datetime.fromisoformat(stop_param)
-    except ValueError as e:
-        raise BadRequest(("Problem while parsing parameter 'stop': "+str(e)))
-
-    # Input Cleaning:
-    if start > stop:
-        raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
-
+def brunnen():
     if request.method == "GET":
-        pass
-
+        g.last_sync = datetime(1970,1,1)
+		
     if request.method == "POST":
         # Parse Request Body:
         body = request.data.decode("utf-8")
@@ -87,29 +71,29 @@ def brunnen():
                 raise UnprocessableEntity("Missing 'values' field.")
             for row in data["values"]:
                 if len(data["columns"]) is not len(data["values"][row]):
-                    raise UnprocessableEntity("Number of given columns and actual value columns does not match.")
+                    raise UnprocessableEntity(f"Number of given columns and actual values in row '{row}' does not match.")
                 break
 
             # Initalize Dataframe:
-            df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
-            df = df.set_index(pd.to_datetime(df.index)) # convert to datetime
-
-            # Check Parameters:
-            if start != df.index[0]:
-                raise UnprocessableEntity("Parameter 'start' does not match with the start of the given data.")
-            if stop != df.index[-1]:
-                raise UnprocessableEntity("Parameter 'stop' does not match with the stop of the given data.")
+            try:
+                df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
+                df.reset_index(inplace=True)
+                df = df[df["index"] != ''] # filter rows with faulty timestamps
+                df.set_index("index", inplace=True)
+                df.set_index(pd.to_datetime(df.index, format="%Y-%m-%dT%H:%M:%S").tz_localize("CET"), inplace=True) # convert to datetime
+            except Exception as e:
+                raise InternalServerError(f"Could not convert data: {str(e)}")
 
             # Write Data Data:
             msg = db.insertData(data=df)
             if msg:
-                raise BadGateway(("Problem while inserting data: "+str(msg)))
+                raise BadGateway(f"Problem while inserting data: {msg}")
         
         if "logs" in payload:
             # Initalize Dataframe:
             logs = payload["logs"]
             df = pd.DataFrame.from_dict(logs, orient="index", columns=["message", "level"])
-            df = df.set_index(pd.to_datetime(df.index)) # convert to datetime
+            df = df.set_index(pd.to_datetime(df.index).tz_localize("CET")) # convert to datetime
 
             # Write Logs:
             msg = db.insertLogs(logs=df)
@@ -124,11 +108,33 @@ def brunnen():
                     settings[key] = payload["settings"][key]
             
             # Write Settings:
-            msg = db.insertSettings(settings=settings)
+            if settings != {}:
+                msg = db.insertSettings(settings=settings)
             if msg:
                 raise BadGateway(("Problem while inserting settings: "+str(msg)))
 
     if request.method == "DELETE":
+		# Parse Start Parameter:
+        start_param = request.args.get("start")
+        if start_param is None:
+            raise UnprocessableEntity("Missing parameter 'start'.")
+        try:
+            start = datetime.fromisoformat(start_param)
+        except ValueError as e:
+            raise BadRequest(("Problem while parsing parameter 'start': "+str(e)))
+
+        # Parse Stop Parameter:
+        stop_param = request.args.get("stop")
+        if stop_param is None:
+            raise UnprocessableEntity("Missing parameter 'stop'.")
+        try:
+            stop = datetime.fromisoformat(stop_param)
+        except ValueError as e:
+            raise BadRequest(("Problem while parsing parameter 'stop': "+str(e)))
+        # Input Cleaning:
+        if start > stop:
+            raise UnprocessableEntity("Invalid time period: Stop time has to be larger then start time.")
+
         # Parse Request Body:
         body = request.data.decode("utf-8")
         payload = json.loads(body)
@@ -183,15 +189,56 @@ def brunnen():
             raise BadGateway(("Problem while inserting settings: "+str(msg)))
     
     # Return Updated Settings as JSON Response:
-    (msg,settings) = db.querySettings(start_time=g.last_sync)
+    (msg,settings) = db.querySettings() #start_time=g.last_sync, to return only changed settings
     if settings is None:
         raise BadGateway(("Problem while reading settings for response: "+str(msg)))
     g.last_sync = datetime.now(timezone.utc).replace(microsecond=0)
     payload = {} if not settings else { "settings": settings }
-    return payload, 200
+    response = json.dumps(payload) # print to valid json string
+    return response, 200
+
+@device.route("/brunnen/firmware", methods=["GET"])
+def brunnenupdate():
+    # Open Firmware File:
+    filepath = current_app.config["files"] + "/firmware.bin"
+    if not os.path.exists(filepath):
+        raise InternalServerError("File 'firmware.bin' not found")
+    file = open(filepath, mode="rb")
+    if file is None:
+        raise InternalServerError("Failed to open file")
+    data = file.read()
+    
+    # Create Response:
+    response = send_file(BytesIO(data), as_attachment=True, download_name="firmware.bin", mimetype="application/octet-stream")
+
+    # Calculate Checksum:
+    checksum = hashlib.md5(data).hexdigest()
+    response.headers["X-File-Checksum"] = checksum # add custom header
+
+    # Read Firmware Version From Database:
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    firmware = settings.get("firmware", config.readBrunnenSettings("firmware"))
+    response.headers["X-Firmware-Version"] = firmware["version"] # add custom header
+
+    return response
 
 @device.after_request
 def log(response):
     global last_sync
     last_sync = g.last_sync
     return response
+
+@device.errorhandler(Exception)
+def error(e: Exception):
+    if isinstance(e, HTTPException): # display HTTP errors
+        logger.exception(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
+        return e.description, e.code
+    else: # return unknown errors
+        logger.exception(f"{e}:\r\n{e.__traceback__}")
+        return str(e), 500
+
+def get_last_sync() -> datetime:
+    global last_sync
+    return last_sync

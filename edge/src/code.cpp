@@ -10,23 +10,37 @@
 //===============================================================================================
 // LIBRARIES
 //===============================================================================================
-#include "Arduino.h" // include basic arduino functions
-#include "hw.h"
-#include "dt.h"
-#include "ui.h"
-#include "gw.h"
 
+// Peripherals:
+#include "Arduino.h" // include basic arduino functions
+#include "TimeManager.h"
+#include "WiFiManager.h"
+#include "DataFile.h"
+#include "LogFile.h"
+#include "Config.h"
+
+// Modules:
+#include "Button.h"
+#include "Gateway.h"
+#include "UserInterface.h"
+#include "Sensors.h"
+
+
+//===============================================================================================
+// GLOBAL SETTINGS
+//===============================================================================================
 #define BAUD_RATE 115200
+#define DEFAULT_STACK_SIZE (1024 * 4) // stack size in bytes
+#define SYNCHRONIZATION_PERIOD (1000 * 20)
+#define SERVICE_PERIOD (1000 * 60) // loop period in ms, once per minute
+#define MEASUREMENT_PERIOD 1000 // loop period in ms, once per second
+#define BATCH_SIZE 60 // number of data points to be synced at once
+
 //===============================================================================================
 // SCHEDULED TASKS
 //===============================================================================================
-#define TRANSMISSION_PERIODE (1000 * 60 * 60) // loop period in ms, once every hour
-#define SERVICE_PERIOD (1000 * 60) // loop period in ms, once per minute
-#define MEASUREMENT_PERIOD 1000 // loop period in ms, once per second
-#define DEFAULT_STACK_SIZE (1024 * 4) // stack size in bytes
-
 TaskHandle_t buttonHandlerHandle = NULL;
-TaskHandle_t heapWatcherHandle = NULL;
+TaskHandle_t syncLoopHandle = NULL;
 
 /**
  * This function implements the buttonHandlerTask with an (blocking) infinite loop and gets
@@ -40,37 +54,24 @@ TaskHandle_t heapWatcherHandle = NULL;
  * @param parameter Pointer to a parameter struct (unused for now)
  */
 void buttonHandlerTask(void* parameter) {
-    Serial.printf("[DEBUG] Created buttonHandlerTask on Core %d\r\n",xPortGetCoreID());
+    log_d("Created buttonHandlerTask on Core %d", xPortGetCoreID());
     while(1) {
         vTaskSuspend(NULL); // suspend this task, resume from button ISR
-        Hardware::button_indicator_t btnIndicator = Hardware::getButtonIndicator();
+        indicator_t btnIndicator = Button.getIndicator();
 
-        //Handle Short Button Press:
-        if (btnIndicator.shortPressed) {
-            Hardware::resetButtonFlags();
-            DataTime::logInfoMsg("toggle user interface");
-            if (UserInterface::isEnabled()) { // interface is enabled, disable again
-                UserInterface::disableInterface();
-                DataTime::disconnectWlan();
-                Hardware::setUILed(LOW);
-            } else { // interface is disabled, enable again
-                int cwSuccess = DataTime::connectWlan();
-                if (cwSuccess != SUCCESS) { // re-connect failed
-                    DataTime::logErrorMsg("Failed to connect WiFi.");
-                    Hardware::setErrorLed(HIGH);
-                    continue;
-                }
-                UserInterface::enableInterface();
-                Hardware::setUILed(HIGH);   
+        // Short Button Press:
+        if(btnIndicator == SHORT_PRESS) {
+            Button.resetIndicator(); // reset manually on short press
+            LogFile.log(INFO, "toggle user interface");
+            if(!UserInterface.toggle()) {
+                LogFile.log(ERROR, "Failed to enable interface");
             }
         }
 
-
-        //Handle Long Button Press:
-        if (btnIndicator.longPressed) {
-            Hardware::resetButtonFlags();
-            DataTime::logInfoMsg("toggle relais and operating mode");
-            Hardware::togglePump();
+        // Long Button Press:
+        if(btnIndicator == LONG_PRESS) {
+            LogFile.log(INFO, "toggle relais and operating mode");
+            Pump.toggle();
         }
     }
 
@@ -78,215 +79,168 @@ void buttonHandlerTask(void* parameter) {
     vTaskDelete(NULL); // delete task when done, don't forget this!
 }
 
-/**
- * This function implements the requestWeatherDataTask and requests weather data from the well
- * known OpenWeatherAPI for the location of the coordinates defined in gw.h. The task is created
- * in the function implementing the heapWatcherTask and notifies the heapWatcherTask that it has
- * finished before it gets deleted again afterwards.
- * @param parameter Pointer to a parameter struct (unused for now)
- * @note This function allocates a lot of heap memory for web requests, see heapWatcherTask for
- * details.
- */
-void requestWeatherDataTask(void* parameter) {
-    // Log Task Message:
-    /*char debugTxt[50];
-    sprintf(debugTxt,"Created requestWeatherDataTask on Core %d",xPortGetCoreID());
-    DataTime::logDebugMsg(debugTxt);*/
-    
-    // Build String for Request URL:
-    struct tm timeinfo = DataTime::loadTimeinfo();
-    char currentDate[11]; // Format: "YYYY-MM-DD"
-    sprintf(currentDate, "%04d-%02d-%02d",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
-
-    // Send Request to OpenMeteoAPI:
-    DataTime::logInfoMsg("Requesting weather data from OpenMeteo API.");
-    bool isConnected = DataTime::isWlanConnected();
-    int ret = DataTime::connectWlan(); // (re-)connect to wifi
-    if (ret == SUCCESS) {
-        ret = Gateway::requestWeatherData(currentDate, currentDate);
-        if (ret == SUCCESS) { // got data successfully
-            int rain = Gateway::getWeatherData("precipitation");
-            char weatherTxt[30];
-            sprintf(weatherTxt,"Rain today is %d mm.",rain);
-            DataTime::logInfoMsg(weatherTxt);
-
-            if (rain >= Hardware::getPumpOperatingLevel()) {
-                DataTime::logInfoMsg("Too much rain, pause pump operation.");
-                Hardware::pauseScheduledPumpOperation();
-            } else {
-                DataTime::logInfoMsg("Too little rain, resume pump operation.");
-                Hardware::resumeScheduledPumpOperation();
-            }
-        } else { // failed to request data
-            // Write Error Message to Log:
-            const char* errorMsg = Gateway::getWeatherResponse(); // response is error on fail
-            DataTime::logErrorMsg("Failed to request weather data from OpenMeteo API.");
-            DataTime::logInfoMsg(errorMsg);
-
-            // Unknown Weather Report; Resume Scheduled Operation Just in Case:
-            Hardware::resumeScheduledPumpOperation();
+void updaterTask(void* parameter) {
+    do {
+        std::string available_version;
+        if(!Gateway.getFirmware(available_version)) {
+            LogFile.log(WARNING, "Failed to extract firmware version");
+            break;
         }
-    } else {
-        DataTime::logErrorMsg("Cannot request weather data without network connection.");
-    }
-    if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
+
+        // Fetch Firmware File:
+        if(!Gateway.downloadFirmware()) {
+            LogFile.log(ERROR, "Failed to download firmware");
+            break;
+        }
+
+        // Finalize Update:
+        LogFile.log(INFO, "Installing firmware. Rebooting...");
+        delay(3000);
+        ESP.restart();
+    } while(0);
 
     // Exit This Task:
-    xTaskNotify(heapWatcherHandle,1,eSetValueWithOverwrite); // notfiy heap watcher task by setting notification value to 1
+    xTaskNotifyGive(syncLoopHandle); // notfiy sync loop task
     vTaskDelete(NULL); // delete task when done, don't forget this!
 }
 
 /**
- * This function implements the sendMailTask and sends a mail with the appropriate files (data
- * files and log file) to the recipient defined in gw.h. The task is created in the function
- * implementing the heapWatcherTask and notifies the heapWatcherTask that it has finished
- * before it gets deleted again afterwards.
+ * This function implements the synchronizationTask and periodically connects to the backend to
+ * synchronize data and settings. It is implemented as a periodic loop with a variable periode
+ * length, depending on the amount of data to synchronize. The periode length is recommended by the
+ * server in its response, but not mandatory. Recommended periode lengths are followed if there is no
+ * data left to sync. If there is still data left to synchronize, the periode is kept at a few
+ * seconds to sync again.
  * @param parameter Pointer to a parameter struct (unused for now)
- * @note This function allocates a lot of heap memory for web requests, see heapWatcherTask for
- * details
+ * @note Loops roughly every couple of seconds or once an hour
  */
-void sendMailTask(void* parameter) {
-    // Log Task Message:
-    /*char debugTxt[50];
-    sprintf(debugTxt,"Created sendMailTask on Core %d",xPortGetCoreID());
-    DataTime::logDebugMsg(debugTxt);*/
-
-    //Build Text to Send:
-    bool isNominal = Hardware::hasNominalSensorValues();
-    const char* nomTxt = isNominal ? "All sensors in nominal range. " : "Sensors out of nominal range. ";
-    Gateway::addInfoText(nomTxt);
-    unsigned char jobLength = DataTime::loadJobLength();
-
-    // Append Info Message to Gateway Text:
-    int rain = Gateway::getWeatherData("precipitation");
-    char weatherTxt[60];
-    sprintf(weatherTxt,"To my knowledge it is about to rain %d mm today. ",rain);
-    Gateway::addInfoText(weatherTxt);
-
-    // Check the Amount of Predicted Precipitation:
-    if (rain >= Hardware::getPumpOperatingLevel()) {
-        Gateway::addInfoText("That's enough rain, I will pause pump operation for now. ");
-    } else {
-        Gateway::addInfoText("That's too little rain, I will resume pump operation for now. ");
-    }
-
-    //Build Text to Send:
-    char jobTxt[50];
-    sprintf(jobTxt,"With %d data file(s) to attache, namly\r\n",jobLength+1);
-    Gateway::addInfoText(jobTxt);
-
-    // Attach File(s) to Object:
-    Gateway::addData(Hardware::loadActiveDataFileName());
-    for (unsigned int i=0; i < jobLength; i++) {
-        const char* jobName = DataTime::loadJob(i);
-        int freeMemory = Gateway::addData(jobName);
-        Serial.printf("EMail::attachFile(%s); with %d bytes left.\r\n",jobName,freeMemory);
-        if (freeMemory <= 0) break;
-    }
-
-    // Check Free Memory (File System):
-    DataTime::checkLogFile(1000000); // check free space for log file
-
-    // Send Data:
-    DataTime::logInfoMsg("Sending Mail.");
-    bool isConnected = DataTime::isWlanConnected();
-    int ret = DataTime::connectWlan(); // (re-)connect to wifi
-    if (ret == SUCCESS) {
-        ret = Gateway::sendData();
-        if (ret == SUCCESS) { // delete old file after successful send
-            Hardware::deleteActiveDataFile();
-            for (unsigned int i=0; i < jobLength; i++) {
-                const char* jobName = DataTime::loadJob(i);
-                Hardware::setActiveDataFile(jobName);
-                Hardware::deleteActiveDataFile();
-                DataTime::deleteJob(i);
-            }
-            DataTime::saveJobLength(0);
-        } else { // error occured while sending mail
-            const char* errorMsg = Gateway::getErrorMsg();
-            DataTime::logErrorMsg("Failed to send Email, adding file to job list.");
-            DataTime::logInfoMsg(errorMsg);
-            Gateway::clearData();
-            const char* fName = Hardware::loadActiveDataFileName();
-            DataTime::saveJob(jobLength, fName);
-            DataTime::saveJobLength(jobLength+1);
-        }
-    } else {
-        DataTime::logErrorMsg("Cannot send mail without network connection.");
-    }
-    if (!isConnected) DataTime::disconnectWlan(); // disconnect wifi again if not connected before
-    
-    //Set up new data file:
-    struct tm timeinfo = DataTime::loadTimeinfo();
-    char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
-    sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
-    if (Hardware::setActiveDataFile(fileName)) {
-        DataTime::logErrorMsg("Failed to initialize file system (SD-Card)");
-        Hardware::setErrorLed(HIGH);
-    }
-
-    // Exit This Task:
-    xTaskNotify(heapWatcherHandle,1,eSetValueWithOverwrite); // notfiy heap watcher task by setting notification value to 1
-    vTaskDelete(NULL); // delete task when done, don't forget this!
-}
-
-/**
- * This function implements the heapWatcherTask and watches the heap usage by starting/stoping
- * the tasks requiring a lot of heap. It is implemented as a periodic loop with a periode 
- * length defined by TRANSMISSION_PERIODE (currently once per hour). Every two hours the
- * sendMailTask gets created and a mail is send. Once a day (between 00:00 - 01:00) the
- * requestWeatherDataTask is created and new data is requested.
- * 
- * This task makes sure that no two heap-heavy task run at the same time. The heap management is
- * done by deciding which heap-heavy task may run and creating a mutex for heap usage. To
- * implement this behaviour the heapWatcherTask makes use of its nofication parameter at index 0
- * (=default), which gets either set to 1 (heap may be used by heap-heavy tasks) or set to 0
- * (heap a already used by a heap-heavy task). This is similar to a semaphore guarding shared
- * memory, see FreeRTOS documentation for details on this.
- * 
- * Before any of the heap-heavy tasks gets created this function/tasks waits at ulTaskNotifyTake()
- * blocking wait for the notifcation parameter to be set again, e.g. heap usage is allowed. To
- * prevent a deadlock here it is important that the heap-heavy tasks do notify this task before
- * they finish and get deleted, to signal that they no longer require the heap usage.
- * @param parameter Pointer to a parameter struct (unused for now)
- * @note Loops evey hour
- */
-void heapWatcherTask(void* parameter) {
+void synchronizationTask(void* parameter) {
     // Initalize Task:
-    const TickType_t xFrequency = TRANSMISSION_PERIODE / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("Created heapWatcherTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
-    size_t lastFreeHeapSize = -1;
+    unsigned int networkLoopPeriode = SYNCHRONIZATION_PERIOD; // loop periode in milliseconds
+    size_t lastFreeHeapSize = -1; // unsigned -1 = unsigned max value
     
     // Periodic Loop:
     while (1) {
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
-        struct tm timeinfo = DataTime::loadTimeinfo();
+        // Clear Gateway:
+        Gateway.clear(); // clear any previous data
 
-        if (timeinfo.tm_hour == 0) { // check heap size once a day
-            size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
-            if(freeHeapSize < lastFreeHeapSize) {
-                char heapInfoTxt[60];
-                sprintf(heapInfoTxt,"Largest region currently free in heap at %u bytes.",freeHeapSize);
-                DataTime::logDebugMsg(heapInfoTxt);
-                lastFreeHeapSize = freeHeapSize;
+        // Set Sync Periode:
+        log_d("loop periode %u sec", networkLoopPeriode/1000);
+        TickType_t xFrequency = networkLoopPeriode / portTICK_PERIOD_MS;
+        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
+
+        // Check Heap Size:
+        size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
+        if(freeHeapSize < lastFreeHeapSize) {
+            LogFile.log(DEBUG, "Largest region currently free in heap at "+std::to_string(freeHeapSize)+" bytes.");
+            lastFreeHeapSize = freeHeapSize;
+        }
+
+        // Connect to WiFi:
+        if(!Wlan.connect()) {
+            LogFile.log(ERROR, "Cannot connect to network.");
+            continue;
+        }
+
+        // Append Data to JSON:
+        std::vector<sensor_data_t> sensorData;
+        sensorData.reserve(BATCH_SIZE);
+        if(!DataFile.exportData(sensorData)) {
+            LogFile.log(ERROR, "Failed to export sensor values");
+            continue;
+        }
+        if(sensorData.size() == 0) { // check if any data got exported
+            LogFile.log(WARNING, "No data exported");
+            LogFile.log(INFO, "Resetting data file"); // reset file to fix possible broken file
+            DataFile.clear();
+        }
+        if(!Gateway.insertData(sensorData)) {
+            LogFile.log(ERROR, "Failed to insert data");
+            continue;
+        }
+
+        // Append Logs to JSON:
+        std::vector<log_message_t> logMessages;
+        logMessages.reserve(20);
+        if(!LogFile.exportLogs(logMessages)) {
+            LogFile.log(ERROR, "Failed to export log messages");
+            continue;
+        }
+        if(!Gateway.insertLogs(logMessages)) {
+            LogFile.log(ERROR, "Failed to insert logs");
+            continue;
+        }
+
+        // Append Firmware Version to JSON:
+        std::string version = Config.loadFirmwareVersion();
+        if(!Gateway.insertFirmwareVersion(version)) {
+            LogFile.log(ERROR, "Failed to insert firmware version");
+            continue;
+        }
+
+        // Send Sync Request:
+        if(!Gateway.synchronize()) {
+            LogFile.log(ERROR, "Failed to synchronize.");
+            continue;
+        }
+
+        // Clear Error Led: sync'ed any error logs
+        LogFile.acknowledge();
+
+        // Update Intervals:
+        std::vector<interval_t> intervals;
+        intervals.reserve(MAX_INTERVALLS);
+        if(Gateway.getIntervals(intervals)) {
+            Pump.scheduleIntervals(intervals);
+            Config.storePumpIntervals(intervals);
+        }
+
+        // Update Sync Periods:
+        // -> based on how much data is left to sync and what the web application asks
+        sync_t sync;
+        if(Gateway.getSync(&sync)) {
+            unsigned int newLoopPeriode;
+            size_t count = DataFile.itemCount();
+            log_d("target periode sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
+            log_d("Data items left: %u", count);        
+            if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
+                newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
+            } else { // synced most of data, set according to received settings
+                newLoopPeriode = sync.periods[sync.mode] * 1000;
+            }
+            if(newLoopPeriode != networkLoopPeriode) {
+                networkLoopPeriode = newLoopPeriode;
+                log_i("Updated loop periode to %u", networkLoopPeriode);
             }
         }
 
-        if (timeinfo.tm_hour == 0) { // request weather data once at/after midnight
-            // Wait to Get Notified for Free Heap:
-            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
-            
-            // Create Task for Requesting Weather:
-            xTaskCreate(requestWeatherDataTask,"requestWeatherDataTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
+        // Check for new Firmware Version:
+        std::string available_version;
+        if(Gateway.getFirmware(available_version)) {
+            std::string deployed_version = Config.loadFirmwareVersion();
+            log_d("Firmware versions -> Available: %s Deployed: %s",available_version.c_str(), deployed_version.c_str());
+            if(deployed_version != available_version) {
+                LogFile.log(INFO, "New firmware version available");
+                
+                // Start Updater Task:
+                xTaskCreate(updaterTask,"updaterTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
+                
+                // Wait For Updater to Finish:
+                ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
+            }
         }
 
-        if (timeinfo.tm_hour == 0) { // send mail once at/after midnight
-            // Wait to Get Notified for Free Heap:
-            ulTaskNotifyTake(pdTRUE, (180*1000)/portTICK_PERIOD_MS); // blocking wait for notification up to 180 seconds
-            
-            // Create Task for Sending Mail:
-            xTaskCreate(sendMailTask,"sendMailTask",2*DEFAULT_STACK_SIZE,NULL,0,NULL); // priority 0 (same as idle task) to prevent idle task from starvation
+        // Shrink Data File:
+        if(!DataFile.shrink(sensorData.size())) {
+            LogFile.log(WARNING, "Failed to shrink data file");
+            continue;
+        }
+
+        // Shrink Log File:
+        if(!LogFile.shrink(logMessages.size())) {
+            LogFile.log(WARNING, "Failed to shrink log file");
+            continue;
         }
     }
 }
@@ -297,25 +251,20 @@ void heapWatcherTask(void* parameter) {
  * defined by SERVICE_PERIOD (currently once per minute). This means the granularity of
  * intervalls is minutes.
  * @param parameter Pointer to a parameter struct (unused for now)
- * @note Loops evey minute
+ * @note Loops every minute
  */
 void serviceTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = SERVICE_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("Created serviceTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
-    int scheduledState = 0; // scheduled state of the pump, can differ from actual state
+    log_d("Created serviceTask{periode %u sec} on Core %d", xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
-        
-        // Check Scheduled Pump Intervals:
-        struct tm timeinfo = DataTime::loadTimeinfo();
-        int newScheduledState = Hardware::getScheduledPumpState(timeinfo);
-        if (scheduledState != newScheduledState) { // check if scheduled pump state changed
-            scheduledState = newScheduledState;
-            Hardware::switchPump(newScheduledState); // update pump on change
+        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking        
+        int waterlevel = Sensors.getWaterLevel();
+        if(Pump.scheduler(waterlevel)) {
+            log_d("Pump toggled by schedule");
         }
     }
 }
@@ -331,12 +280,12 @@ void measurementTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = MEASUREMENT_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    Serial.printf("Created measurementTask{periode %u sec} on Core %d\r\n",xFrequency/1000,xPortGetCoreID());
+    log_d("Created measurementTask{periode %u sec} on Core %d", xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
-        Hardware::sampleSensorValues(DataTime::timeToString());
+        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle,         
+        Sensors.read();
     }
 }
 
@@ -351,76 +300,70 @@ void measurementTask(void* parameter) {
  */
 void setup() {
     delay(1000); // wait for hardware on PCB to wake up
-
     Serial.begin(BAUD_RATE);
 
-    // Initialize data&time module:
-    if (DataTime::init()) {
-        Serial.printf("Failed to initialize DataTime module!\r\n");
-        Hardware::setErrorLed(HIGH);
+    // Initalize Log File:
+    if(!LogFile.begin()) {
+        log_e("Failed to initialize wlan module");
         return;
+    }
+    if(!Wlan.init()) {
+        log_e("Failed to initialize wlan module");
+        return;
+    }
+    if(!Wlan.connect()) {
+        log_e("Could not connect to network");
+        return;
+    }
+    if(!Time.begin()) {
+        log_e("Failed to initialize system time");
+        return;
+    }
+    Wlan.disconnect();
+
+    // Initalize Data File:
+    if(!DataFile.begin()) {
+        LogFile.log(ERROR, "Failed to initialize data file");
     }
     
-    // Create Button Handler Task:
-    xTaskCreate(buttonHandlerTask, "buttonHandlerTask",DEFAULT_STACK_SIZE,NULL,1,&buttonHandlerHandle);
+    // Enable Button Handler:
+    xTaskCreate(buttonHandlerTask, "buttonHandlerTask", DEFAULT_STACK_SIZE, NULL, 1, &buttonHandlerHandle);
     configASSERT(buttonHandlerHandle);
+    Button.begin(buttonHandlerHandle);
 
-    // Build Data File Name:
-    struct tm timeinfo = DataTime::loadTimeinfo();
-    char fileName[FILE_NAME_LENGTH]; // Format: "/data_YYYY-MM-DD.txt"
-    sprintf(fileName, "/data_%04d-%02d-%02d.txt",timeinfo.tm_year+1900,timeinfo.tm_mon+1,timeinfo.tm_mday);
+    // Enable Sensors:
+    Sensors.begin();
 
-    // Initialize system hardware:
-    if(Hardware::init(&buttonHandlerHandle,fileName)) {
-        Serial.printf("Failed to initialize hardware module!\r\n");
-        Hardware::setErrorLed(HIGH);
-        // return; disable for software testing on missing hardware
-    }
-
-    // Read Preferences from Flash Memory:
-    Serial.printf("[INFO] Intervals:\r\n");
-    for (unsigned int i = 0; i < MAX_INTERVALLS; i++) {
+    // Read Config from Flash Memory:
+    log_i("[INFO] Intervals:");
+    std::vector<interval_t> intervals;
+    intervals.reserve(MAX_INTERVALLS);
+    Config.loadPumpIntervals(intervals);
+    for(interval_t interval : intervals) {
         //Read out preferences from flash:
-        struct tm start = DataTime::loadStartTime(i);
-        struct tm stop = DataTime::loadStopTime(i);
-        unsigned char wday = DataTime::loadWeekDay(i);
-
-        //Initialize interval:
-        Hardware::pump_intervall_t interval = {.start = start, .stop = stop, .wday = wday};
-        Hardware::setPumpInterval(interval, i);
-        Serial.printf("(%d) %d:%d - %d:%d {%u}\r\n",i,interval.start.tm_hour,interval.start.tm_min,interval.stop.tm_hour,interval.stop.tm_min, interval.wday);
+        std::string start = TimeManager::toTimeString(interval.start);
+        std::string stop = TimeManager::toTimeString(interval.stop);
+        log_i("%s - %s {%X}", start.c_str(), stop.c_str(), interval.wday);
     }
+    Pump.scheduleIntervals(intervals);
+    Pump.setThreshold(0);
 
-    // Read Rain Threshold Level from Flash Memory:
-    int rainThreshold = DataTime::loadRainThresholdLevel();
-    Hardware::setPumpOperatingLevel(rainThreshold);
-
-    // Initialize e-mail client:
-    const char* mailPassword = DataTime::loadPassword();
-    if (Gateway::init(SMTP_SERVER,SMTP_SERVER_PORT,EMAIL_SENDER_ACCOUNT,mailPassword)) { // error connecting to SD card
-        Serial.printf("Failed to setup gateway.\r\n");
-        Hardware::setErrorLed(HIGH);
-        return;
-    }
+    // Initialize Gateway:
+    Gateway.load();
 
     // Initialize Web Server User Interface:
-    if (UserInterface::init()) {
-        Serial.printf("Failed to init ui.\r\n");
-        Hardware::setErrorLed(HIGH);
+    if(!UserInterface.enable()) {
+        LogFile.log(ERROR, "Failed to enable ui");
         return;
     }
-    DataTime::connectWlan();
-    UserInterface::enableInterface();
-    Hardware::setUILed(HIGH);
 
     // Create and Start Scheduled Tasks:
     xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
-    xTaskCreate(heapWatcherTask,"heapWatcherTask",DEFAULT_STACK_SIZE,NULL,1,&heapWatcherHandle);
-    xTaskNotify(heapWatcherHandle,1,eSetValueWithOverwrite); // notfiy heap watcher task by setting notification value to 1
+    xTaskCreate(synchronizationTask,"synchronizationLoop",2*DEFAULT_STACK_SIZE,NULL,0,&syncLoopHandle); // priority 0 (same as idle task) to prevent idle task from starvation
 
     // Finish Setup:
-    DataTime::logInfoMsg("Device setup.");
+    LogFile.log(INFO, "Device setup.");
     vTaskDelete(NULL); // delete this task to prevent busy idling in empty loop()
 }
 

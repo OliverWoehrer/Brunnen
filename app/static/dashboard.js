@@ -12,16 +12,29 @@
  */
 
 // Color Codes:
-const LEVEL_COLOR = "#A5A5A5";
-const PRESSURE_COLOR = "#ED7D31";
-const FLOW_COLOR = "#4472C4";
+const COLORS = {
+    "Flow": "#4472C4",
+    "Pressure": "#ED7D31",
+    "Level": "#A5A5A5"
+}
 
 // Scaling Factors:
 const FLOW_SCALING = 0.002577; // 388 pulses per litre
 const PRESSURE_SCALING = 0.002513; // 398 increments per bar
 const LEVEL_SCALING = 0.00157356; // 635 increments per meter
 
+// Maximum Limits:
+const MAX_LIMITS = {
+    "Flow": 100,
+    "Pressure": 5,
+    "Level": 5,
+}
 
+const UNITS = {
+    "Flow": "L/s",
+    "Pressure": "bar",
+    "Level": "m",
+}
 
 
 //===============================================
@@ -34,48 +47,74 @@ const LEVEL_SCALING = 0.00157356; // 635 increments per meter
  * @param {Date} start erliest date-time of logs to fetch
  * @param {Date} stop latest date-time of logs to fetch
  * @param {String} tableID id of the table element
+ * @param {Boolean} append if true new content will be appended to existing table content, if false
+ * existing table content will be overwritten
  */
-async function updateLogs(start, stop, tableID) {
+async function updateLogs(start, stop, tableID, append=true) {
     const {columns, data} = await fetchLogs(start, stop);
-    const logsTable = document.getElementById(tableID);
-    fillTable(logsTable, columns, data);
+    const tableElem = document.getElementById(tableID);
+    if(typeof tableElem === "undefined") {
+        console.warn("Could not get element by '"+tableID+"'");
+        return;
+    }
+    if(!append) {
+        tableElem.innerHTML = "";
+    }
+    appendToTable(tableElem, columns, data);
 }
 
 /**
  * Fetches data between start and stop and adds it to the charts given
  * @param {Date} start erliest date-time of logs to fetch
  * @param {Date} stop latest date-time of logs to fetch
- * @param {JSCharting} lineChart object holding the line chart
- * @param {JSCharting} gaugesChart object holding the gauges chart
+ * @param {JSON} gauges element id of gauges canvas
+ * @param {String} lineCanvasId element if of lines canvas
+ * @param {Boolean} append if true new content will be appended to existing table content, if false
+ * existing table content will be overwritten
  */
-async function updateData(start, stop, lineChart, gaugesChart) {
-    const datasets = await fetchData(start, stop);
-    if(typeof gaugesChart !== 'undefined') {
-        let flow = 0;
-        let pressure = 0;
-        let level = 0;
-        for(const dataset of datasets) {
-            // Points: [[Date(),value], [Date(),value], ...]
-            const lastPoint = dataset.points[dataset.points.length - 1];
-            last = parseFloat(lastPoint[1].toFixed(1));
-            if(dataset.name == "Flow") flow = last;
-            if(dataset.name == "Pressure") pressure = last;
-            if(dataset.name == "Level") level = last;
-        }
-        updateGauges(gaugesChart, flow, pressure, level);
-    }
-    if(typeof lineChart !== 'undefined') {
-        // Points: [[Date(),value], [Date(),value], ...]
-        const dataset = datasets[0];
-        const firstPoint = dataset.points[0];
-        const lastPoint = dataset.points[dataset.points.length - 1];
+async function updateData(start, stop, gauges, lineCanvasId, append=true) {
+    // Fetch Data:
+    let datasets = await fetchData(start, stop);
 
-        const options = { year:"2-digit", month:"2-digit", day:"2-digit" };
-        const firstLabel = firstPoint[0].toLocaleDateString("de-AT", options);
-        const lastLabel = lastPoint[0].toLocaleDateString("de-AT", options);
-        updateLines(lineChart, firstLabel+" - "+lastLabel, datasets);
+    function generateData() {
+        const labels = [];
+        const randFlow = [];
+        const randPressure = [];
+        const randLevel = [];
+        let currentDate = new Date();
+        for(let i = 0; i < 5; i++) {
+            labels.push(new Date(currentDate));
+            randFlow.push(Math.random() * 100); 
+            randPressure.push(Math.random() * 5);
+            randLevel.push(Math.random() * 5);
+            currentDate.setSeconds(currentDate.getSeconds() + 1);
+        }
+        return { "Time": labels, "Flow": randFlow, "Pressure": randPressure, "Level": randLevel };
     }
+    // datasets = generateData();
     
+    // Update Gauges Chart(s):
+    if(gauges) {
+        const values = {
+            "Flow": datasets["Flow"].length ? datasets["Flow"].at(-1) : 0,
+            "Pressure": datasets["Pressure"].length ? datasets["Pressure"].at(-1) : 0,
+            "Level": datasets["Level"].length ? datasets["Level"].at(-1) : 0
+        }
+        try {
+            updateGauges(gauges, values);
+        } catch(error) {
+            throw Error("Failed to update gauges: "+error);
+        }
+    }
+
+    // Update Lines:
+    if(lineCanvasId) {
+        try {
+            updateLines(lineCanvasId, datasets["Time"], datasets["Flow"], datasets["Pressure"], datasets["Level"], append);
+        } catch(error) {
+            throw Error("Failed to update line chart: "+error);
+        }
+    }
 }
 
 
@@ -86,10 +125,11 @@ async function updateData(start, stop, lineChart, gaugesChart) {
 //===============================================
 
 /**
- * Make an asynchronious request to the backend for the timestamp of the latetest data.
+ * Make an asynchronious request to the backend for the timestamp of the latetest sync time and
+ * latest data synced.
  * @returns an async promise for the request
  */
-async function fetchLatestTimestamp() {
+async function fetchLatestTimestamps() {
     let response;
     try {
         response = await fetch("/api/web/sync", {
@@ -98,8 +138,7 @@ async function fetchLatestTimestamp() {
         });
         if(!response.ok) {
             const res = await response.text();
-            const msg = parseErrorPage(res);
-            throw Error("Server Response: "+msg);
+            throw Error("Server responded: "+res);
         }
     } catch(error) {
         throw Error("Problem while fetching timestamp: "+error);
@@ -107,8 +146,11 @@ async function fetchLatestTimestamp() {
 
     try {
         const res = await response.json();
-        const lastSync = res["last_sync"];
-        return new Date(lastSync);
+        const ret = {
+            "last_sync": new Date(res["last_sync"]),
+            "last_data": new Date(res["last_data"])
+        }
+        return ret;
     } catch(error) {
         throw Error("Failed to parse timestamp: "+error);
     }
@@ -116,6 +158,7 @@ async function fetchLatestTimestamp() {
 
 /**
  * Make an asynchronious request to the backend to request log messages between start and stop.
+ * The logs are sorted in a descending order
  * @param {Date} start earliest date-time of logs to fetch
  * @param {Date} stop latest date-time of logs to fetch
  * @returns object of column names and actual logs: { columns: [...], data: [...] }
@@ -138,23 +181,30 @@ async function fetchLogs(start, stop) {
     // Parse Response:
     if(!response.ok) {
         const res = await response.text();
-        const msg = parseErrorPage(res);
-        throw Error(msg);
+        throw Error("Server responded: "+res);
     }
     const logs = await response.json();
     if(isEmpty(logs)) {
-        throw Error("No logs returned.");
+        return { columns: [], data: [] };
     }
-    return { columns: logs["columns"], data: logs["data"] };
+
+    function sortByDate(a, b) {
+        // obj a = [ UNIX_TIMESTAMP, TAG, MESSAGE ]
+        if (a[0] < b[0]) return -1;
+        if (a[0] > b[0]) return +1;
+        return 0;
+    }
+    return { columns: logs["columns"], data: logs["data"].sort(sortByDate) };
 }
 
 /**
  * Make an asynchronious request to the backend to request data between start and stop.
  * @param {Date} start earliest date-time of data to fetch 
  * @param {Date} stop latest date-time of data to fetch
- * @returns array of datasets: [{name: "Flow", color: #F0C5B5, points: [...]}, ...]
+ * @returns JSON of datasets: {"Time": [...], "Flow": [...], "Pressure": [...], etc.}
  */
 async function fetchData(start, stop) {
+    // Request Data:
     let response;
     try {
         startString = start.toISOString().replace("Z","");
@@ -165,79 +215,40 @@ async function fetchData(start, stop) {
             headers: { Accept: "application/json" }
         });
     } catch(error) {
-        throw Error("Problem while fetching logs: "+error);
+        throw Error("Problem while fetching data: "+error);
     }
     
-
     // Parse Reponse:
     if(!response.ok) {
         const res = await response.text();
-        const msg = parseErrorPage(res);
-        throw Error(msg);
+        throw Error("Server responded: "+res);
     }
     const data = await response.json();
     if(isEmpty(data)) {
-        throw Error("No data returned.");
+        return { "Time": [], "Flow": [], "Pressure": [], "Level": [] };
     }
-    columnNames = Object.keys(data);
 
-    // Parse Labels from Response:
-    let labels;
-    let titleText = ["No Data Received"];
+    // Parse Datasets from Response:
+    let datasets = {};
     if("Time" in data) {
-        // Parse Labels from Response:
         labels = Object.values(data["Time"]);
-        
-        // Build Canvas Title:
-        const firstLabel = labels[0];
-        const lastLabel = labels[labels.length - 1];
-        titleText = toLocalDate(firstLabel)+" - "+toLocalDate(lastLabel);
-
-        // Convert UNIX Labels to String:
-        labels = labels.map(function(label) { return new Date(label); });
+        labels = labels.map(function(label) { return new Date(label); }); // convert UNIX labels to string
+        datasets["Time"] = labels;
     }
-
-    // Build Datasets:
-    let datasets = new Array();
-    let latest = {}
     if("Flow" in data) {
         let values = Object.values(data["Flow"]);
         values = values.map(function(value) { return value*FLOW_SCALING; }); // scale all values
-        const latestValue = values[values.length - 1];
-        latest["flow"] = parseFloat(latestValue.toFixed(1));
-        points = values.map(function(value, idx) { return [labels[idx], value]; }); // zip with labels
-        set = {
-            name: "Flow",
-            color: FLOW_COLOR,
-            points: points,
-        }
-        datasets.push(set);
+        datasets["Flow"] = values;
     }
     if("Pressure" in data) {
-        values = Object.values(data["Pressure"]);
+        let values = Object.values(data["Pressure"]);
         values = values.map(function(value) { return value*PRESSURE_SCALING; });
-        const latestValue = values[values.length - 1];
-        latest["pressure"] = parseFloat(latestValue.toFixed(1));
-        points = values.map(function(value, idx) { return [labels[idx], value]; }); // zip with labels
-        set = {
-            name: "Pressure",
-            color: PRESSURE_COLOR,
-            points: points,
-        }
-        datasets.push(set);
+        datasets["Pressure"] = values;
     }
     if("Level" in data) {
-        values = Object.values(data["Level"]);
+        let values = Object.values(data["Level"]);
         values = values.map(function(value) { return value*LEVEL_SCALING; });
-        const latestValue = values[values.length - 1];
-        latest["level"] = parseFloat(latestValue.toFixed(1));
-        points = values.map(function(value, idx) { return [labels[idx], value]; }); // zip with labels
-        set = {
-            name: "Level",
-            color: LEVEL_COLOR,
-            points: points,
-        }
-        datasets.push(set);
+        datasets["Level"] = values;
     }
 
     return datasets;
@@ -251,171 +262,258 @@ async function fetchData(start, stop) {
 //===============================================
 
 /**
- * Generates a JSCharting object in the given container. Should be called once on page load and can
- * be filled with the matching update function.
+ * Generates a ChartJS object for the given canvas. Should be called when the windows size changes
+ * and can be filled with the matching update function.
  * @see updateGauges
- * @param {HTMLElement} gaugesChartDiv chart container to plot into
- * @returns JSCharting object of the newly generate chart
+ * @param {JSON} gauges json map of element ids to plot into
  */
-function plotGauges(gaugesChartDiv) {
+function plotGauges(gauges) {
     // Colors Palette:
     const bodyStyles = window.getComputedStyle(document.body);
     const backgroundColor = bodyStyles.getPropertyValue('--background-color');
+    const neutralColor = bodyStyles.getPropertyValue('--neutral-color');
     const neutralTextColor = bodyStyles.getPropertyValue('--neutral-text');
-    
-    // Configuration:
-    const config = { 
-        debug: true,
-        legend_visible: false,
-        defaultSeries: {
-            mouseTracking_enabled: false,
-            shape: {
-                innerSize: '70%', 
-                label: [
-                    { verticalAlign: 'middle', style_fontSize: 20 },
-                    { text: '%name' },
-                ]
+
+    Chart.defaults.color = neutralTextColor;
+
+    values = {}
+    for(gauge in gauges) {
+        // Chart Setup:
+        const ctx = document.getElementById(gauges[gauge]);
+        if(ctx == null) {
+            console.log("Could not get element '"+gauges[gauge]+"'");
+            return;
+        }
+        const config = {
+            type: 'doughnut',
+            data: {
+                labels: [gauge],
+                datasets: [{
+                    data: [],
+                    borderWidth: 0,
+                    backgroundColor: [
+                        COLORS[gauge],
+                        backgroundColor,
+                    ]
+                }]
             },
-            type: 'gauge column roundCaps'
-        },
-        series: [
-            { name: 'Flow', color: FLOW_COLOR, points: [['value', 0]], shape_label: [{text:'%sum L/s'}], yAxis: 'flow' },
-            { name: 'Pressure', color: PRESSURE_COLOR, points: [['value', 0]], shape_label: [{text:'%sum bar'}], yAxis: 'pressure' },
-            { name: 'Level', color: LEVEL_COLOR, points: [['value', 0]], shape_label: [{text:'%sum m'}], yAxis: 'level' },            
-        ],
-        xAxis: {
-            defaultTick: {
-                gridLine: {
-                    color: backgroundColor,
-                    width: 'column'
+            options: {
+                maintainAspectRatio: false,
+                rotation: 30 + 180,
+                circumference: 300,
+                cutout: "90%",
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false },
+                    customCanvasBackgroundColor: {
+                        color: neutralColor // Light gray background
+                    },
+                    customLabels: {}, // update config to use the custom plugin
                 }
             },
-            spacingPercentage: 0.15
-        },
-        yAxis: [
-            { line_width: 0, defaultTick_enabled: false, id: 'flow', scale_range: [0, 100] },
-            { line_width: 0, defaultTick_enabled: false, id: 'pressure', scale_range: [0, 10] },
-            { line_width: 0, defaultTick_enabled: false, id: 'level', scale_range: [0, 5] },
-        ],
+            plugins: [
+                {
+                    id: 'customLabels',
+                    afterRender: (chart) => { // custom plugin for label
+                        // Get Font Size:
+                        const dpr = window.devicePixelRatio || 1;
+                        const width = chart.ctx.canvas.width / dpr;
+                        const height = chart.ctx.canvas.height / dpr;
+                        const centerX = width / 2;
+                        const centerY = height / 2;
+                        const size = Math.floor(width / 6);
+                        
+                        // Draw labels
+                        chart.ctx.fillStyle = neutralTextColor;
+                        chart.ctx.fillText(chart.data.datasets[0].data[0]+" "+UNITS[chart.data.labels[0]], centerX, centerY);
+                        chart.ctx.font = 'bold '+size+'px Arial';
+                        chart.ctx.textAlign = 'center';
+                        chart.ctx.textBaseline = 'middle';
+                        //console.log("size = "+size+"px");
+                    },
+                }
+            ]
+        };
+
+        // Create Chart:
+        let myChart = Chart.getChart(gauges[gauge]);
+        if(myChart) {
+            values[gauge] = parseFloat(myChart.data.datasets[0].data[0]);
+            myChart.clear();
+            myChart.destroy();
+        }
+        new Chart(ctx, config);
+        
     }
 
-    // Build Chart:
-    return JSC.chart(gaugesChartDiv, config);
+    if(!isEmpty(values)) {
+        updateGauges(gauges, values);
+    }
+    return;
 }
 
 /**
  * Updates the given chart object with the given values. The chart object is returned by the matching
  * plot function.
  * @see plotGauges
- * @param {JSCharting} gaugesChart object holds the chart
- * @param {Float} flow value to plot on the flow gauge
+ * @param {JSON} gauges JSON mapping for element ids
+ * @param {JSON} values values of gauge elements
  * @param {Float} pressure value to plot on the pressure gauge
  * @param {Float} levelvalue to plot on the level gauge
  */
-function updateGauges(gaugesChart, flow, pressure, level) {
-    const flowSeries = gaugesChart.series("Flow");
-    const pressureSeries = gaugesChart.series("Pressure");
-    const levelSeries = gaugesChart.series("Level");
-    flowSeries.points(0).options({ y: flow });
-    pressureSeries.points(0).options({ y: pressure });
-    levelSeries.points(0).options({ y: level });
+function updateGauges(gauges, values) {
+    for(gauge in gauges) {
+        let myChart = Chart.getChart(gauges[gauge]);
+        if(typeof myChart === "undefined") {
+            console.log("Could not find chart with from "+gauge);
+            continue;
+        }
+        let v = values[gauge];
+        if(typeof v === "undefined") {
+            console.log("Dont have values for chart "+gauge);
+            continue;
+        }
+        myChart.data.datasets[0].data = [v.toFixed(1), MAX_LIMITS[gauge]-values[gauge]];
+        try {
+            myChart.update();
+        } catch(error) {
+            throw Error("Failed to update "+gauge+" gauge: "+error);
+        }
+    }
 }
 
 /**
- * Generates a JSCharting object for lines in the given container. Should be called once on page
- * load and can be filled with the matching update function.
+ * Generates a ChartJS object for lines in the given canvas. Should be called when the windows size changes
+ * and can be filled with the matching update function.
  * @see updateLines
- * @param {HTMLElement} lineChartDiv chart container to plot into
- * @returns JSCharting object of the newly generate chart
+ * @param {String} canvasID element id of canvas to plot into
  */
-function plotLines(lineChartDiv) {
+function plotLines(canvasID) {
     // Colors Palette:
     const bodyStyles = window.getComputedStyle(document.body);
     const backgroundColor = bodyStyles.getPropertyValue('--background-color');
+    const neutralColor = bodyStyles.getPropertyValue('--neutral-color');
     const neutralTextColor = bodyStyles.getPropertyValue('--neutral-text');
 
-    // Configuration:
-    const config = {
-        debug: true,
-        type: 'line',
-        title_label_text: 'TItle',
-        legend_position: 'outside top',
-        defaultAxis: {
-            alternateGridFill: 'none',
-            line_color: backgroundColor,
-            label_color: backgroundColor,
-            defaultTick: {
-                label_color: neutralTextColor, /* Label Color */
-                gridLine_color: backgroundColor,
-                gridLine: {
-                    color: backgroundColor, /*Y Axis Grid Line*/
-                    width: 2
-                },
-            } 
-        },
-        defaultCultureName: 'de-AT',
-        defaultPoint: {
-            marker_type: 'none' // circle
-        }, 
-        defaultSeries: {
-            mouseTracking_enabled: false,
-            lastPoint_yAxisTick: { 
-                label_text: '%icon %seriesName %yvalue', 
-                axisId: 'secondY'
-            }
-        },
-        toolbar_items: {
-            'Line Type': {
-                type: 'select',
-                label_style_fontSize: 13,
-                margin: 5,
-                items: 'Line,Step,Spline',
-                events_change: function(val) {
-                chart.series().options({ type: val });
-                }
-            }
-        },
-        xAxis: {
-            crosshair_enabled: true,
-            formatString: 't' // 'd' = days, 't' = time
-        },
-        yAxis: {
-            scale_range: [-1, 5]
-        },
-        series: [
-            { name: 'Flow', color: FLOW_COLOR, points: [] },
-            { name: 'Pressure', color: PRESSURE_COLOR, points: [] },
-            { name: 'Level', color: LEVEL_COLOR, points: [] }
-        ]
-    }
+    Chart.defaults.color = neutralTextColor;
 
-    // Build Chart:
-    if(lineChart) { lineChart = {} }
-    return JSC.chart(lineChartDiv, config);
+    // Chart Setup:
+    const ctx = document.getElementById(canvasID);
+    if(ctx == null) {
+        console.log("Could not get element '"+canvasID+"'");
+        return;
+    }
+    const config = {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                { label: "Flow", data: [], borderColor: COLORS["Flow"] , backgroundColor: COLORS["Flow"] },
+                { label: "Pressure", data: [], borderColor: COLORS["Pressure"], backgroundColor: COLORS["Pressure"] },
+                { label: "Level", data: [], borderColor: COLORS["Level"], backgroundColor: COLORS["Level"] }
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: ""
+                },
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        // unit: 'second', let ChartJS determine unit automatically
+                        tooltipFormat:'yyyy-MM-dd HH:mm:ss',
+                        displayFormats: {
+                            second: 'HH:mm:ss',
+                            minute: 'HH:mm',
+                            hour: 'HH:mm',
+                            day: 'yyyy-MM-dd' 
+                        }
+                    },
+                    grid: {
+                        color: neutralColor
+                    },
+                    ticks: {
+                        autoSkip: true,
+                        maxTicksLimit: 6
+                    }
+                },
+                y: {
+                    grid: {
+                        color: neutralColor
+                    },
+                },
+            }
+        },
+    };
+
+    // Create Chart:
+    let sets = {};
+    let myChart = Chart.getChart(canvasID);
+    if(myChart) {
+        sets["Time"] = myChart.data.labels;
+        for(dataset of myChart.data.datasets) {
+            sets[dataset.label] = dataset.data;
+        }
+        myChart.clear();
+        myChart.destroy();
+    }
+    new Chart(ctx, config);
+    if(!isEmpty(sets)) {
+        updateLines(canvasID, sets["Time"], sets["Flow"], sets["Pressure"], sets["Level"]);
+    }
+    return;
 }
 
 /**
- * Updates the given chart object with the given values. The chart object is returned by the matching
- * plot function.
- * @see plotLines
- * @param {JSCharting} lineChart object holds chart
- * @param {String} titleText title of the chart
- * @param {Array} datasets array of datasets: [{name: "Flow", color: #F0C5B5, points: [...]}, ...]
+ * Takes the given datasets and appends them to the exisiting charts
+ * @param {String} canvasID element id of the canvas to update
+ * @param {Array} flowSet dataset of new flow values 
+ * @param {Array} pressureSet dataset of new pressure values
+ * @param {Array} levelSet dataset of new level values
+ * @param {Boolean} append if true new content will be appended to existing table content, if false
+ * existing table content will be overwritten
  */
-function updateLines(lineChart, titleText, datasets) {
-    // Set Title:
-    lineChart.options({title: {label: {text: titleText}}});
+function updateLines(canvasID, labels, flowSet, pressureSet, levelSet, append=true) {
+    // Convert Labels:
+    // labels = labels.map(function(label) { return toLocalDateTime(label); });
+    
+    // Append New Data:
+    let myChart = Chart.getChart(canvasID);
+    if(typeof myChart === "undefined") {
+        console.log("Could not find chart with from "+canvasID);
+        return;
+    }
+    if(!append) {
+        myChart.data.labels = [];
+        myChart.data.datasets[0].data = [];
+        myChart.data.datasets[1].data = [];
+        myChart.data.datasets[2].data = [];
+    }
+    myChart.data.labels.push.apply(myChart.data.labels, labels);
+    myChart.data.datasets[0].data.push.apply(myChart.data.datasets[0].data, flowSet);
+    myChart.data.datasets[1].data.push.apply(myChart.data.datasets[1].data, pressureSet);
+    myChart.data.datasets[2].data.push.apply(myChart.data.datasets[2].data, levelSet);
 
-    for(const dataset of datasets) {
-        // Concatenate Existing and New Points:
-        const series = lineChart.series(dataset.name);
-        const exisitingPoints = series.points().items;
-        const newPoints = dataset.points;
-        dataset.points = exisitingPoints.concat(newPoints);
+    // Build Canvas Title:
+    labels = myChart.data.labels;
+    if(labels.length) {
+        const firstLabel = labels[0]; 
+        const lastLabel = labels[labels.length - 1];
+        myChart.options.plugins.title.text = toLocalDateTime(firstLabel)+" - "+toLocalDateTime(lastLabel);
+    } else {
+        myChart.options.plugins.title.text = "No data received!";
+    }
 
-        // Replace Entire Series:
-        lineChart.series(dataset.name).remove();
-        lineChart.series.add(dataset);
+    // Update:
+    try {
+        myChart.update();
+    } catch(error) {
+        throw Error("Failed to update chart: "+error);
     }
 }
 
@@ -424,18 +522,6 @@ function updateLines(lineChart, titleText, datasets) {
 //===============================================
 // Helper Functions:
 //===============================================
-
-/**
- * Parses the common error page and extracts the error message.
- * @param {String} page html string of error page
- * @return error message as string
- */
-function parseErrorPage(page) {
-    const doc = new DOMParser().parseFromString(page, "text/html");
-    let title = doc.getElementsByTagName("title");
-    let nodes = doc.getElementsByTagName("p");
-    return "["+title[0].innerText+"] "+nodes[0].innerText;
-}
 
 /**
  * Checks if the given object is empty ({})

@@ -68,8 +68,8 @@ This bucket holds all data of the pump device. The following measurements are re
 	"state": Boolean
 }
 
-"software": {
-    "version": Integer(<number>)
+"firmware": {
+    "version": String(<YYYY-MM-DDTHH:MM:SS>)
 }
 
 "thresholds": {

@@ -58,9 +58,6 @@
 {% endblock %}
 
 {% block main %}
-<div class="w3-container">
-    <h2>Brunnen</h2>
-</div>
 <div class="board">
     {% call cards.white(classes="panel") %}
         <h3>Intervals</h3>
@@ -210,96 +207,99 @@
     requestSynchronization();
     requestThresholds();
 
-    function requestIntervals() {
-        $.ajax({ 
-            url: "/api/web/intervals", 
-            type: "get",
-            success: function(res) {
-                // Parse Reponse:
-                const intervals = res;
-                const numIntervals = intervals ? intervals.length : 0
+    async function requestIntervals() {
+        // Fetch Intervals:
+        let response;
+        try {
+            response = await fetch("/api/web/intervals", {
+                method: "GET",
+                headers: { Accept: "application/json" }
+            });            
+        } catch(error) {
+            window.alert("Problem while fetching intervals: "+error);
+        }
+        if(!response.ok) {
+            const res = await response.text();
+            window.alert("Server responded: "+res);
+        }
 
-                // Insert Intervals into Container:
-                const skeletonInterval = document.getElementById("skeleton_interval");
-                for(let idx = numIntervals-1; idx >= 0; idx--) { // reverse order
-                    // Clone Skeleton HTML Element:
-                    const interval = intervals[idx];
-                    const intervalNode = skeletonInterval.cloneNode(true);
+        // Parse Reponse:
+        const intervals = await response.json();
+        const numIntervals = intervals ? intervals.length : 0
 
-                    // Set Visibility and Title :
-                    intervalNode.style.display = "table";
-                    intervalNode.getElementsByTagName("h4")[0].innerText = interval["start"]+" - "+interval["stop"];
+        // Insert Intervals into Container:
+        const skeletonInterval = document.getElementById("skeleton_interval");
+        for(let idx = numIntervals-1; idx >= 0; idx--) { // reverse order
+            // Clone Skeleton HTML Element:
+            const interval = intervals[idx];
+            const intervalNode = skeletonInterval.cloneNode(true);
 
-                    // Set Enabled Weekdays:
-                    const weekdays = intervalNode.getElementsByClassName("weekday");
-                    for(let idx = 0; idx < weekdays.length; idx++) {
-                        if((interval["wdays"] >> idx) & 1) {
-                            weekdays[idx].classList.add("enabled");
-                        }
-                    }
-                    
-                    // Set Interval ID:
-                    intervalNode.getElementsByClassName("id")[0].value = idx;
+            // Set Visibility and Title :
+            intervalNode.style.display = "table";
+            intervalNode.getElementsByTagName("h4")[0].innerText = interval["start"]+" - "+interval["stop"];
 
-                    // Insert Interval into Container:
-                    skeletonInterval.after(intervalNode);
+            // Set Enabled Weekdays:
+            const weekdays = intervalNode.getElementsByClassName("weekday");
+            for(let idx = 0; idx < weekdays.length; idx++) {
+                if((interval["wdays"] >> idx) & 1) {
+                    weekdays[idx].classList.add("enabled");
                 }
-            },
-            error: function(res) {
-                console.log("failed to request interval settings");
             }
-        });
+            
+            // Insert Interval into Container:
+            intervalNode.getElementsByClassName("id")[0].value = idx;
+            skeletonInterval.after(intervalNode);
+        }
     }
 
-    function requestSynchronization() {
-        $.ajax({ 
-            url: "/api/web/synchronization", 
-            type: "get",
-            success: function(res) {
-                // Parse Reponse:
-                if(!(res instanceof Object)) {
-                    console.log("Could not parse response '"+res+"': "+e);
-                    return; // no further handling of response
-                }
-                const sync = res;
+    async function requestSynchronization() {
+        // Fetch Sync Settings:
+        let response;
+        try {
+            response = await fetch("/api/web/synchronization", {
+                method: "GET",
+                headers: { Accept: "application/json" }
+            });            
+        } catch(error) {
+            window.alert("Problem while fetching synchronization settings: "+error);
+        }
+        if(!response.ok) {
+            const res = await response.text();
+            window.alert("Server responded: "+res);
+        }
 
-                // Insert Values into Form:
-                const sleepModeInput = document.getElementsByName("sleep_mode_period")[0];
-                sleepModeInput.value = sync["long"];
-                const standbyModeInput = document.getElementsByName("standby_mode_period")[0];
-                standbyModeInput.value = sync["medium"];
-                const rtModeInput = document.getElementsByName("rt_mode_period")[0];
-                rtModeInput.value = sync["short"];
-                
-            },
-            error: function(res) {
-                console.log("failed to request sync settings");
-            }
-        });
+        // Insert Values into Form:
+        const sync = await response.json();
+        const sleepModeInput = document.getElementsByName("sleep_mode_period")[0];
+        sleepModeInput.value = sync["long"];
+        const standbyModeInput = document.getElementsByName("standby_mode_period")[0];
+        standbyModeInput.value = sync["medium"];
+        const rtModeInput = document.getElementsByName("rt_mode_period")[0];
+        rtModeInput.value = sync["short"];
     }
 
-    function requestThresholds() {
-        $.ajax({ 
-            url: "/api/web/thresholds", 
-            type: "get",
-            success: function(res) {
-                // Parse Reponse:
-                if(!(res instanceof Object)) {
-                    console.log("Could not parse response '"+res+"': "+e);
-                    return; // no further handling of response
-                }
-                const thresholds = res;
+    async function requestThresholds() {
+        // Fetch Thresholds:
+        let response;
+        try {
+            response = await fetch("/api/web/thresholds", {
+                method: "GET",
+                headers: { Accept: "application/json" }
+            });            
+        } catch(error) {
+            window.alert("Problem while fetching thresholds: "+error);
+        }
+        if(!response.ok) {
+            const res = await response.text();
+            window.alert("Server responded: "+res);
+        }
 
-                // Insert Values into Form:
-                const rainThresholdInput = document.getElementsByName("rain_threshold")[0];
-                rainThresholdInput.value = thresholds["rain"];
-                const markerThresholdInput = document.getElementsByName("marker_threshold")[0];
-                markerThresholdInput.value = thresholds["marker"];
-            },
-            error: function(res) {
-                console.log("failed to request settings");
-            }
-        });
+        // Insert Values into Form:
+        const thresholds = await response.json();;
+        const rainThresholdInput = document.getElementsByName("rain_threshold")[0];
+        rainThresholdInput.value = thresholds["rain"];
+        const markerThresholdInput = document.getElementsByName("marker_threshold")[0];
+        markerThresholdInput.value = thresholds["marker"];
     }
 
 </script>

@@ -18,6 +18,8 @@ CREDENTIALS_BUCKET = "Credentials"
 USERS = "users"
 DEVICES = "devices"
 
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
 class InfluxDataClient():
     def __init__(self):
         pass
@@ -95,9 +97,13 @@ class InfluxDataClient():
             error_message: "success" on success, errror message from database otherwise
             df: dataframe with the queried data on success, None otherwise
         """
+        # Input Cleaning:
+        if stop_time - start_time < timedelta(seconds=1): # start and stop are the same
+            stop_time = stop_time + timedelta(seconds=1)
+        
         # Read From Database:
-        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = start_time.strftime(DATETIME_FORMAT)
+        stop = stop_time.strftime(DATETIME_FORMAT)
         if window_size is None or window_size.total_seconds() < 1:
             aggregate_string = ""
         else:
@@ -133,33 +139,33 @@ class InfluxDataClient():
 
     def queryLatestTimestamp(self) -> (str,datetime):
         """
-        This function querys the latest data available in water meaurements and returns its
+        This function querys the latest data and logs available in MEASUREMENT_BUCKET and returns its
         timestamp.
         
         :return: Tuple(error_message: str, timestamp: datetime)
             error_message: "success" on success, errror message from database otherwise
-            timestamp: holds the time of latest data on success, None otherwise
+            timestamp: holds the time of latest data point on success, None otherwise
         """
 
+        stop_time = datetime.now(timezone.utc).replace(microsecond=0)
         query = """
             from(bucket: "{bucket}")
-            |> range(start: 1970-01-01T00:00:00Z)
-            |> filter(fn: (r) => r._measurement == "{meas}")
+            |> range(start: 0, stop: {stop})
+            |> filter(fn: (r) => r["_measurement"] == "{logs}" or r["_measurement"] == "{meas}")
             |> last()
-            |> map(fn: (r) => ({{r with _value: int(v: r._value)}}) )
-        """.format(bucket=MEASUREMENT_BUCKET, meas=DATA)
+        """.format(bucket=MEASUREMENT_BUCKET, stop=stop_time.strftime(DATETIME_FORMAT), logs=LOGS, meas=DATA) # stop_time.strftime(DATETIME_FORMAT)
         try:
             tables = self._query_api.query(query)
         except InfluxDBError as e:
             return (e.message, None)
         else:
             if not tables:
-                return ("Did not find measurements", pd.DataFrame())
+                return ("Did not find measurements", None)
             values = tables.to_values(columns=["_time", "_field", "_value"])
             df = pd.DataFrame(values, columns=["Timestamp", "Type", "Value"])
-            df = df.pivot_table(index="Timestamp", columns="Type", values="Value")
-            df.index = df.index.to_pydatetime() # convert to datetime format
-            return ("success", df.index[0].to_pydatetime())
+            df = df.set_index("Timestamp")
+            ts = df.index.max().to_pydatetime() # convert from pandas datetime to python datetime
+            return ("success", ts)
 
     def deleteData(self, start_time: datetime, stop_time: datetime) -> str:
         """
@@ -170,8 +176,8 @@ class InfluxDataClient():
         
         :return: error message on failure, None on success
         """
-        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ") # format: YYYY-MM-DDTHH:MM:SSZ
-        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = start_time.strftime(DATETIME_FORMAT) # format: YYYY-MM-DDTHH:MM:SSZ
+        stop = stop_time.strftime(DATETIME_FORMAT)
         predicate = '_measurement="%s"' % DATA
         try:
             self._delete_api.delete(start, stop, predicate, bucket=MEASUREMENT_BUCKET)
@@ -221,9 +227,13 @@ class InfluxDataClient():
             error_message: "success" on success, errror message from database otherwise
             logs: json with the queried data on success, None otherwise
         """
+        # Input Cleaning:
+        if stop_time - start_time < timedelta(seconds=1): # start and stop are the same
+            stop_time = stop_time + timedelta(seconds=1)
+        
         # Read From Database:
-        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = start_time.strftime(DATETIME_FORMAT)
+        stop = stop_time.strftime(DATETIME_FORMAT)
         query = """
             from(bucket: "{bucket}")
             |> range(start: {start}, stop: {stop})
@@ -260,8 +270,8 @@ class InfluxDataClient():
         
         :return: None on success, error message on failure
         """
-        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ") # format: YYYY-MM-DDTHH:MM:SSZ
-        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = start_time.strftime(DATETIME_FORMAT) # format: YYYY-MM-DDTHH:MM:SSZ
+        stop = stop_time.strftime(DATETIME_FORMAT)
         predicate = '_measurement="%s"' % LOGS
         try:
             self._delete_api.delete(start, stop, predicate, bucket=MEASUREMENT_BUCKET)
@@ -279,8 +289,8 @@ class InfluxDataClient():
             "pump": {
                 "state": false
             },
-            "software": {
-                "version": 4
+            "firmware": {
+                "version": "2025-05-30T14:40:34"
             }
         }
 
@@ -290,7 +300,7 @@ class InfluxDataClient():
         """
         data = {}
         cols = []
-        SUPPORTED_SETTINGS = ["sync","intervals","pump","thresholds","software"]
+        SUPPORTED_SETTINGS = ["sync","intervals","pump","thresholds","firmware"]
         for key in settings:
             if key in SUPPORTED_SETTINGS: # check if each setting is known
                 data[key] = json.dumps(settings[key])
@@ -327,13 +337,14 @@ class InfluxDataClient():
             start_time = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc)
         else:
             filter_string = ""
+        stop_time = datetime.now(timezone.utc).replace(microsecond=0)
         query = """
             from(bucket: "{bucket}")
-            |> range(start: {start})
+            |> range(start: {start}, )
             |> filter(fn: (r) => r._measurement == "{meas}")
             {filter}
             |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-        """.format(bucket=MEASUREMENT_BUCKET, start=start_time.strftime("%Y-%m-%dT%H:%M:%SZ"), meas=SETTINGS, filter=filter_string)
+        """.format(bucket=MEASUREMENT_BUCKET, start=start_time.strftime(DATETIME_FORMAT), stop=stop_time.strftime(DATETIME_FORMAT), meas=SETTINGS, filter=filter_string)
         try:
             df = self._query_api.query_data_frame(query)
         except InfluxDBError as e:
@@ -342,7 +353,7 @@ class InfluxDataClient():
             return ("Did not find settings", {})
         
         # Check Available Fields:
-        SUPPORTED_FIELDS = ["sync","intervals","pump","software","thresholds"]
+        SUPPORTED_FIELDS = ["sync","intervals","pump","firmware","thresholds"]
         available_fields = []
         for key in SUPPORTED_FIELDS:
             if key in df.columns:
@@ -366,8 +377,8 @@ class InfluxDataClient():
         
         :return: None on success, error message on failure
         """
-        start = start_time.strftime("%Y-%m-%dT%H:%M:%SZ") # format: YYYY-MM-DDTHH:MM:SSZ
-        stop = stop_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = start_time.strftime(DATETIME_FORMAT) # format: YYYY-MM-DDTHH:MM:SSZ
+        stop = stop_time.strftime(DATETIME_FORMAT)
         predicate = '_measurement="%s"' % SETTINGS
         try:
             self._delete_api.delete(start, stop, predicate, bucket=MEASUREMENT_BUCKET)
@@ -427,13 +438,14 @@ class InfluxDataClient():
             error_message: "success" on success, errror message from database otherwise
             user: json with the queried user on success, None otherwise
         """
+        stop_time = datetime.now(timezone.utc).replace(microsecond=0)
         query = """
             from(bucket: "{bucket}")
-            |> range(start: 0)
+            |> range(start: 0, stop:{stop})
             |> filter(fn: (r) => r._measurement == "{users}")
             |> filter(fn: (r) => r.username == "{uname}")
             |> last()
-        """.format(bucket=CREDENTIALS_BUCKET, users=USERS, uname=username)
+        """.format(bucket=CREDENTIALS_BUCKET, stop=stop_time.strftime(DATETIME_FORMAT), users=USERS, uname=username)
 
         try:
             tables = self._query_api.query(query)
@@ -468,12 +480,13 @@ class InfluxDataClient():
             users: list with the queried users on success, None otherwise
         """
         # Read From Database:
+        stop_time = datetime.now(timezone.utc).replace(microsecond=0)
         query = """
             from(bucket: "{bucket}")
-            |> range(start: 0)
+            |> range(start: 0, stop:{stop})
             |> filter(fn: (r) => r._measurement == "{users}")
             |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-        """.format(bucket=CREDENTIALS_BUCKET, users=USERS)
+        """.format(bucket=CREDENTIALS_BUCKET, stop=stop_time.strftime(DATETIME_FORMAT), users=USERS)
         try:
             df = self._query_api.query_data_frame(query)
         except InfluxDBError as e:
@@ -503,8 +516,8 @@ class InfluxDataClient():
         
         :return: None on success, error message on failure
         """
-        start = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        stop = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc).strftime(DATETIME_FORMAT)
+        stop = datetime.now(timezone.utc).strftime(DATETIME_FORMAT)
         predicate = 'username="%s"' % username
         try:
             self._delete_api.delete(start, stop, predicate, bucket=CREDENTIALS_BUCKET)
@@ -559,13 +572,14 @@ class InfluxDataClient():
             error_message: "success" on success, errror message from database otherwise
             device: json with the queried device on success, None otherwise
         """
+        stop_time = datetime.now(timezone.utc).replace(microsecond=0)
         query = """
             from(bucket: "{bucket}")
-            |> range(start: 0)
+            |> range(start: 0, stop:{stop})
             |> filter(fn: (r) => r._measurement == "{dev}")
             |> filter(fn: (r) => r.id == "{id}")
             |> last()
-        """.format(bucket=CREDENTIALS_BUCKET, dev=DEVICES, id=device_id)
+        """.format(bucket=CREDENTIALS_BUCKET, stop=stop_time.strftime(DATETIME_FORMAT), dev=DEVICES, id=device_id)
 
         try:
             tables = self._query_api.query(query)
@@ -596,8 +610,8 @@ class InfluxDataClient():
         
         :return: None on success, error message on failure
         """
-        start = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        stop = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        start = datetime(1970, 1, 1, 0, 0, 0, 0, timezone.utc).strftime(DATETIME_FORMAT)
+        stop = datetime.now(timezone.utc).strftime(DATETIME_FORMAT)
         predicate = 'id="%s"' % device_id
         try:
             self._delete_api.delete(start, stop, predicate, bucket=CREDENTIALS_BUCKET)

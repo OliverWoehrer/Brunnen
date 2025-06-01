@@ -39,13 +39,13 @@
     {% call cards.white(classes="panel") %}
     <div class="app">
         <header class="w3-row">
-                <div class="w3-col l3 m3 s3">
-                    <img srcset="{{url_for('static',filename='portrait.png')}}" class="w3-image w3-circle w3-padding" style="width: 100%;">
-                </div>
-                <div class="w3-col l9 m9 s9">
-                    <span class="w3-xxlarge" style="font-weight: bold;">{{ session["username"] }}</span><br>
-                    <span class="w3-large">{{ session["group"] }}</span>
-                </div>
+            <div class="w3-col l3 m3 s3">
+                <img srcset="{{url_for('static',filename='portrait.png')}}" class="w3-image w3-circle w3-padding" style="width: 100%;">
+            </div>
+            <div class="w3-col l9 m9 s9">
+                <span class="w3-xxlarge" style="font-weight: bold;">{{ session["username"] }}</span><br>
+                <span class="w3-large">{{ session["group"] }}</span>
+            </div>
         </header>
         <main>
         </main>
@@ -135,29 +135,39 @@
 <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
 <script>
     initTabs();
-    requestUsers();
+    fetchUsers();
 
-    function requestUsers() {
-        $.ajax({ 
-            url: "/api/web/user", 
-            type: "get",
-            success: function(res) {
-                // Parse Reponse:
-                columns = res["columns"];
-                data = res["data"];
-
-                // Get DOM Element for User Table:
-                let userListTab = document.getElementById("list_user");
-                let tables = userListTab.getElementsByTagName("table");
-                let userTable = tables[0];
-
-                // Insert User as Table Rows:
-                fillTable(userTable, columns, data)
-            },
-            error: function(res) {
-                console.log("failed");
+    async function fetchUsers() {
+        let response;
+        try {
+            response = await fetch("/api/web/user", {
+                method: "GET",
+                headers: { Accept: "application/json" }
+            });
+            if(!response.ok) {
+                const res = await response.text();
+                throw Error("Server responded: "+res);
             }
-        });
+        } catch(error) {
+            throw Error("Problem while fetching users: "+error);
+        }
+
+        try {
+            // Parse Reponse:
+            const res = await response.json();
+            columns = res["columns"];
+            data = res["data"];
+
+            // Get DOM Element for User Table:
+            let userListTab = document.getElementById("list_user");
+            let tables = userListTab.getElementsByTagName("table");
+            let userTable = tables[0];
+
+            // Insert User as Table Rows:
+            appendToTable(userTable, columns, data);
+        } catch(error) {
+            throw Error("Failed to parse timestamp: "+error);
+        }
     }
 </script>
 {% endblock %}

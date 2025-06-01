@@ -1,33 +1,121 @@
 {% import "macros/cards.html" as cards %}
 {% import "macros/buttons.html" as buttons %}
 
-{% macro datetime(action_function) %}
+{% macro html(action_function) %}
     {% call cards.white(stylings="width: 100%; min-height: 300px;") %}
     <header class="w3-container"> 
         <h2>Select Range</h2>
-        <div class="linkspace w3-cell-row" style="width: 100%; justify-content: center;">
-            <div class="link w3-cell">
-                <button class="w3-button" onclick="openTab(event, 'id_start')" style="width: 100%;">Start</button>
-            </div>
-            <div class="link w3-cell">
-                <button class="w3-button" onclick="openTab(event, 'id_stop')" style="width: 100%;">Stop</button>
-            </div>
-        </div>
+        <button class="filter w3-button selected" onclick="quickSelect(event, 24 * 60 * 60 * 1000)">24 hours</button>
+        <button class="filter w3-button" onclick="quickSelect(event, 7 * 24 * 60 * 60 * 1000)">7 days</button>
+        <button class="filter w3-button" onclick="quickSelect(event, 28 * 24 * 60 * 60 * 1000)">4 weeks</button>
+        <button class="filter w3-button" onclick="quickSelect(event, 0)">Custom</button>
     </header>
-    <main class="tabspace scrollable" style="min-height: 300px;">
-        <div id="id_start" class="tab">
-            <input type="date" id="start_date" name="Start Date" value="2024-08-01" pattern="\d{2}.\d{2}.\d{4}" placeholder="DD.MM.YYYY">
-            <input type="time" id="start_time" name="Start Time" value="00:00" step="60" placeholder="HH:MM">
+    <main class="scrollable" style="min-height: 300px;">
+        <div class="w3-row">
+            <div class="w3-col l4 m4 s2" style="text-align: right;">
+                Start:
+            </div>
+            <div class="w3-col l8 m8 s10" style="text-align: left;">
+                <input type="date" id="start_date" name="Start Date" value="2025-01-01" pattern="\d{2}.\d{2}.\d{4}" placeholder="DD.MM.YYYY" disabled>
+                <input type="time" id="start_time" name="Start Time" value="00:00" step="60" placeholder="HH:MM" disabled>
+            </div>
         </div>
-        <div id="id_stop" class="tab">
-            <input type="date" id="stop_date" name="Stop Date" value="2024-08-05" pattern="\d{2}.\d{2}.\d{4}" placeholder="DD.MM.YYYY">
-            <input type="time" id="stop_time" name="Stop Time" value="23:59" step="60" placeholder="HH:MM">
+        <div class="w3-row">
+            <div class="w3-col l4 m4 s2" style="text-align: right;">
+                Stop:
+            </div>
+            <div class="w3-col l8 m8 s10" style="text-align: left;">
+                <input type="date" id="stop_date" name="Stop Date" value="2025-01-01" pattern="\d{2}.\d{2}.\d{4}" placeholder="DD.MM.YYYY" disabled>
+                <input type="time" id="stop_time" name="Stop Time" value="23:59" step="60" placeholder="HH:MM" disabled>
+            </div>
         </div>
-    </main>
+        </main>
     <footer class="w3-center">
         {{ buttons.button_neutral("Cancel", "hideElement('id_range_selector')") }}
-        {% set af = action_function+"('start_date','start_time','stop_date','stop_time')" %}
-        {{ buttons.button_secondary("Select", af ) }}
+        {% set af = action_function+"('start_date','start_time','stop_date','stop_time');" %}
+        {{ buttons.button_secondary("Select", af+"hideElement('id_range_selector');" ) }}
     </footer>
     {% endcall %}
+{% endmacro %}
+
+{% macro javascript() %}
+<script>
+    let defaultStop; // default stop date
+    let defaultStart; // default start date
+
+    /**
+     * Call this function to initalize the start and end date of the picker. Usually on
+     * window.onload
+     * @param {Date} start Start datetime
+     * @param {Date} stop Stop datetime
+     */
+    function initPicker(start, stop) {
+        defaultStart = start;
+        defaultStop = stop;
+        setRange(start, stop);
+    }
+
+    /**
+     * Called when the user selects an pre-defined option. It sets the values of the html
+     * elements. 
+     * @param {int} window_size Time in milliseconds from latest data point to the past
+     */
+    function quickSelect(event, window_size) {
+        // Set CSS Style:
+        const currentElement = event.currentTarget;
+        const parentElement = currentElement.parentElement;
+        const buttons = parentElement.getElementsByTagName("button");
+        for(const button of buttons) { // remove style from all sibling buttons
+            button.classList.remove("selected");
+        }
+        currentElement.classList.add("selected"); // add style to this button
+
+        // Set Input Values:
+        if(window_size == 0) { // enable user input
+            document.getElementById("start_date").disabled = false;
+            document.getElementById("start_time").disabled = false;
+            document.getElementById("stop_date").disabled = false;
+            document.getElementById("stop_time").disabled = false;
+        } else {
+            const stop = defaultStop;
+            const start = new Date(stop.getTime() - window_size);
+            setRange(start, stop);
+            document.getElementById("start_date").disabled = true;
+            document.getElementById("start_time").disabled = true;
+            document.getElementById("stop_date").disabled = true;
+            document.getElementById("stop_time").disabled = true;
+        }
+    }
+
+    function formatDate(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0'); // Month is 0-indexed
+        const day = String(date.getDate()).padStart(2, '0');
+        return ""+year+"-"+month+"-"+day;
+    }
+
+    function formatTime(date) {
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return ""+hours+":"+minutes;
+    }
+
+    function setRange(start, stop) {
+        document.getElementById("start_date").value = formatDate(start);
+        document.getElementById("start_time").value = formatTime(start);
+        document.getElementById("stop_date").value = formatDate(stop);
+        document.getElementById("stop_time").value = formatTime(stop);
+    }
+
+    function getRange() {
+        const startDate = document.getElementById("start_date").value;
+        const startTime = document.getElementById("start_time").value;
+        const stopDate = document.getElementById("stop_date").value;
+        const stopTime = document.getElementById("stop_time").value;
+        const start = new Date(""+startDate+"T"+startTime);
+        const stop = new Date(""+stopDate+"T"+stopTime);
+        return [start,stop];
+    }
+
+</script>
 {% endmacro %}

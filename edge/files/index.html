@@ -3,54 +3,131 @@
 <head>
     <title>Brunnen IoT</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAIXBaABUvawCW480ANpZ7ACzHnAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIgAAAAAAAAAiAAAAAAAAACIAAAAAAAAAIgAAAAAAAAAiAAAAAAAAACIAAAAAAAAAIgAAAAAAAAAREQAAAAAAERURAAAAAAERQREQAAABAUERMREAAAARETEVUQAAABEUEVEVEAAAARQRMTEAAAAAEVEVEAAAAAABE1EAAAD8/wAA/P8AAPz/AAD8/wAA/P8AAPz/AAD8/wAA/D8AAPA/AADgHwAAoA8AAMAPAADABwAA4A8AAPAfAAD4PwAA">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <style>
+        section {
+            border-top: solid;
+            padding-bottom: 32px;
+        }
+    </style>
 </head>
-
 <body>
-    <p>
-        <a>Homepage</a> <a href="/interval">Intervals</a> <a href="/log">Log</a> <a href="/account">Account</a> <a href="/update">Update</a>
-    </p>
-    <p  id="dataString">
-        Live Data
-    </p>
-    <form action="/" method="post">
-        <input type="hidden" name="clearLed" value="clear" />
-        <input type="submit" value="Clear Error Light">
-    </form>
-    <p>
-        %RAIN%
-    </p>
-    <form action="/" method="post">
-        <label for="threshold">Rain threshold level in mm:</label>
-        <input type="number" id="threshold" name="threshold" min="0" max="100" value="%THRESHOLD%"><br>
-        <input type="submit" value="Update Threshold Level">
-    </form>
-    <p>
-        With %JOB_LENGTH% files to send.
-    </p>
-    <form action="/" method="post">
-        <input type="hidden" name="clearJobs" value="clear" />
-        <input type="submit" value="Clear Job List">
-    </form>
+    <nav>
+        <a href="/">Home</a> <a href="/filesystem">Filesystem</a>
+    </nav>
+    <header>
+        <h1>Homepage</h1>
+    </header>
+    <main>
+        <!-- Status -->
+        <section>
+            <h2>Status</h2>
+            <p id="status">
+                Live Status
+            </p>
+        </section>
+        <!-- Intervals -->
+        <section>
+            <h2>Intervals</h2>
+            <p>
+                (0) %INTERVAL_0%<br>
+                (1) %INTERVAL_1%<br>
+                (2) %INTERVAL_2%<br>
+                (3) %INTERVAL_3%<br>
+                (4) %INTERVAL_4%<br>
+                (5) %INTERVAL_5%<br>
+                (6) %INTERVAL_6%<br>
+                (7) %INTERVAL_7%
+            </p>
+            <form action="/api/interval" method="post">
+                <label for="index">Interval Number (between 0 and 7):</label>
+                <input type="number" id="index" name="index" min="0" max="7"><br>
+                <br>
+                <label for="startTime">Start Time:</label>
+                <input type="time" id="startTime" name="start_time" value="00:00"><br>
+                <label for="stopTime">Stop Time:</label>
+                <input type="time" id="stopTime" name="stop_time" value="23:59"><br>
+                <br>
+                <label for="monday">Mon</label><input type="checkbox" id="monday" name="mon" checked>
+                <label for="tuesday">Tue</label><input type="checkbox" id="thuesday" name="tue" checked>
+                <label for="wednesday">Wed</label><input type="checkbox" id="wednesday" name="wed" checked>
+                <label for="thursday">Thu</label><input type="checkbox" id="monday" name="thu" checked>
+                <label for="friday">Fri</label><input type="checkbox" id="monday" name="fri" checked>
+                <label for="saturday">Sat</label><input type="checkbox" id="saturday" name="sat" checked>
+                <label for="sunday">Sun</label><input type="checkbox" id="sunday" name="sun" checked>
+                <br>
+                <input type="submit" value="Submit">
+            </form>
+        </section>
+        <!-- Thresholds -->
+        <section>
+            <h2>Thresholds</h2>
+            <form action="/api/threshold" method="post">
+                <p>
+                    <label for="threshold">Rain threshold level in mm:</label>
+                    <input type="number" id="threshold" name="threshold" min="0" max="100" value="%THRESHOLD%"><br>
+                </p>
+                <p>
+                    <input type="submit" value="Update Thresholds">
+                </p>
+            </form>
+        </section>
+        <!-- Gateway -->
+        <section>
+            <h2>Gateway</h2>
+            <form action="/api/gateway" method="post">
+                <h3>E-Mail</h3>
+                <label for="mail_address">E-Mail Address</label>
+                <input type="text" name="mail_address" value="%MAIL_ADDRESS%"><br>
+                <label for="mail_password">E-Mail Password</label>
+                <input type="text" name="mail_password" value="%MAIL_PASSWORD%"><br>
     
+                <h3>API Endpoint</h3>
+                <label for="api_host">API Host</label>
+                <input type="text" name="api_host" value="%API_HOST%"><br>
+                <label for="api_port">API Port</label>
+                <input type="text" name="api_port" value="%API_PORT%"><br>
+                <label for="api_host">API Path</label>
+                <input type="text" name="api_path" value="%API_PATH%"><br>
+    
+                <h3>API Credentials</h3>
+                <label for="api_username">API Username</label>
+                <input type="text" name="api_username" value="%API_USERNAME%"><br>
+                <label for="api_password">API Password</label>
+                <input type="text" name="api_password" value="%API_PASSWORD%"><br>
+    
+                <h3>Submit</h3>
+                <input type="submit" value="Update Gateway Info">
+            </form>
+        </section>
+    </main>
     <script>
-        (function() {
-            var httpRequest;
-            function cbFunction() {
-                if (httpRequest.readyState === XMLHttpRequest.DONE) {
-                    // if (httpRequest.status === 200)
-                        document.getElementById("dataString").innerHTML = httpRequest.responseText;
-                    // else
-                        // document.getElementById("dataString").innerHTML = "invalid request.";
+        window.onload = function () {
+            var updateStatusInterval = setInterval(updateStatus, 1000);
+        }
+
+        async function updateStatus() {
+            // Fetch Status:
+            let response;
+            try {
+                response = await fetch("/api/status", {
+                    method: "GET",
+                    headers: { Accept: "plain/text" }
+                });
+                if(!response.ok) {
+                    const res = await response.text();
+                    throw Error("Server responded: "+res);
                 }
+            } catch(error) {
+                throw Error("Failed to fetch status: "+error);
             }
-            var intervalId = setInterval(function() {
-                httpRequest = new XMLHttpRequest();
-                httpRequest.onreadystatechange = cbFunction;
-                httpRequest.open('GET', '/live?dataString=true');
-                httpRequest.send();
-            }, 1000);
-        })();
+
+            // Parse Response:
+            const txt = await response.text(); // await response.json();
+
+            // Set Property:
+            document.getElementById("status").innerHTML = txt;
+        }
     </script>
 </body>
 

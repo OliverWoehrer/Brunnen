@@ -9,6 +9,8 @@ To start this application, run "python app.py"
 """
 
 import os
+import argparse
+import logging
 import config
 from data import data_client as database
 from routes.app import app
@@ -17,8 +19,22 @@ from routes.app import app
 
 
 if __name__ == "__main__":
+    # Parse Input Argument:
+    parser = argparse.ArgumentParser(description="Brunnen (TreeAPI)")
+    parser.add_argument("--log-level", type=str, choices=["debug", "info", "warning", "error", "critical"], default="info", help="Set the logging level (default: info)")
+    args = parser.parse_args()
+    numeric_level = getattr(logging, args.log_level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % args.log_level)
+
+    # Setup Logger:
+    logging.basicConfig(level=numeric_level, format="%(asctime)s [%(levelname)s] %(message)s")
+    logger = logging.getLogger(__name__)
+
     # Initalize Database Client:
     token = os.environ.get("INFLUXDB_TOKEN")
+    if not token:
+        raise RuntimeError("Failed to load INFLUXDB_TOKEN environment variable.")
     org = config.readInfluxOrganization()
     influx_host = config.readInfluxHost()
     influx_port = config.readInfluxPort()
@@ -27,8 +43,13 @@ if __name__ == "__main__":
 
     # Initalize Flask App:
     key = os.environ.get("APP_KEY")
+    if not key:
+        raise RuntimeError("Failed to load APP_KEY environment variable.")
     app.secret_key = key
+    if not os.path.exists("./files"):
+        os.makedirs("./files")
+    app.config['files'] = "./files"
 
     # Start App at Desired Port:
     port = config.readPort()
-    app.run(host="localhost", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True)

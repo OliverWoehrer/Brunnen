@@ -1,25 +1,26 @@
 """
 This module implements the functions to handle routes of "/api/ui"
 """
-from flask import Blueprint, session, render_template, redirect, url_for, request, flash
+from flask import Blueprint, session, render_template, redirect, send_file, request, flash, current_app
 from werkzeug.security import generate_password_hash
-from werkzeug.exceptions import HTTPException, BadRequest, UnprocessableEntity, BadGateway, Unauthorized, Forbidden
+from werkzeug.exceptions import HTTPException, BadRequest, UnprocessableEntity, BadGateway, Unauthorized, Forbidden, InternalServerError
+from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta, timezone
-import json
+import hashlib
 import re
 import config
 from data import data_client as db
+from .device import get_last_sync
 from ..web.web import set_last_visit
 
 # Register Blueprint Hierarchy:
 web = Blueprint("web", __name__, url_prefix="/web")
 
-# TODO: enable authentication
-# @web.before_request
-# def check_authentication():
-#     username = session.get("username")
-#     if username is None:
-#         raise Unauthorized("Login to continue.")
+@web.before_request
+def check_authentication():
+    username = session.get("username")
+    if username is None:
+        raise Unauthorized("Login to continue.")
 
 @web.route("/sync", methods=["GET"])
 def sync():
@@ -29,7 +30,11 @@ def sync():
         raise BadGateway(("Problem while reading latest sync: "+msg))
     
     # Return JSON Response:
-    payload = { "last_sync": int(datetime.timestamp(timestamp)*1000) }
+    last_sync = get_last_sync()
+    payload = {
+        "last_sync": int(datetime.timestamp(last_sync)*1000),
+        "last_data": int(datetime.timestamp(timestamp)*1000)
+    }
     return payload, 200
 
 @web.route("/logs", methods=["GET"])
@@ -242,7 +247,7 @@ def intervals():
                 weekdays = weekdays | 0b00100000
             if "sun" in keys:
                 weekdays = weekdays | 0b01000000
-            interval = { "start": start.strftime("%H:%M"), "stop": stop.strftime("%H:%M"), "wdays": weekdays }
+            interval = { "start": start.strftime("%H:%M:%S"), "stop": stop.strftime("%H:%M:%S"), "wdays": weekdays }
             intervals.append(interval)
 
         elif action == "delete":
@@ -324,7 +329,6 @@ def synchronization():
         # Return JSON Response:
         return redirect(request.referrer)
 
-
 @web.route("/thresholds", methods=["GET","POST"])
 def thresholds():
     # Read Thresholds From Database:
@@ -368,7 +372,72 @@ def thresholds():
         # Return JSON Response:
         return redirect(request.referrer)
 
+@web.route("/firmware", methods=["GET","POST"])
+def firmware():
+    if request.method == "GET":
+        filepath = current_app.config["files"] + "/firmware.bin"
+        file = open(filepath, mode="rb")
+        if file is None:
+            raise InternalServerError("Failed to open file")
+        return send_file(file, as_attachment=True, download_name="firmware.bin", mimetype="application/octet-stream")
+
+    if request.method == "POST":
+        # Parse File Upload:
+        file = request.files['my_firmware']
+        if file is None:
+            raise BadRequest("Missing firmware file.")
+        filename = file.filename
+        if filename == '':
+            raise UnprocessableEntity("No selected firmware file.")
+        if filename.rsplit('.', 1)[1].lower() != "bin":
+            raise BadRequest(f"Unexpected file extension. Expected '.bin' but got '{filename}'")
+    
+        # Save Firmware File:
+        filename = secure_filename(filename) # convert to ASCII friendly format
+        try:
+            file.save(f"{current_app.config['files']}/firmware.bin")
+        except Exception as e:
+            raise InternalServerError(f"Could not save uploaded file ({e})")
+
+        # Read Firmware Version From Database:
+        (msg,settings) = db.querySettings()
+        if settings is None:
+            raise BadGateway(("Problem while reading settings: "+msg))
+        firmware = settings.get("firmware", config.readBrunnenSettings("firmware"))
+
+        # Update Firmware Version:
+        DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+        timestamp = datetime.now(timezone.utc).replace(microsecond=0)
+        firmware["version"] = timestamp.strftime(DATETIME_FORMAT)
+
+        # Write Update Settings to Database:
+        updatedSettings = { "firmware": firmware }
+        msg = db.insertSettings(updatedSettings)
+        if msg:
+            raise BadGateway(("Problem while writing settings: "+msg))
+
+        # Return JSON Response:
+        return redirect(request.referrer)
+
+@web.route("/firmwarestatus", methods=["GET"])
+def firmwarestatus():
+    # Read Firmware Version From Database:
+    (msg,settings) = db.querySettings()
+    if settings is None:
+        raise BadGateway(("Problem while reading settings: "+msg))
+    firmware = settings.get("firmware", config.readBrunnenSettings("firmware"))
+    return firmware
+
 @web.after_request
 def log(response):
     set_last_visit(datetime.now(timezone.utc).replace(microsecond=0))
     return response
+
+@web.errorhandler(Exception)
+def error(e):
+    if isinstance(e, HTTPException): # display HTTP errors
+        current_app.logger.error(f"{e.code} {e.name}: {e.description}\r\n{e.__traceback__}")
+        return e.description, e.code
+    else: # return unknown errors
+        current_app.logger.error(f"{e}:\r\n{e.__traceback__}")
+        return str(e), 500

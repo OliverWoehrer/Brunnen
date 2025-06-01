@@ -9,21 +9,18 @@
 /**
  * Inserts the given list of data into the table element. Use the columns list to specify which
  * properties to use of the data object and in which order.
- * @param {HTMLElement} tableElem DOM element (<table>) to insert the rows
+ * @param {Object} tableElem DOM element of table (<table>)
  * @param {Array} columnsList list of column names (key names of data object)
  * @param {Array} dataList list of data objects (json with keys matching the column names)
  */
-function fillTable(tableElem, columnsList, dataList) {
-    // Clear Exisitng Rows:
-    while(tableElem.rows.length > 0) {
-        tableElem.deleteRow(0);
-    }
-
-    // Insert Table Header:
-    let row = tableElem.insertRow(0);
-    for(let i = 0; i < columnsList.length; i++) {
-        let cell = row.insertCell(i);
-        cell.outerHTML = "<th>"+columnsList[i]+"</th>";
+function appendToTable(tableElem, columnsList, dataList) {
+    // Insert Header Cells:
+    if(tableElem.rows.length == 0) { // only insert header into empty table
+        let row = tableElem.insertRow(0);
+        for(let i = 0; i < columnsList.length; i++) {
+            let cell = row.insertCell(i);
+            cell.outerHTML = "<th>"+columnsList[i]+"</th>";
+        }
     }
 
     // Insert Table Rows:
@@ -37,6 +34,16 @@ function fillTable(tableElem, columnsList, dataList) {
             }
             cell.innerHTML = value;
         }
+    }
+}
+
+/**
+ * Clears all exisiting rows in the given table (including headers)
+ * @param {Object} tableElem DOM element of table (<table>)
+ */
+function clearTable(tableElem) {    
+    while(tableElem.rows.length > 0) {
+        tableElem.deleteRow(0);
     }
 }
 

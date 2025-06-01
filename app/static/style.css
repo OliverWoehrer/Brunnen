@@ -55,6 +55,12 @@ h4 {
     margin-bottom: 0px;
 }
 
+@media (max-width: 992px) {
+    h1 {
+        font-size: 28px;
+    }
+}
+
 th {
     position: sticky;
     top: 0; /* Don't forget this, required for the stickiness */
@@ -76,6 +82,15 @@ th {
 /***************************************/
 /* Individual Styles: */
 /***************************************/
+.card {
+    padding: 8px 16px!important;
+}
+@media (max-width: 992px) {
+    .card {
+        padding: 8px 0px!important;
+    }
+}
+
 .myLoader {
     height: 45px;
 }
@@ -149,8 +164,8 @@ th {
 /***************************************/
 /* Responsive Navigation Layout:
 	responsive navigation bar
-	screen width > 600px: sidebar
-	screen width < 600px bottombar
+	screen width > 992px: sidebar
+	screen width < 992px bottombar
 */
 /***************************************/
 .layout {
