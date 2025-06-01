@@ -124,60 +124,6 @@ String processor(const String& var) {
     return ""; // default fallback
 }
 
-
-//===============================================================================================
-// REQUEST HANDLER
-//===============================================================================================
-
-void GET_live(AsyncWebServerRequest *req) {
-    String str = "";
-
-    if(req->hasParam("dataString", false, false)) {
-        AsyncWebParameter* p = req->getParam("dataString", false, false);
-        if (p->value().equals("true")) {
-            str = "Not supported";
-        }
-    } else if (req->hasParam("progress",false,false)) {
-        AsyncWebParameter* p = req->getParam("progress",false,false);
-        if (p->value().equals("true")) {
-            str = Update.isRunning() ? "Upload "+String((Update.progress()*100) / Update.size())+"%" : "";
-        }
-    }
-    req->send(200, "text/plain", str.c_str());
-}
-
-void GET_update(AsyncWebServerRequest *req) {
-    req->send(SPIFFS, "/update.html", String(), false, processor);
-}
-
-void POST_update(AsyncWebServerRequest *req) {
-    req->send(SPIFFS, "/update.html", String(), false, processor);
-    delay(3000);
-    LogFile.log(INFO, "Device updated.");
-    ESP.restart();
-}
-
-void uploadFirmware(AsyncWebServerRequest *req, const String& filename, size_t index, uint8_t *data, size_t len, bool final) {
-    if(!index) { // upload not started yet
-        log_d("UploadStart: %s\n", filename.c_str());
-        int cmd = U_FLASH; // alternative: U_FLASH
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, cmd)) { //start with max available size
-            Update.printError(Serial);
-        }
-    }
-    if (Update.write(data, len) != len) {
-        Update.printError(Serial);
-    }
-    if (final) { // upload finished
-        log_d("Update Success: %u\r\n", index+len);
-        if (Update.end(true)) { //true to set the size to the current progress
-            log_d("Update Success: %u\nRebooting...\n", index+len);
-        } else {
-            Update.printError(Serial);
-        }
-    }
-}
-
 //===============================================================================================
 // WEBPAGE REQUEST HANDLER
 //===============================================================================================
