@@ -306,6 +306,7 @@ bool FileManager::put(const std::string& buffer, const char* mode) {
     // Take Mutex Semaphore:
     if(!xSemaphoreTake(this->semaphore, MUTEX_TIMEOUT)) { // blocking wait
         log_e("Could not take semaphore");
+        return false;
     }
 
     // Critical Section:
@@ -334,6 +335,7 @@ bool FileManager::put(const std::string& buffer, const char* mode) {
     // Clean Up:
     if(!xSemaphoreGive(this->semaphore)) { // give back mutex semaphore
         log_d("Failed to give semaphore");
+        return false;
     }
     return success;
 }
@@ -394,7 +396,6 @@ bool FileManager::temp(size_t startingLine) {
 
         // Create Temporary File:
         std::string tempFileName = this->fn + ".temp";
-        log_d("Creating temporary file '%s'", tempFileName.c_str());
         File tempFile =  this->fs.open(tempFileName.c_str(), FILE_WRITE);
         if(!tempFile) {
             log_e("Failed to create temporary copy file");
