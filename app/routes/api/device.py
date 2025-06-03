@@ -99,19 +99,6 @@ def brunnen():
             msg = db.insertLogs(logs=df)
             if msg:
                 raise BadGateway(("Problem while inserting logs: "+str(msg)))
-        
-        if "settings" in payload:
-            settings = {}
-            WRITEABLE_SETTINGS = ["pump"] # list settings writeable by this endpoint
-            for key in payload["settings"]: # check each setting if writeable
-                if key in WRITEABLE_SETTINGS:
-                    settings[key] = payload["settings"][key]
-            
-            # Write Settings:
-            if settings != {}:
-                msg = db.insertSettings(settings=settings)
-            if msg:
-                raise BadGateway(("Problem while inserting settings: "+str(msg)))
 
     if request.method == "DELETE":
 		# Parse Start Parameter:
