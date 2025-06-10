@@ -453,8 +453,6 @@ bool GatewayClass::getFirmware(std::string &fw) {
 }
 
 bool GatewayClass::downloadFirmware() {
-    LogFile.log(INFO, "Downloading firmware");
-    
     // Connect to WiFi:
     if(!Wlan.connect()) {
         LogFile.log(WARNING, "Cannot fetch firmware without network connection");

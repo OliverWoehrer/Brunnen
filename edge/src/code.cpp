@@ -79,22 +79,24 @@ void buttonHandlerTask(void* parameter) {
     vTaskDelete(NULL); // delete task when done, don't forget this!
 }
 
+/**
+ * This function implemenets the updaterTask. It starts to download the firmware binary file and 
+ * save the data to the partition. After this, the update is ready to be installed and the device
+ * is rebooted.
+ * @param parameter Pointer to a parameter struct (unused for now)
+ * @note Started by the synchronization task if it detects a new firmware version is available. 
+ */
 void updaterTask(void* parameter) {
     do {
-        std::string available_version;
-        if(!Gateway.getFirmware(available_version)) {
-            LogFile.log(WARNING, "Failed to extract firmware version");
-            break;
-        }
-
         // Fetch Firmware File:
+        LogFile.log(INFO, "Downloading firmware");
         if(!Gateway.downloadFirmware()) {
             LogFile.log(ERROR, "Failed to download firmware");
             break;
         }
 
         // Finalize Update:
-        LogFile.log(INFO, "Installing firmware. Rebooting...");
+        LogFile.log(INFO, "Firmware installed. Rebooting...");
         delay(3000);
         ESP.restart();
     } while(0);
