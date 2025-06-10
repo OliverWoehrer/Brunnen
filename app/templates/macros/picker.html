@@ -3,12 +3,12 @@
 
 {% macro html(action_function) %}
     {% call cards.white(stylings="width: 100%; min-height: 300px;") %}
-    <header class="w3-container"> 
+    <header class="w3-center"> 
         <h2>Select Range</h2>
-        <button class="filter w3-button selected" onclick="quickSelect(event, 24 * 60 * 60 * 1000)">24 hours</button>
+        <button class="filter w3-button selected" onclick="quickSelect(event, 0)">Custom</button>
+        <button class="filter w3-button" onclick="quickSelect(event, 24 * 60 * 60 * 1000)">24 hours</button>
         <button class="filter w3-button" onclick="quickSelect(event, 7 * 24 * 60 * 60 * 1000)">7 days</button>
         <button class="filter w3-button" onclick="quickSelect(event, 28 * 24 * 60 * 60 * 1000)">4 weeks</button>
-        <button class="filter w3-button" onclick="quickSelect(event, 0)">Custom</button>
     </header>
     <main class="scrollable" style="min-height: 300px;">
         <div class="w3-row">
