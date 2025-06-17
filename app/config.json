@@ -1,7 +1,7 @@
 {
     "port": 5000,
     "influx": {
-        "host": "http://localhost",
+        "host": "localhost",
         "port": 8086,
         "organization": "Private"
     },

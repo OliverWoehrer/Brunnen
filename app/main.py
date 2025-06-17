@@ -36,11 +36,11 @@ if __name__ == "__main__":
     if not token:
         raise RuntimeError("Failed to load INFLUXDB_TOKEN environment variable.")
     org = config.readInfluxOrganization()
-    influx_host = os.environ.get("INFLUXDB_URL")
+    influx_host = os.environ.get("INFLUXDB_HOST")
     if not influx_host:
         influx_host = config.readInfluxHost() # use config as backup
     influx_port = config.readInfluxPort()
-    url = influx_host+":"+str(influx_port)
+    url = f"http://{influx_host}:{influx_port}"
     database.setup(url=url, token=token, organization=org)
 
     # Initalize Flask App:

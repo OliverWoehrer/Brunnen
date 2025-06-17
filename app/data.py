@@ -35,7 +35,7 @@ class InfluxDataClient():
         # Initalitze Influx Client:
         self._client = influxdb_client.InfluxDBClient(url=url, token=token, org=organization)
         if not self._client.ping():
-            raise RuntimeError("Failed to initialize database client. Could not reach database server.")
+            raise RuntimeError(f"Failed to initialize database client. Could not reach database server at '{url}'.")
         
         # Initalize API Objects:
         self._buckets_api = self._client.buckets_api()
