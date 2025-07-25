@@ -35,6 +35,7 @@
 #define SERVICE_PERIOD (1000 * 60) // loop period in ms, once per minute
 #define MEASUREMENT_PERIOD 1000 // loop period in ms, once per second
 #define BATCH_SIZE 60 // number of data points to be synced at once
+#define MAX_ERROR_COUNT 5
 
 //===============================================================================================
 // SCHEDULED TASKS
@@ -87,19 +88,20 @@ void buttonHandlerTask(void* parameter) {
  * @note Started by the synchronization task if it detects a new firmware version is available. 
  */
 void updaterTask(void* parameter) {
-    do {
-        // Fetch Firmware File:
-        LogFile.log(INFO, "Downloading firmware");
-        if(!Gateway.downloadFirmware()) {
-            LogFile.log(ERROR, "Failed to download firmware");
-            break;
-        }
+    // Fetch Firmware File:
+    LogFile.log(INFO, "Downloading firmware");
+    if(!Gateway.downloadFirmware()) {
+        LogFile.log(ERROR, "Failed to download firmware");
+        
+        // Exit This Task:
+        xTaskNotifyGive(syncLoopHandle); // notfiy sync loop task
+        vTaskDelete(NULL); // delete task when done, don't forget this!
+    }
 
-        // Finalize Update:
-        LogFile.log(INFO, "Firmware installed. Rebooting...");
-        delay(3000);
-        ESP.restart();
-    } while(0);
+    // Finalize Update:
+    LogFile.log(INFO, "Firmware installed. Rebooting...");
+    delay(3000);
+    ESP.restart();
 
     // Exit This Task:
     xTaskNotifyGive(syncLoopHandle); // notfiy sync loop task
@@ -123,8 +125,14 @@ void synchronizationTask(void* parameter) {
     size_t lastFreeHeapSize = -1; // unsigned -1 = unsigned max value
     
     // Periodic Loop:
+    uint8_t errorCount = 0; // gets reset to zero after a successful synchronization without early exit
     while (1) {
-        // Clear Gateway:
+        // Initialize Loop Iteration:
+        if(errorCount > MAX_ERROR_COUNT) {
+            LogFile.log(INFO, "Too many errors during synchronization. Rebooting...");
+            ESP.restart();
+        }
+        errorCount++; // increment for each iteration
         Gateway.clear(); // clear any previous data
 
         // Set Sync Periode:
@@ -244,6 +252,9 @@ void synchronizationTask(void* parameter) {
             LogFile.log(WARNING, "Failed to shrink log file");
             continue;
         }
+
+        // Reset Error Count:
+        errorCount = 0;
     }
 }
 
