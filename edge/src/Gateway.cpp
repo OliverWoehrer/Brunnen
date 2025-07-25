@@ -243,17 +243,15 @@ bool GatewayClass::synchronize() {
         return false;
     }
 
-    this->led.on();
+    // Initialize Resources:
+    Output::Runtime run(this->led);
     HTTPClient http;
     std::string payload;
-    bool success = true;
-    do {
 
     // Initialize and Make GET Request:
     if(!http.begin(this->api_host.c_str(), this->api_port, this->api_path.c_str())) {
         LogFile.log(WARNING,"Failed to begin request!");
-        success = false;
-        break;
+        return false;
     }
 
     // Set Headers:
@@ -278,18 +276,15 @@ bool GatewayClass::synchronize() {
     // Check Response:
     if(httpCode < 0) { // httpCode is negative on error
         LogFile.log(WARNING,"Request failed: "+std::string(http.errorToString(httpCode).c_str()));
-        success = false;
-        break;
+        return false;
     }
     if(httpCode != HTTP_CODE_OK) {
         LogFile.log(WARNING,"Response: ["+std::to_string(httpCode)+" "+statusToString(httpCode)+"] "+http.getString().c_str());
-        success = false;
-        break;
+        return false;
     }
     if(http.getSize() > RESPONSE_BUFFER_SIZE) { // check reponse body size
         LogFile.log(WARNING,"Response body too large.");
-        success = false;
-        break;
+        return false;
     }
 
     // Parse JSON Data:
@@ -298,20 +293,17 @@ bool GatewayClass::synchronize() {
     if(error) {
         std::string msg = error.c_str();
         LogFile.log(WARNING,"Failed to parse JSON data: "+msg);
-        success = false;
-        break;
+        return false;
     }
     log_v("Response: %s", response.c_str());
 
-    } while(0);
-
     // Read HTTP Response Body:
-    payload.clear();
-    http.end(); // clear http object
-    this->led.off();
+    // payload.clear();
+    // http.end();
+    // this->led.off();
 
     // Success at This Point:
-    return success;
+    return true;
 }
 
 bool GatewayClass::getIntervals(std::vector<interval_t>& inters) {

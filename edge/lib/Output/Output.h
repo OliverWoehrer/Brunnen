@@ -23,6 +23,14 @@ public:
     bool toggle(void);
 };
 
+class Runtime {
+private:
+    Digital output;
+public:
+    Runtime(Digital& output);
+    ~Runtime();
+};
+
 }
 
 #endif /* OUTPUT_H */

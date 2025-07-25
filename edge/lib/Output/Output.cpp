@@ -53,4 +53,20 @@ bool Digital::toggle() {
     return !state; // return new state
 }
 
+/**
+ * Constructor stores the reference to the given object and switches the digital output on. As
+ * long as this object lives, the digital output is on.
+ * @param digital_object digital object, like LED output
+ */
+Runtime::Runtime(Digital& digital_object) : output(digital_object) {
+    this->output.on();
+}
+
+/**
+ * Destructor switches the digital output off at destruction.
+ */
+Runtime::~Runtime() {
+    this->output.off();
+}
+
 }
