@@ -32,8 +32,9 @@
 #define BAUD_RATE 115200
 #define DEFAULT_STACK_SIZE (1024 * 4) // stack size in bytes
 #define SYNCHRONIZATION_PERIOD (1000 * 20)
-#define SERVICE_PERIOD (1000 * 60) // loop period in ms, once per minute
-#define MEASUREMENT_PERIOD 1000 // loop period in ms, once per second
+#define SERVICE_PERIOD (1000 * 60) // loop period in ms
+#define MEASUREMENT_PERIOD_SHORT 1000 // short loop period in ms (minimum of 400 ms!)
+#define MEASUREMENT_PERIOD_LONG 10000 // short loop period in ms
 #define BATCH_SIZE 60 // number of data points to be synced at once
 #define MAX_ERROR_COUNT 5
 
@@ -42,6 +43,7 @@
 //===============================================================================================
 TaskHandle_t buttonHandlerHandle = NULL;
 TaskHandle_t syncLoopHandle = NULL;
+TaskHandle_t measurementLoopHandle = NULL;
 
 /**
  * This function implements the buttonHandlerTask with an (blocking) infinite loop and gets
@@ -121,7 +123,8 @@ void updaterTask(void* parameter) {
 void synchronizationTask(void* parameter) {
     // Initalize Task:
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    unsigned int networkLoopPeriode = SYNCHRONIZATION_PERIOD; // loop periode in milliseconds
+    uint32_t syncLoopPeriode = SYNCHRONIZATION_PERIOD; // loop periode in milliseconds
+    uint32_t measurementLoopPeriod = MEASUREMENT_PERIOD_SHORT;
     size_t lastFreeHeapSize = -1; // unsigned -1 = unsigned max value
     
     // Periodic Loop:
@@ -136,8 +139,8 @@ void synchronizationTask(void* parameter) {
         Gateway.clear(); // clear any previous data
 
         // Set Sync Periode:
-        log_d("loop periode %u sec", networkLoopPeriode/1000);
-        TickType_t xFrequency = networkLoopPeriode / portTICK_PERIOD_MS;
+        log_d("loop periode %u sec", syncLoopPeriode/1000);
+        TickType_t xFrequency = syncLoopPeriode / portTICK_PERIOD_MS;
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
 
         // Check Heap Size:
@@ -206,8 +209,24 @@ void synchronizationTask(void* parameter) {
             Config.storePumpIntervals(intervals);
         }
 
+        /**
+         * [INFO]
+         * The device can be three different states during normal operation. These states decide
+         * how often sensor data is measured (measurement loop periode) and how often the device
+         * synchronizes with the server (sync loop periode). The actual length of periods short,
+         * medium or long, both for synchronization and measurement, can vary and be given by the
+         * server.
+         * 
+         * Hot State:   Measure very often and sync in short periods. If the web application needs
+         *              data in real-time or a lot of data is left to sync (sync mode = SHORT)
+         * Warm State:  Measure in long periods and sync in medium periods, compromise between
+         *              latency and bandwidth. If the system is in standby during the day
+         * Cold State:  Measure in long periods and sync in long periods. If the system is in
+         *              sleep mode during night time.
+         */
+        
         // Update Sync Periods:
-        // -> based on how much data is left to sync and what the web application asks
+        // -> based on how much data is left to sync and what the web application asks for
         sync_t sync;
         if(Gateway.getSync(&sync)) {
             unsigned int newLoopPeriode;
@@ -219,10 +238,24 @@ void synchronizationTask(void* parameter) {
             } else { // synced most of data, set according to received settings
                 newLoopPeriode = sync.periods[sync.mode] * 1000;
             }
-            if(newLoopPeriode != networkLoopPeriode) {
-                networkLoopPeriode = newLoopPeriode;
-                log_i("Updated loop periode to %u", networkLoopPeriode);
+            if(newLoopPeriode != syncLoopPeriode) {
+                syncLoopPeriode = newLoopPeriode;
+                log_i("Updated loop periode to %u", syncLoopPeriode);
             }
+        }
+
+        // Update Measurement Periods:
+        uint32_t newMeasurementLoopPeriod;
+        if(sync.mode == SHORT) { // device is in hot state, switch to faster measurement intervals
+            newMeasurementLoopPeriod = MEASUREMENT_PERIOD_SHORT;
+        } else { // device in warm or cold state, switch to slower measurement intervals
+            newMeasurementLoopPeriod = MEASUREMENT_PERIOD_LONG;
+        }
+        if(newMeasurementLoopPeriod != measurementLoopPeriod) {
+            // measurement period updated, send integer notification to measurement task
+            measurementLoopPeriod = newMeasurementLoopPeriod;
+            log_d("Notify about new measurement period: %u ms", measurementLoopPeriod);
+            xTaskNotify(measurementLoopHandle, measurementLoopPeriod, eSetValueWithOverwrite);
         }
 
         // Check for new Firmware Version:
@@ -284,20 +317,34 @@ void serviceTask(void* parameter) {
 
 /**
  * This function implements the measurementTask and periodically measures the sensor values.
- * It is implemented as a periodic loop with a periode length defined by MEASUREMENT_PERIOD
- * (currently once per second). This means the granularity of sensor data is seconds.
+ * It is implemented as a periodic loop with a periode length defined by MEASUREMENT_PERIOD_SHORT
+ * or MEASUREMENt_PERIOD_LONG. Depending on the state of the device (hot or cold state), the period
+ * changes.
  * @param parameter Pointer to a parameter struct (unused for now)
  * @note Loops evey second
  */
 void measurementTask(void* parameter) {
     // Initalize Task:
-    const TickType_t xFrequency = MEASUREMENT_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    log_d("Created measurementTask{periode %u sec} on Core %d", xFrequency/1000,xPortGetCoreID());
+    uint32_t measurementLoopPeriod = MEASUREMENT_PERIOD_SHORT;
     
     // Periodic Loop:
     while (1) {
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle,         
+        // Set Measurement Period:
+        uint32_t notification_value = MEASUREMENT_PERIOD_SHORT;
+        BaseType_t xResult = xTaskNotifyWait(0, 0, &notification_value, 0); // timeout set to 0, making it non-blocking
+        if(xResult == pdTRUE) { // check for new notification
+            // Sanity Checks:
+            log_d("Got notified about new measurement period: %u", notification_value);
+            if(MEASUREMENT_PERIOD_SHORT <= notification_value && notification_value <= MEASUREMENT_PERIOD_LONG) {
+                measurementLoopPeriod = notification_value;
+                log_d("New measurement period: %u ms");
+            }
+        }
+        TickType_t xFrequency = measurementLoopPeriod / portTICK_PERIOD_MS;
+        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle
+
+        // Read Sensor Data:
         Sensors.read();
     }
 }
@@ -371,7 +418,7 @@ void setup() {
     }
 
     // Create and Start Scheduled Tasks:
-    xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
+    xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,&measurementLoopHandle);
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(synchronizationTask,"synchronizationLoop",2*DEFAULT_STACK_SIZE,NULL,0,&syncLoopHandle); // priority 0 (same as idle task) to prevent idle task from starvation
 
