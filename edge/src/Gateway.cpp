@@ -386,18 +386,18 @@ bool GatewayClass::getSync(sync_t* buffer) {
     }
 
     // Parse Sync Periods:
-    unsigned int short_periode = sync["short"].as<unsigned int>();
-    if(!short_periode) {
+    unsigned int short_period = sync["short"].as<unsigned int>();
+    if(!short_period) {
         LogFile.log(WARNING,"sync does not have 'short' key");
         return false;
     }
-    unsigned int medium_periode = sync["medium"].as<unsigned int>();
-    if(!medium_periode) {
+    unsigned int medium_period = sync["medium"].as<unsigned int>();
+    if(!medium_period) {
         LogFile.log(WARNING,"sync does not have 'medium' key");
         return false;
     }
-    unsigned int long_periode = sync["long"].as<unsigned int>();
-    if(!long_periode) {
+    unsigned int long_period = sync["long"].as<unsigned int>();
+    if(!long_period) {
         LogFile.log(WARNING,"sync does not have 'long' key");
         return false;
     }
@@ -408,9 +408,9 @@ bool GatewayClass::getSync(sync_t* buffer) {
     }
 
     // Return Sync:
-    buffer->periods[SHORT] = short_periode;
-    buffer->periods[MEDIUM] = medium_periode;
-    buffer->periods[LONG] = long_periode;
+    buffer->periods[SHORT] = short_period;
+    buffer->periods[MEDIUM] = medium_period;
+    buffer->periods[LONG] = long_period;
     buffer->mode = stringToMode(sync_mode);
     return true;
 }

@@ -112,10 +112,10 @@ void updaterTask(void* parameter) {
 
 /**
  * This function implements the synchronizationTask and periodically connects to the backend to
- * synchronize data and settings. It is implemented as a periodic loop with a variable periode
- * length, depending on the amount of data to synchronize. The periode length is recommended by the
- * server in its response, but not mandatory. Recommended periode lengths are followed if there is no
- * data left to sync. If there is still data left to synchronize, the periode is kept at a few
+ * synchronize data and settings. It is implemented as a periodic loop with a variable period
+ * length, depending on the amount of data to synchronize. The period length is recommended by the
+ * server in its response, but not mandatory. Recommended period lengths are followed if there is no
+ * data left to sync. If there is still data left to synchronize, the period is kept at a few
  * seconds to sync again.
  * @param parameter Pointer to a parameter struct (unused for now)
  * @note Loops roughly every couple of seconds or once an hour
@@ -123,7 +123,7 @@ void updaterTask(void* parameter) {
 void synchronizationTask(void* parameter) {
     // Initalize Task:
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    uint32_t syncLoopPeriode = SYNCHRONIZATION_PERIOD; // loop periode in milliseconds
+    uint32_t syncLoopPeriod = SYNCHRONIZATION_PERIOD; // loop period in milliseconds
     uint32_t measurementLoopPeriod = MEASUREMENT_PERIOD_SHORT;
     size_t lastFreeHeapSize = -1; // unsigned -1 = unsigned max value
     
@@ -138,9 +138,9 @@ void synchronizationTask(void* parameter) {
         errorCount++; // increment for each iteration
         Gateway.clear(); // clear any previous data
 
-        // Set Sync Periode:
-        log_d("loop periode %u sec", syncLoopPeriode/1000);
-        TickType_t xFrequency = syncLoopPeriode / portTICK_PERIOD_MS;
+        // Set Sync Period:
+        log_d("loop period %u sec", syncLoopPeriod/1000);
+        TickType_t xFrequency = syncLoopPeriod / portTICK_PERIOD_MS;
         xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
 
         // Check Heap Size:
@@ -212,8 +212,8 @@ void synchronizationTask(void* parameter) {
         /**
          * [INFO]
          * The device can be three different states during normal operation. These states decide
-         * how often sensor data is measured (measurement loop periode) and how often the device
-         * synchronizes with the server (sync loop periode). The actual length of periods short,
+         * how often sensor data is measured (measurement loop period) and how often the device
+         * synchronizes with the server (sync loop period). The actual length of periods short,
          * medium or long, both for synchronization and measurement, can vary and be given by the
          * server.
          * 
@@ -229,18 +229,18 @@ void synchronizationTask(void* parameter) {
         // -> based on how much data is left to sync and what the web application asks for
         sync_t sync;
         if(Gateway.getSync(&sync)) {
-            unsigned int newLoopPeriode;
+            unsigned int newLoopPeriod;
             size_t count = DataFile.itemCount();
-            log_d("target periode sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
+            log_d("target period sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
             log_d("Data items left: %u", count);        
             if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
-                newLoopPeriode = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
+                newLoopPeriod = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
             } else { // synced most of data, set according to received settings
-                newLoopPeriode = sync.periods[sync.mode] * 1000;
+                newLoopPeriod = sync.periods[sync.mode] * 1000;
             }
-            if(newLoopPeriode != syncLoopPeriode) {
-                syncLoopPeriode = newLoopPeriode;
-                log_i("Updated loop periode to %u", syncLoopPeriode);
+            if(newLoopPeriod != syncLoopPeriod) {
+                syncLoopPeriod = newLoopPeriod;
+                log_i("Updated loop period to %u", syncLoopPeriod);
             }
         }
 
@@ -293,7 +293,7 @@ void synchronizationTask(void* parameter) {
 
 /**
  * This function implements the serviceTask and periodically checks the pump intervals (is it
- * time to switch the pump on/off). It is implemented as a periodic loop with a periode length
+ * time to switch the pump on/off). It is implemented as a periodic loop with a period length
  * defined by SERVICE_PERIOD (currently once per minute). This means the granularity of
  * intervalls is minutes.
  * @param parameter Pointer to a parameter struct (unused for now)
@@ -303,7 +303,7 @@ void serviceTask(void* parameter) {
     // Initalize Task:
     const TickType_t xFrequency = SERVICE_PERIOD / portTICK_PERIOD_MS;
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    log_d("Created serviceTask{periode %u sec} on Core %d", xFrequency/1000,xPortGetCoreID());
+    log_d("Created serviceTask{period %u sec} on Core %d", xFrequency/1000,xPortGetCoreID());
     
     // Periodic Loop:
     while (1) {
@@ -317,7 +317,7 @@ void serviceTask(void* parameter) {
 
 /**
  * This function implements the measurementTask and periodically measures the sensor values.
- * It is implemented as a periodic loop with a periode length defined by MEASUREMENT_PERIOD_SHORT
+ * It is implemented as a periodic loop with a period length defined by MEASUREMENT_PERIOD_SHORT
  * or MEASUREMENt_PERIOD_LONG. Depending on the state of the device (hot or cold state), the period
  * changes.
  * @param parameter Pointer to a parameter struct (unused for now)
