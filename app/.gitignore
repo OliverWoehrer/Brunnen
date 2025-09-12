@@ -12,3 +12,4 @@ files
 
 # Start-Up Script:
 run.sh
+.env
