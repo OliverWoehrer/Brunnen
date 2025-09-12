@@ -283,6 +283,9 @@ def synchronization():
     if settings is None:
         raise BadGateway(("Problem while reading settings: "+msg))
     sync = settings.get("sync", config.readBrunnenSettings("sync"))
+    daytime = config.readBrunnenDaytime()
+    sync["start"] = daytime.get("start","06:00:00")
+    sync["stop"] = daytime.get("stop","20:00:00")
     
     if request.method == "GET":
         return sync

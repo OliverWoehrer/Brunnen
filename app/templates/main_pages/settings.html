@@ -158,7 +158,7 @@
         <h3>Synchronization</h3>
         <form method="POST" action="/api/web/synchronization">
             <div class="w3-margin-bottom">
-                <label>Sleep Mode</label>
+                <label>Sleep Mode <span id="nighttime"></span></label>
                 <select class="w3-select" name="sleep_mode_period">
                     <option value="7200">2 Hours</option>
                     <option value="3600" selected>1 Hour</option>
@@ -270,6 +270,8 @@
 
         // Insert Values into Form:
         const sync = await response.json();
+        const sleepModeLabel = document.getElementById("nighttime");
+        sleepModeLabel.textContent = "("+sync["stop"].slice(0, -3)+" - "+sync["start"].slice(0, -3)+" UTC)"
         const sleepModeInput = document.getElementsByName("sleep_mode_period")[0];
         sleepModeInput.value = sync["long"];
         const standbyModeInput = document.getElementsByName("standby_mode_period")[0];
