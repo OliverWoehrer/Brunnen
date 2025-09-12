@@ -129,13 +129,13 @@ const char* statusToString(int statusCode) {
 
 sync_mode_t stringToMode(const char* modeString) {
     if(strcmp(modeString, "short") == 0) {
-        return SHORT;
+        return HOT;
     } else if(strcmp(modeString, "medium") == 0) {
-        return MEDIUM;
+        return WARM;
     } else if(strcmp(modeString, "long") == 0) {
-        return LONG;
+        return COLD;
     } else {
-        return MEDIUM;
+        return WARM;
     }
 }
 
@@ -408,9 +408,9 @@ bool GatewayClass::getSync(sync_t* buffer) {
     }
 
     // Return Sync:
-    buffer->periods[SHORT] = short_period;
-    buffer->periods[MEDIUM] = medium_period;
-    buffer->periods[LONG] = long_period;
+    buffer->periods[HOT] = short_period;
+    buffer->periods[WARM] = medium_period;
+    buffer->periods[COLD] = long_period;
     buffer->mode = stringToMode(sync_mode);
     return true;
 }

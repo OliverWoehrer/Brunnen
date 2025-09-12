@@ -29,13 +29,13 @@
 #define DAYLIGHT_OFFSET 3600
 
 typedef enum {
-    SHORT = 0,
-    MEDIUM = 1,
-    LONG = 2
+    COLD = 0,
+    WARM = 1,
+    HOT = 2
 } sync_mode_t;
 
 typedef struct {
-    unsigned int periods[3];
+    uint32_t periods[3];
     sync_mode_t mode;
 } sync_t;
 
