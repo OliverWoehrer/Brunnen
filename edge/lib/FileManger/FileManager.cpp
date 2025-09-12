@@ -163,7 +163,7 @@ bool FileManager::reset() {
 
     // Clean Up:
     file.close();
-    return false;
+    return true;
 }
 
 /**
