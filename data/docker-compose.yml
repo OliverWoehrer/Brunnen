@@ -1,0 +1,14 @@
+services:
+  influxdb:
+    image: influxdb:2.7.10 # Use the InfluxDB image
+    container_name: influxdb-container
+    volumes:
+      - ./influxdb:/var/lib/influxdb2 # Persistent data volume for InfluxDB
+    ports:
+      - 8086:8086
+    networks:
+      - brunnen
+
+networks:
+  brunnen:
+    external: true # Connects to the shared Docker network

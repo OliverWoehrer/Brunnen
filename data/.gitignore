@@ -3,3 +3,6 @@ influx-login.txt
 
 # Start-Up Script:
 run.sh
+
+# InfluxDB:
+influxdb/
