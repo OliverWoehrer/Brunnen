@@ -9,6 +9,7 @@ PumpClass::PumpClass() : relais(RELAIS), led(LED_YELLOW) {
     this->led.off();
     this->operatingMode = SCHEDULED;
     this->cachedOperatingMode = SCHEDULED;
+    this->state = false;
     this->scheduledState = false;
     this->threshold = 0;
 }
@@ -17,11 +18,14 @@ PumpClass::PumpClass() : relais(RELAIS), led(LED_YELLOW) {
  * @brief Toggles the state of the waterpump
  */
 void PumpClass::toggle() {
-    bool state = this->relais.toggle();
-    if(state) {
-        this->led.on();
-    } else {
+    if(this->state) {
+        this->state = false;
+        this->relais.off();
         this->led.off();
+    } else {
+        this->state = true;
+        this->relais.on();
+        this->led.on();
     }
 }
 
@@ -102,7 +106,7 @@ void PumpClass::scheduleIntervals(std::vector<interval_t>& intervals) {
 bool PumpClass::scheduler(int waterlevel) {
     // Check MANUAL Mode:
     if(this->operatingMode == MANUAL) {
-        return false; // no schedule in manual mode
+        return this->state; // no update in manual mode, return current state
     }
 
     // Get Current Time:
@@ -122,21 +126,23 @@ bool PumpClass::scheduler(int waterlevel) {
     }
 
     // Check Scheduled State Update:
-    if(newState == this->scheduledState) { // state has updated
-        return false;
+    if(newState == this->scheduledState) {
+        return this->state; // no state update needed, return current state
     }
 
     // Set Pump According to Updated State:
     this->scheduledState = newState;
     if(newState && (this->operatingMode != AUTOMATIC || waterlevel >= this->threshold)) {
+        this->state = true;
         this->relais.on();
         this->led.on();
     } else {
+        this->state = false;
         this->relais.off();
         this->led.off();
     }
 
-    return true;
+    return this->state;
 }
 
 /**

@@ -43,6 +43,7 @@ private:
     Output::Digital led;
     op_mode_t operatingMode = SCHEDULED;
     op_mode_t cachedOperatingMode = SCHEDULED;
+    bool state;
     bool scheduledState;
     int threshold = 0;
     std::vector<interval_t> intervals;
