@@ -25,18 +25,26 @@
 #include "UserInterface.h"
 #include "Sensors.h"
 
+// Helpers:
+#include "StateManager.h"
+using StateManager::system_state_t;
+
 
 //===============================================================================================
 // GLOBAL SETTINGS
 //===============================================================================================
 #define BAUD_RATE 115200
 #define DEFAULT_STACK_SIZE (1024 * 4) // stack size in bytes
-#define SYNCHRONIZATION_PERIOD (1000 * 20)
-#define SERVICE_PERIOD (1000 * 60) // loop period in ms
-#define MEASUREMENT_PERIOD_SHORT 1000 // short loop period in ms (minimum of 400 ms!)
-#define MEASUREMENT_PERIOD_LONG 10000 // short loop period in ms
 #define BATCH_SIZE 60 // number of data points to be synced at once
 #define MAX_ERROR_COUNT 5
+
+#define SYNCHRONIZATION_PERIOD_LONG (1000 * 60 * 60) // in milliseconds
+#define SYNCHRONIZATION_PERIOD_MEDIUM (1000 * 60)
+#define SYNCHRONIZATION_PERIOD_SHORT (1000 * 10)
+#define SERVICE_PERIOD (1000 * 60)
+#define MEASUREMENT_PERIOD_LONG (1000* 60)
+#define MEASUREMENT_PERIOD_MEDIUM (1000 * 10)
+#define MEASUREMENT_PERIOD_SHORT (1000 * 1) // minimum of 400 milliseconds
 
 //===============================================================================================
 // SCHEDULED TASKS
@@ -123,11 +131,22 @@ void updaterTask(void* parameter) {
 void synchronizationTask(void* parameter) {
     // Initalize Task:
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    uint32_t syncLoopPeriod = SYNCHRONIZATION_PERIOD; // loop period in milliseconds
-    uint32_t measurementLoopPeriod = MEASUREMENT_PERIOD_SHORT;
-    size_t lastFreeHeapSize = -1; // unsigned -1 = unsigned max value
+    TickType_t xFrequency = pdMS_TO_TICKS(SYNCHRONIZATION_PERIOD_SHORT);
+    const TickType_t xMaximumFrequency = pdMS_TO_TICKS(1000 * 2); // two seconds cool-off time
+
+    // Initalize Sync Periods:
+    size_t syncPeriodLong = SYNCHRONIZATION_PERIOD_LONG;
+    size_t syncPeriodMedium = SYNCHRONIZATION_PERIOD_MEDIUM;
+    size_t syncPeriodShort = SYNCHRONIZATION_PERIOD_SHORT;
+    system_state_t currentRequestedState = system_state_t::HOT;
+    const int taskID = StateManager::registerTask();
+    if(taskID == -1) {
+        log_e("Failed to register sync task at state manager");
+        return;
+    }
     
     // Periodic Loop:
+    size_t lastFreeHeapSize = -1; // unsigned -1 = unsigned max value
     uint8_t errorCount = 0; // gets reset to zero after a successful synchronization without early exit
     while (1) {
         // Initialize Loop Iteration:
@@ -138,10 +157,34 @@ void synchronizationTask(void* parameter) {
         errorCount++; // increment for each iteration
         Gateway.clear(); // clear any previous data
 
-        // Set Sync Period:
-        log_d("loop period %u sec", syncLoopPeriod/1000);
-        TickType_t xFrequency = syncLoopPeriod / portTICK_PERIOD_MS;
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
+        /**
+         * [INFO]
+         * The call waitForChange() blocks and waits for the event bit of the event group to be
+         * set. It waits for maximum time of xFrequency ticks. If the function returns and the
+         * tasks resumes its either because of two things:
+         * 1. The event bit was set, meaning the system state changed and we update the loop period
+         * accordingly. The function returns true.
+         * 2. It timedout, meaning the state did not change in the meantime and we dont know better
+         * and continue with the current loop period. The function returns false.
+         */
+
+        // Wait For Next Cycle:
+        xLastWakeTime = xTaskGetTickCount(); // get current tick time
+        if(StateManager::waitForChange(taskID, xFrequency)) { // blocking wait, state change occurred
+            // Update Sync Period:
+            system_state_t state = StateManager::getState();            
+            if(state == system_state_t::COLD) {
+                xFrequency = pdMS_TO_TICKS(syncPeriodLong);
+            } else if(state == system_state_t::WARM) {
+                xFrequency = pdMS_TO_TICKS(syncPeriodMedium);
+            } else { // STATE_HOT
+                xFrequency = pdMS_TO_TICKS(syncPeriodShort);
+            }
+            log_d("Updating sync frequency to %u milliseconds", pdTICKS_TO_MS(xFrequency));
+
+            // Introduce Minimum Loop Delay:
+            xTaskDelayUntil(&xLastWakeTime,xMaximumFrequency); // minimum cool-off time, usually never blocking 
+        } // else: timeout expired, no state change occurred
 
         // Check Heap Size:
         size_t freeHeapSize = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
@@ -164,8 +207,7 @@ void synchronizationTask(void* parameter) {
             continue;
         }
         if(sensorData.size() == 0) { // check if any data got exported
-            LogFile.log(WARNING, "No data exported");
-            LogFile.log(INFO, "Resetting data file"); // reset file to fix possible broken file
+            LogFile.log(WARNING, "No data to export");
             DataFile.clear();
         }
         if(!Gateway.insertData(sensorData)) {
@@ -219,43 +261,37 @@ void synchronizationTask(void* parameter) {
          * 
          * Hot State:   Measure very often and sync in short periods. If the web application needs
          *              data in real-time or a lot of data is left to sync (sync mode = SHORT)
-         * Warm State:  Measure in long periods and sync in medium periods, compromise between
+         * Warm State:  Measure in medium periods and sync in medium periods, compromise between
          *              latency and bandwidth. If the system is in standby during the day
          * Cold State:  Measure in long periods and sync in long periods. If the system is in
          *              sleep mode during night time.
          */
         
-        // Update Sync Periods:
+        // Update System State:
         // -> based on how much data is left to sync and what the web application asks for
         sync_t sync;
         if(Gateway.getSync(&sync)) {
-            unsigned int newLoopPeriod;
-            size_t count = DataFile.itemCount();
-            log_d("target period sync[%d] = %u sec", sync.mode, sync.periods[sync.mode]);
-            log_d("Data items left: %u", count);        
-            if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
-                newLoopPeriod = sync.periods[SHORT] * 1000; // sync loop period in milliseconds
-            } else { // synced most of data, set according to received settings
-                newLoopPeriod = sync.periods[sync.mode] * 1000;
-            }
-            if(newLoopPeriod != syncLoopPeriod) {
-                syncLoopPeriod = newLoopPeriod;
-                log_i("Updated loop period to %u", syncLoopPeriod);
-            }
-        }
+            // Update Sync Period Times:
+            syncPeriodLong = sync.periods[COLD] * 1000; // sync loop period in milliseconds
+            syncPeriodMedium = sync.periods[WARM] * 1000; // sync loop period in milliseconds
+            syncPeriodShort = sync.periods[HOT] * 1000; // sync loop period in milliseconds
 
-        // Update Measurement Periods:
-        uint32_t newMeasurementLoopPeriod;
-        if(sync.mode == SHORT) { // device is in hot state, switch to faster measurement intervals
-            newMeasurementLoopPeriod = MEASUREMENT_PERIOD_SHORT;
-        } else { // device in warm or cold state, switch to slower measurement intervals
-            newMeasurementLoopPeriod = MEASUREMENT_PERIOD_LONG;
-        }
-        if(newMeasurementLoopPeriod != measurementLoopPeriod) {
-            // measurement period updated, send integer notification to measurement task
-            measurementLoopPeriod = newMeasurementLoopPeriod;
-            log_d("Notify about new measurement period: %u ms", measurementLoopPeriod);
-            xTaskNotify(measurementLoopHandle, measurementLoopPeriod, eSetValueWithOverwrite);
+            size_t count = DataFile.itemCount();
+            log_d("Data items left: %u", count);
+            if(count > BATCH_SIZE) { // lots of data not synced, sync again soon
+                if(currentRequestedState != system_state_t::HOT) {
+                    log_d("Requesting hot system state [0x%02X]", taskID);
+                    StateManager::requestStateChange(taskID, system_state_t::HOT);
+                    currentRequestedState = system_state_t::HOT;
+                }
+            } else { // synced most of data, set according to received settings
+                system_state_t desiredState = (system_state_t)sync.mode; // sync mode to system state; COLD=0, WARM=1, HOT=2
+                if(currentRequestedState != desiredState) {
+                    log_d("Requesting system state %d [0x%02X]", desiredState, taskID);
+                    StateManager::requestStateChange(taskID, desiredState);
+                    currentRequestedState = desiredState;
+                }
+            }
         }
 
         // Check for new Firmware Version:
@@ -301,48 +337,85 @@ void synchronizationTask(void* parameter) {
  */
 void serviceTask(void* parameter) {
     // Initalize Task:
-    const TickType_t xFrequency = SERVICE_PERIOD / portTICK_PERIOD_MS;
+    const TickType_t xFrequency = pdMS_TO_TICKS(SERVICE_PERIOD);
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    log_d("Created serviceTask{period %u sec} on Core %d", xFrequency/1000,xPortGetCoreID());
+
+    // Register Task at State Manager:
+    const int taskID = StateManager::registerTask();
+    if(taskID == -1) {
+        log_e("Failed to register sync task at state manager");
+        return;
+    }
     
     // Periodic Loop:
+    bool pumpState = false;
     while (1) {
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking        
+        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle, blocking
         int waterlevel = Sensors.getWaterLevel();
-        if(Pump.scheduler(waterlevel)) {
-            log_d("Pump toggled by schedule");
+        bool newPumpState = Pump.scheduler(waterlevel);
+        if(pumpState != newPumpState) {
+            pumpState = newPumpState; // pump state has changed
+            if(pumpState) {
+                log_d("Requesting hot system state [0x%02X]", taskID);
+                StateManager::requestStateChange(taskID, system_state_t::HOT);
+            } else {
+                log_d("Requesting cold system state [0x%02X]", taskID);
+                StateManager::requestStateChange(taskID, system_state_t::COLD);
+            }
         }
     }
 }
 
 /**
  * This function implements the measurementTask and periodically measures the sensor values.
- * It is implemented as a periodic loop with a period length defined by MEASUREMENT_PERIOD_SHORT
- * or MEASUREMENt_PERIOD_LONG. Depending on the state of the device (hot or cold state), the period
- * changes.
+ * It is implemented as a periodic loop with a period length defined by MEASUREMENT_PERIOD.
+ * Depending on the state of the device (hot, warm or cold state), the period changes.
  * @param parameter Pointer to a parameter struct (unused for now)
  * @note Loops evey second
  */
 void measurementTask(void* parameter) {
     // Initalize Task:
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    uint32_t measurementLoopPeriod = MEASUREMENT_PERIOD_SHORT;
+    TickType_t xFrequency = pdMS_TO_TICKS(SYNCHRONIZATION_PERIOD_SHORT);
+    const TickType_t xMaximumFrequency = pdMS_TO_TICKS(400); // minimum loop period of 400 ms
+
+    // Register Task at State Manager:
+    const int taskID = StateManager::registerTask();
+    if(taskID == -1) {
+        log_e("Failed to register sync task at state manager");
+        return;
+    }
     
     // Periodic Loop:
     while (1) {
-        // Set Measurement Period:
-        uint32_t notification_value = MEASUREMENT_PERIOD_SHORT;
-        BaseType_t xResult = xTaskNotifyWait(0, 0, &notification_value, 0); // timeout set to 0, making it non-blocking
-        if(xResult == pdTRUE) { // check for new notification
-            // Sanity Checks:
-            log_d("Got notified about new measurement period: %u", notification_value);
-            if(MEASUREMENT_PERIOD_SHORT <= notification_value && notification_value <= MEASUREMENT_PERIOD_LONG) {
-                measurementLoopPeriod = notification_value;
-                log_d("New measurement period: %u ms");
+        /**
+         * [INFO]
+         * The call waitForChange() blocks and waits for the event bit of the event group to be
+         * set. It waits for maximum time of xFrequency ticks. If the function returns and the
+         * tasks resumes its either because of two things:
+         * 1. The event bit was set, meaning the system state changed and we update the loop period
+         * accordingly. The function returns true.
+         * 2. It timedout, meaning the state did not change in the meantime and we dont know better
+         * and continue with the current loop period. The function returns false.
+         */
+
+        // Wait For Next Cycle:
+        xLastWakeTime = xTaskGetTickCount(); // get current tick time
+        if(StateManager::waitForChange(taskID, xFrequency)) { // state change occurred
+            // Update Sync Period:
+            system_state_t state = StateManager::getState();            
+            if(state == system_state_t::COLD) {
+                xFrequency = pdMS_TO_TICKS(MEASUREMENT_PERIOD_LONG);
+            } else if(state == system_state_t::WARM) {
+                xFrequency = pdMS_TO_TICKS(MEASUREMENT_PERIOD_MEDIUM);
+            } else { // STATE_HOT
+                xFrequency = pdMS_TO_TICKS(MEASUREMENT_PERIOD_SHORT);
             }
-        }
-        TickType_t xFrequency = measurementLoopPeriod / portTICK_PERIOD_MS;
-        xTaskDelayUntil(&xLastWakeTime,xFrequency); // wait for the next cycle
+            log_d("Updating measurement frequency to %u milliseconds", pdTICKS_TO_MS(xFrequency));
+
+            // Introduce Minimum Loop Delay:
+            xTaskDelayUntil(&xLastWakeTime,xMaximumFrequency); // minimum cool-off time, usually never blocking 
+        } // else: timeout expired, no state change occurred
 
         // Read Sensor Data:
         Sensors.read();
@@ -418,7 +491,11 @@ void setup() {
     }
 
     // Create and Start Scheduled Tasks:
-    xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,&measurementLoopHandle);
+    if(!StateManager::init()) {
+        LogFile.log(ERROR, "Failed to setup system state manager");
+        return;
+    }
+    xTaskCreate(measurementTask,"measurementTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(serviceTask,"serviceTask",DEFAULT_STACK_SIZE,NULL,1,NULL);
     xTaskCreate(synchronizationTask,"synchronizationLoop",2*DEFAULT_STACK_SIZE,NULL,0,&syncLoopHandle); // priority 0 (same as idle task) to prevent idle task from starvation
 
