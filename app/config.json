@@ -7,7 +7,7 @@
     },
     "brunnen": {
         "daytime": {
-            "start": "08:00:00",
+            "start": "06:00:00",
             "stop": "20:00:00"
         },
         "settings": {
