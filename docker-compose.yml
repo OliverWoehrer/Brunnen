@@ -1,0 +1,32 @@
+services:
+  influxdb:
+    image: influxdb:2.7.10 # Use the InfluxDB image
+    container_name: influxdb
+    environment:
+      - INFLUXD_LOG_LEVEL=error
+    volumes:
+      - ./data/influxdb:/var/lib/influxdb2 # Persistent data volume for InfluxDB
+    ports:
+      - 8086:8086
+    healthcheck:
+      # This command checks if InfluxDB is ready to accept connections on port 8086.
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  treeapi:
+    build: ./app # Points to the Dockerfile in app/ directory
+    container_name: treeapi-container
+    environment:
+      - INFLUXDB_HOST=influxdb # Connects to the InfluxDB service name
+      - INFLUXDB_PORT=8086
+    env_file: "app/.env"
+    volumes:
+      - ./app:/treeapi
+    ports:
+      - 5000:5000
+    depends_on:
+      influxdb:
+        condition: service_healthy
