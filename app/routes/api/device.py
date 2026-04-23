@@ -62,6 +62,7 @@ def brunnen():
         # Parse Request Body:
         body = request.data.decode("utf-8")
         payload = json.loads(body)
+        current_app.logger.info(f"Payload: {str(payload)}")
         if "data" in payload:
             # Check JSON Fields:
             data = payload["data"]
@@ -74,23 +75,24 @@ def brunnen():
                     raise UnprocessableEntity(f"Number of given columns and actual values in row '{row}' does not match.")
                 break
 
-            # Initalize Dataframe:
-            try:
+            # Insert Payload Into Database:
+            try: # parse into Dataframe
                 df = pd.DataFrame.from_dict(data["values"], orient="index", columns=data["columns"])
                 df.reset_index(inplace=True)
                 df = df[df["index"] != ''] # filter rows with faulty timestamps
                 df.set_index("index", inplace=True)
-                df.set_index(pd.to_datetime(df.index, format="%Y-%m-%dT%H:%M:%S").tz_localize("CET"), inplace=True) # convert to datetime
+                df.set_index(pd.to_datetime(df.index, format="%Y-%m-%dT%H:%M:%S").tz_localize("CET", ambiguous="infer"), inplace=True) # convert to datetime
             except Exception as e:
-                raise InternalServerError(f"Could not convert data: {str(e)}")
-
-            # Write Data Data:
-            msg = db.insertData(data=df)
-            if msg:
-                raise BadGateway(f"Problem while inserting data: {msg}")
+                raise InternalServerError(f"Could not convert data. {str(data)} {str(e)}") from None
+                # pass # TODO: remove after debug
+            else: # insert data
+                current_app.logger.info(f"Insert data: {df}")
+                msg = db.insertData(data=df)
+                if msg:
+                    raise BadGateway(f"Problem while inserting data: {msg}")
         
         if "logs" in payload:
-            # Initalize Dataframe:
+            # Initialize Dataframe:
             logs = payload["logs"]
             df = pd.DataFrame.from_dict(logs, orient="index", columns=["message", "level"])
             df = df.set_index(pd.to_datetime(df.index).tz_localize("CET")) # convert to datetime
