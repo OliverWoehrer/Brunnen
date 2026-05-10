@@ -25,6 +25,7 @@ public:
     void read();
     void countEdge();
     int getWaterLevel();
+    std::string toString();
 private:
     Output::Digital sensorSwitch;
     Input::Analog waterPressure;

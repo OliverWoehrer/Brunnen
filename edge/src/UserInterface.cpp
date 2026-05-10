@@ -193,7 +193,8 @@ void notFound(AsyncWebServerRequest *req) {
 
 void _api_status(AsyncWebServerRequest *req) {
     std::string timestamp = Time.toString();
-    req->send(200, "text/plain", String(timestamp.c_str()));
+    std::string data = Sensors.toString();
+    req->send(200, "text/plain", "["+String(timestamp.c_str())+"] "+String(data.c_str()));
 }
 
 void _api_interval(AsyncWebServerRequest *req) {

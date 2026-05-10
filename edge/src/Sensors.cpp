@@ -64,6 +64,14 @@ int SensorClass::getWaterLevel() {
     return this->data.level;
 }
 
+/**
+ * Converts the latest sensor data into into a readable string
+ * @return string in format "Flow: XX, Pressure: XX, Level: XX"
+ */
+std::string SensorClass::toString() {
+    return "Flow: "+std::to_string(this->data.flow)+", Pressure: "+std::to_string(this->data.pressure)+", Level: "+std::to_string(this->data.level);
+}
+
 void SensorClass::edgeCounterISR() {
     Sensors.countEdge();
 }
