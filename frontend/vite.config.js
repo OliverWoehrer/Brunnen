@@ -22,7 +22,7 @@ export default defineConfig({
         vue({
             template: {
                 compilerOptions: {
-                    isCustomElement: (tag) => tag.startsWith('mdui-'), // exclude tags starting with "mdui-"
+                    isCustomElement: (tag) => tag.startsWith('mdui-') || tag.includes('-'), // exclude tags starting with "mdui-"
                 },
             },
         }),
