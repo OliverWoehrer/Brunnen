@@ -100,7 +100,7 @@ EventBits_t waitForChange(size_t taskID, TickType_t xFrequency) {
      * 2. It timedout, meaning the state did not change in the meantime
      */
     EventBits_t bitmask = 0x01 << taskID; // used to select bits in event group
-    log_d("Task with bitmask 0x%02X waiting", bitmask);
+    log_v("Task with bitmask 0x%02X waiting", bitmask);
     EventBits_t uxBits = xEventGroupWaitBits(eventGroup, bitmask, pdTRUE, pdFALSE, xFrequency);
     return uxBits & bitmask;
 }
