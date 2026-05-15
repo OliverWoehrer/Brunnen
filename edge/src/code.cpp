@@ -376,7 +376,7 @@ void serviceTask(void* parameter) {
 void measurementTask(void* parameter) {
     // Initalize Task:
     TickType_t xLastWakeTime = xTaskGetTickCount(); // initalize tick time
-    TickType_t xFrequency = pdMS_TO_TICKS(SYNCHRONIZATION_PERIOD_SHORT);
+    TickType_t xFrequency = pdMS_TO_TICKS(MEASUREMENT_PERIOD_SHORT);
     const TickType_t xMaximumFrequency = pdMS_TO_TICKS(400); // minimum loop period of 400 ms
 
     // Register Task at State Manager:
