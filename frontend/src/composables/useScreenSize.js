@@ -1,3 +1,8 @@
+/**
+ * This file provides composable helper functions (=statefull logic) across the application. It
+ * lets to determine the screen size (e.g. small, medium and large).
+ */
+
 import { ref, computed } from 'vue';
 
 const BREAKPOINTS = { small: 0, medium: 601, large: 993 };
