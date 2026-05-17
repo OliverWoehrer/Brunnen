@@ -1,0 +1,103 @@
+:root {
+    --mdui-color-shadow-dark: 255, 255, 255!important;
+}
+
+
+
+/***************************************/
+/* Overwrite Default Styles: */
+/***************************************/
+html, body {
+    box-sizing: border-box;
+    font-family: "Ubuntu", sans-serif;
+    height: 100%;
+    margin: 0;
+}
+
+
+
+/***************************************/
+/* Custom Web Components: */
+/***************************************/
+date-picker {
+    --color-selected: var(--mdui-color-primary);
+    --color-on-selected: var(--mdui-color-on-primary);
+    --shape-corner: var(--mdui-shape-corner-full);
+}
+date-picker::part(day) {
+    border-radius: var(--shape-corner);
+}
+date-picker::part(selected) {
+    background-color: rgb(var(--color-selected));
+    border-color: rgb(var(--color-selected));
+    color: rgb(var(--color-on-selected));
+}
+date-picker::part(active):hover {
+    border-color: rgb(var(--color-selected));
+    border-style: solid;
+    border-width: 1px;
+}
+date-picker::part(inactive):hover {
+    border-color: rgb(var(--color-selected));
+    border-style: solid;
+    border-width: 1px;
+}
+date-picker::part(selected):hover {
+    background-color: inherit;
+    color: inherit;
+}
+
+file-input::part(file-picker) {
+    border: none;
+    padding: 6px 12px;
+}
+
+
+
+/***************************************/
+/* MDUI Library Styles: */
+/***************************************/
+mdui-card[variant="elevated"] {
+    box-shadow: var(--mdui-elevation-level3);
+}
+
+mdui-tabs::part(container) {
+    background-color: inherit;
+}
+
+mdui-top-app-bar {
+    background-color: inherit;
+    padding: 0;
+    position: relative;
+}
+
+mdui-text-field[variant="filled"]::part(container) {
+    box-shadow: 0px 0px;
+}
+
+mdui-dialog::part(body) {
+    height: 100%;
+    width: 100%;
+}
+mdui-dialog::part(panel) {
+    width: 100%;
+}
+
+
+
+/***************************************/
+/* General CSS Classes: */
+/***************************************/
+.flex-row {
+    display: flex;
+    align-content: flex-start;
+    align-items: center;
+    gap: 12px;
+    justify-content: space-between;
+    overflow-x: hidden;
+}
+
+.info-text {
+    color: rgb(var(--mdui-color-outline-dark));
+    font-size: 0.8rem;
+}

@@ -1,5 +1,5 @@
 // Import Global Assets:
-import '@/assets/index.css';
+import '@/assets/global.css';
 
 // Initialize MDUI Components:
 import 'mdui/mdui.css';
