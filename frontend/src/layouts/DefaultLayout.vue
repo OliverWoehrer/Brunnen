@@ -1,50 +1,58 @@
 <script setup>
 import { computed } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
+import 'mdui/components/card.js';
 import 'mdui/components/layout.js';
 import 'mdui/components/layout-item.js';
 import 'mdui/components/layout-main.js';
+import 'mdui/components/navigation-bar.js';
+import 'mdui/components/navigation-bar-item.js';
+import 'mdui/components/navigation-rail.js';
+import 'mdui/components/navigation-rail-item.js';
 import { useScreenSize } from '@/composables/useScreenSize';
-import Navigation from '@/components/Navigation.vue';
 
 const { isAtLeast } = useScreenSize();
 const isLargeScreen = isAtLeast('large');
 
 const router = useRouter();
 const route = useRoute();
+const navValue = computed(() => {
+    const value = route.path.split("/")[1]; // path "/settings" -> value "settings"
+    return value || ''; // default to "/"
+});
+function onNavigate(event) {
+    const value = event.target.value;
+    router.push("/" + value);
+}
 const isProfileView = computed(() => route.path === "/profile");
+
 </script>
 
 <template>
     <mdui-layout full-height>
-        <Navigation />
-        <!-- App Bar -->
-        <mdui-top-app-bar style="justify-content: space-between;">
-            <template v-if="isLargeScreen"> <!-- large screens -->
-                <div>&nbsp;</div> <!-- placeholder so logo is middle item -->
-                <img src="/favicon-96x96.png" height="100%">
-                <template v-if="isProfileView">
-                    <mdui-button v-on:click="router.push('/profile')" variant="tonal" end-icon="account_circle">Profile</mdui-button>
-                </template>
-                <template v-else>
-                    <mdui-button v-on:click="router.push('/profile')" variant="outlined" end-icon="account_circle--outlined">Profile</mdui-button>
-                </template>
+        <!-- Navigation -->
+        <mdui-layout-item>
+            <template v-if="isLargeScreen">
+                <mdui-navigation-rail v-bind:value="navValue" v-on:change="onNavigate" alignment="center">
+                    <mdui-navigation-rail-item value="dashboard" icon="dashboard--outlined" active-icon="dashboard">Dashboard</mdui-navigation-rail-item>
+                    <mdui-navigation-rail-item value="data" icon="data_exploration--outlined" active-icon="data_exploration">Data</mdui-navigation-rail-item>
+                    <mdui-navigation-rail-item value="settings" icon="settings--outlined" active-icon="settings">Settings</mdui-navigation-rail-item>
+                    <mdui-navigation-rail-item value="profile" icon="account_circle--outlined" active-icon="account_circle">Profile</mdui-navigation-rail-item>
+                </mdui-navigation-rail>
             </template>
-            <template v-else> <!-- smaller screens -->
-                <mdui-button-icon v-on:click="router.push('/')">
-                    <mdui-icon src="/favicon.svg"></mdui-icon>
-                </mdui-button-icon>
-                <template v-if="isProfileView">
-                    <mdui-button-icon v-on:click="router.push('/profile')" variant="tonal" icon="account_circle"></mdui-button-icon>
-                </template>
-                <template v-else>
-                    <mdui-button-icon v-on:click="router.push('/profile')" variant="text" icon="account_circle--outlined"></mdui-button-icon>
-                </template>
+            <template v-else>
+                <mdui-navigation-bar v-bind:value="navValue" v-on:change="onNavigate" label-visibility="labeled">
+                    <mdui-navigation-bar-item value="dashboard" icon="dashboard--outlined" active-icon="dashboard">Dashboard</mdui-navigation-bar-item>
+                    <mdui-navigation-bar-item value="data" icon="data_exploration--outlined" active-icon="data_exploration">Data</mdui-navigation-bar-item>
+                    <mdui-navigation-bar-item value="settings" icon="settings--outlined" active-icon="settings">Settings</mdui-navigation-bar-item>
+                    <mdui-navigation-bar-item value="profile" icon="account_circle--outlined" active-icon="account_circle">Profile</mdui-navigation-bar-item>
+                </mdui-navigation-bar>
             </template>
-        </mdui-top-app-bar>
+        </mdui-layout-item>
+
         <!-- Main Content -->
         <mdui-layout-main>
-            <RouterView />
+                <RouterView />
         </mdui-layout-main>
     </mdui-layout>
 </template>
@@ -52,6 +60,6 @@ const isProfileView = computed(() => route.path === "/profile");
 
 <style scoped>
 mdui-layout-main {
-    box-sizing: content-box;
+    box-sizing: border-box;
 }
 </style>
